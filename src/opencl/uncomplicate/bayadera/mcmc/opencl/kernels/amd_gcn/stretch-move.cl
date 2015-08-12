@@ -6,7 +6,7 @@
 #endif
 
 #ifndef PARAMS_SIZE
-    #define PARAMS_SIZE
+    #define PARAMS_SIZE 2
 #endif
 
 #ifndef WGS
@@ -34,36 +34,6 @@ inline float logpdf(__constant float *params, float x) {
 }
 
 // =============================================================================
-
-inline void work_group_reduction_sum (__global ulong* acc, const ulong value) {
-
-    uint local_size = get_local_size(0);
-    uint local_id = get_local_id(0);
-
-    __local ulong lacc[WGS];
-    lacc[local_id] = value;
-
-    work_group_barrier(CLK_LOCAL_MEM_FENCE);
-
-    ulong pacc = value;
-    uint i = local_size;
-    while (i > 0) {
-        bool include_odd = (i > ((i >> 1) << 1)) && (local_id == ((i >> 1) - 1));
-        i >>= 1;
-        if (include_odd) {
-            pacc += lacc[local_id + i + 1];
-        }
-        if (local_id < i) {
-            pacc += lacc[local_id + i];
-            lacc[local_id] = pacc;
-        }
-        work_group_barrier(CLK_LOCAL_MEM_FENCE);
-    }
-
-    if(local_id == 0) {
-        acc[get_group_id(0)] = pacc;
-    }
-}
 
 inline void work_group_reduction_sum1 (__global uint* acc, const uint value) {
 

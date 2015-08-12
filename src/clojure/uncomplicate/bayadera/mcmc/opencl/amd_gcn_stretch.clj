@@ -3,27 +3,7 @@
             [me.raynes.fs :as fsc]
             [uncomplicate.clojurecl
              [core :refer :all]
-             [info :refer [info durations profiling-info]]]))
-
-(defn ^:private count-work-groups ^long [^long max-local-size ^long n]
-  (if (< max-local-size n)
-    (quot (+ n (dec max-local-size)) max-local-size)
-    1))
-
-(defn ^:private enq-reduce
-  [queue main-kernel reduce-kernel max-local-size n]
-  (loop [queue (enq-nd! queue main-kernel (work-size [n]))
-         global-size (count-work-groups max-local-size n)]
-    (if (= 1 global-size)
-      queue
-      (recur
-       (enq-nd! queue reduce-kernel (work-size [global-size]))
-       (count-work-groups max-local-size global-size)))))
-
-(defn ^:private enq-read-long ^long [queue cl-buf]
-  (let [res (long-array 1)]
-    (enq-read! queue cl-buf res)
-    (aget res 0)))
+             [toolbox :refer [count-work-groups enq-reduce enq-read-long]]]))
 
 (defprotocol MCMC
   (init! [_] [_ cl-buff])
@@ -132,9 +112,11 @@
        (build-program!
         (program-with-source
          ctx
-         [(slurp (io/resource "uncomplicate/bayadera/mcmc/opencl/kernels/amd_gcn/random.h"))
+         [(slurp (io/resource "uncomplicate/clojurecl/kernels/reduction.cl"))
+          (slurp (io/resource "uncomplicate/bayadera/mcmc/opencl/kernels/amd_gcn/random.h"))
           (slurp (io/resource "uncomplicate/bayadera/mcmc/opencl/kernels/amd_gcn/stretch-move.cl"))])
-        (format "-cl-std=CL2.0 -I%s/" tmp-dir-name)
+        (format "-cl-std=CL2.0 -DNUMBER=%s -DACCUMULATOR=%s -I%s/"
+                "ulong" "ulong" tmp-dir-name)
         nil)
        256)
       (finally

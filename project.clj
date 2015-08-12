@@ -7,8 +7,8 @@
     :license {:name "Eclipse Public License"
               :url "http://www.eclipse.org/legal/epl-v10.html"}
     :dependencies [[org.clojure/clojure "1.8.0-alpha4"]
-                   [uncomplicate/clojurecl "0.2.0"]
-                   [uncomplicate/neanderthal "0.3.0"]
+                   [uncomplicate/clojurecl "0.3.0-SNAPSHOT"]
+                   [uncomplicate/neanderthal "0.4.0-SNAPSHOT"]
                    [org.apache.commons/commons-math3 "3.3"]
                    [me.raynes/fs "1.4.6"]]
 
