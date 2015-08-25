@@ -9,13 +9,14 @@
 (defprotocol MCMCEngineFactory
   (mcmc-engine [this walker-count cl-params]))
 
-(deftype GCNStretch1D [cqueue ^long walker-count wsize ^long WGS step-counter
+(deftype GCNStretch1D [ctx cqueue ^long walker-count wsize ^long WGS
+                       ^ints step-counter
                        ^ints seed cl-params cl-xs cl-s0 cl-s1
                        cl-accept cl-accept-acc cl-means cl-means-acc
                        stretch-move-odd-kernel stretch-move-even-kernel
                        init-walkers-kernel
                        sum-accept-reduction-kernel sum-accept-kernel
-                       sum-means-reduction-kernel sum-means-kernel]
+                       sum-means-kernel]
   Releaseable
   (release [_]
     (release cl-params)
@@ -31,38 +32,54 @@
     (release init-walkers-kernel)
     (release sum-accept-reduction-kernel)
     (release sum-accept-kernel)
-    (release sum-means-reduction-kernel)
     (release sum-means-kernel))
   MCMC
   (init! [this]
     (do
-      (enq-fill! cqueue cl-accept (int-array 1))
+      (reset-counters! this)
       (set-arg! init-walkers-kernel 0
                 (doto seed (aset 0 (long (rand-int Integer/MAX_VALUE)))))
       (enq-nd! cqueue init-walkers-kernel (work-size [(/ walker-count 4)]))
-      (vreset! step-counter 0)
+      this))
+  (reset-counters! [this]
+    (do
+      (enq-fill! cqueue cl-accept (int-array 1))
+      (aset step-counter 0 0)
       this))
   (move! [this]
     (do
+      (aset step-counter 0 (inc (aget step-counter 0)))
       (set-arg! stretch-move-odd-kernel 0
                 (doto seed (aset 0 (long (rand-int Integer/MAX_VALUE)))))
+      (set-arg! stretch-move-odd-kernel 6 (doto step-counter))
       (enq-nd! cqueue stretch-move-odd-kernel wsize)
       (set-arg! stretch-move-even-kernel 0
                 (doto seed (aset 0 (long (rand-int Integer/MAX_VALUE)))))
+      (set-arg! stretch-move-even-kernel 6 step-counter)
       (enq-nd! cqueue stretch-move-even-kernel wsize)
-      (vswap! step-counter inc)
       cl-xs))
-  (run! [this n]
-    (do
-      (dotimes [_ n] (move! this))
-      this))
+  (run-sampler! [this n]
+    (let [means-count (long (count-work-groups WGS (/ walker-count 2)))]
+      (with-release [cl-means-acc (cl-buffer ctx (* Float/BYTES n) :read-write)
+                     cl-means (cl-buffer ctx (* Float/BYTES means-count n) :read-write)]
+        (reset-counters! this)
+        (enq-fill! cqueue cl-means (float-array 1))
+        (set-arg! stretch-move-odd-kernel 5 cl-means)
+        (set-arg! stretch-move-even-kernel 5 cl-means)
+        (dotimes [i n] (move! this))
+        (set-args! sum-means-kernel 0 cl-means-acc cl-means (int-array [means-count]))
+        (enq-nd! cqueue sum-means-kernel (work-size [n]))
+        ;; TODO
+        (let [means-host (float-array n)]
+          (enq-read! cqueue cl-means-acc means-host)
+          means-host))))
   (acc-rate [_]
-    (if (pos? @step-counter)
+    (if (pos? (aget step-counter 0))
       (do
         (enq-reduce cqueue sum-accept-kernel sum-accept-reduction-kernel
                     WGS (count-work-groups WGS (/ walker-count 2)))
         (/ (double (enq-read-long cqueue cl-accept-acc))
-           (* walker-count (long @step-counter))))
+           (* walker-count (aget step-counter 0))))
       Double/NaN))
   (acor [_]
     :todo))
@@ -79,6 +96,7 @@
           accept-acc-count (count-work-groups WGS accept-count)
           bytecount (long (* Float/BYTES cnt))
           seed (int-array 1)
+          step-counter (int-array 1)
           cl-params (let [par-buf (cl-buffer ctx
                                              (* Float/BYTES
                                                 (alength ^floats params))
@@ -93,7 +111,8 @@
           cl-means (cl-buffer ctx (* Float/BYTES accept-count) :read-write)
           cl-means-acc (cl-buffer ctx (* Float/BYTES accept-acc-count) :read-write)]
       (->GCNStretch1D
-       queue walker-count (work-size [(/ walker-count 2)]) WGS (volatile! 0)
+       ctx queue walker-count (work-size [(/ walker-count 2)]) WGS
+       step-counter
        seed cl-params cl-xs cl-s0 cl-s1
        cl-accept cl-accept-acc cl-means cl-means-acc
        (doto (kernel prog "stretch_move1")
@@ -103,8 +122,7 @@
        (doto (kernel prog "init_walkers") (set-arg! 1 cl-xs))
        (doto (kernel prog "sum_accept_reduction") (set-arg! 0 cl-accept-acc))
        (doto (kernel prog "sum_accept_reduce") (set-args! 0 cl-accept-acc cl-accept))
-       (doto (kernel prog "sum_means_reduction") (set-arg! 0 cl-means-acc))
-       (doto (kernel prog "sum_means_reduce") (set-args! 0 cl-means-acc cl-means))))))
+       (kernel prog "sum_means")))))
 
 (defn ^:private copy-random123 [include-name tmp-dir-name]
   (io/copy

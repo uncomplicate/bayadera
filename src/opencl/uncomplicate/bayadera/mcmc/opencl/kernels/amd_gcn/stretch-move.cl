@@ -38,7 +38,8 @@ inline float logpdf(__constant float *params, float x) {
 inline void work_group_reduction_accumulate (__global uint* accept,
                                              const uint accepted,
                                              __global float* acc,
-                                             const float value) {
+                                             const float value,
+                                             const uint step_counter) {
 
     uint local_size = get_local_size(0);
     uint local_id = get_local_id(0);
@@ -67,7 +68,7 @@ inline void work_group_reduction_accumulate (__global uint* accept,
 
     if(local_id == 0) {
         accept[get_group_id(0)] += paccept;
-        acc[get_group_id(0)] += pacc;
+        acc[get_group_id(0) + step_counter] += pacc;
     }
 }
 
@@ -113,24 +114,26 @@ __kernel void sum_accept_reduce (__global ulong* acc, __global uint* data) {
 }
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
-__kernel void sum_means_reduction (__global float* acc) {
-    work_group_reduction_sum(acc, acc[get_global_id(0)]);
-}
-
-__attribute__((reqd_work_group_size(WGS, 1, 1)))
-__kernel void sum_means_reduce (__global float* acc, __global float* data) {
-    work_group_reduction_sum(acc, (ulong)data[get_global_id(0)]);
+__kernel void sum_means (__global float* acc, __global float* data,
+                         const uint n) {
+    uint gid = get_global_id(0);
+    uint start = gid * n;
+    float pacc = 0.0;
+    for(uint i = 0; i < n; i++) {
+        pacc += data[start + i];
+    }
+    acc[gid] = pacc / (n * WGS * 2);
 }
 
 // =============================================================================
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
-__kernel void stretch_move1(uint const seed,
+__kernel void stretch_move1(const uint seed,
                             __constant const float *params
                             __attribute__ ((max_constant_size(PARAMS_SIZE))),
                             __global const float *Scompl, __global float *X,
                             __global uint *accept,
-                            __global float *means) {
+                            __global float *means, const uint step_counter) {
 
     // Get the index of this walker Xk
     uint k = get_global_id(0);
@@ -153,12 +156,13 @@ __kernel void stretch_move1(uint const seed,
     bool accepted = u.s2 <= q;
 
     work_group_reduction_accumulate(accept, accepted ? 1 : 0,
-                                    means, accepted ? Y : Xk);
+                                    means, accepted ? Y : Xk, step_counter);
 
     if (accepted) {
         X[k] = Y;
     }
 }
+
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
 __kernel void pdf_kernel(__constant const float *params
