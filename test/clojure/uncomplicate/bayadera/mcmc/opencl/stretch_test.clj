@@ -16,11 +16,11 @@
          xs (float-array walker-count)]
      (with-release [mcmc-engine-factory (gcn-stretch-1d-engine-factory ctx cqueue)
                     engine (mcmc-engine mcmc-engine-factory walker-count params)]
-       (doto engine (init!) (burn-in! 1000))
+       (doto engine (init!) (run! 1000))
        (enq-read! cqueue
                   (move! engine)
                   xs) => cqueue
                   ;;(frequencies (map #(Math/round (* % 10)) xs)) => :Xk
                   (< 0.75 (acc-rate engine) 0.80) => true
-
+                  (println (acc-rate engine))
                   ))))

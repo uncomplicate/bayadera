@@ -35,21 +35,61 @@ inline float logpdf(__constant float *params, float x) {
 
 // =============================================================================
 
-inline void work_group_reduction_accumulate (__global uint* acc,
-                                             const uint value) {
+inline void work_group_reduction_accumulate (__global uint* accept,
+                                             const uint accepted,
+                                             __global float* acc,
+                                             const float value) {
 
     uint local_size = get_local_size(0);
     uint local_id = get_local_id(0);
 
-    __local uint lacc[WGS];
+    __local uint laccept[WGS];
+    laccept[local_id] = accepted;
+
+    __local float lacc[WGS];
     lacc[local_id] = value;
 
     work_group_barrier(CLK_LOCAL_MEM_FENCE);
 
-    uint pacc = value;
+    uint paccept = accepted;
+    float pacc = value;
     uint i = local_size;
     while (i > 0) {
         i >>= 1;
+        if (local_id < i) {
+            paccept += laccept[local_id + i];
+            laccept[local_id] = paccept;
+            pacc += lacc[local_id + i];
+            lacc[local_id] = pacc;
+        }
+        work_group_barrier(CLK_LOCAL_MEM_FENCE);
+    }
+
+    if(local_id == 0) {
+        accept[get_group_id(0)] += paccept;
+        acc[get_group_id(0)] += pacc;
+    }
+}
+
+inline void work_group_reduction_sum_ulong (__global ulong* acc,
+                                            const ulong value) {
+
+    uint local_size = get_local_size(0);
+    uint local_id = get_local_id(0);
+
+    __local ulong lacc[WGS];
+    lacc[local_id] = value;
+
+    work_group_barrier(CLK_LOCAL_MEM_FENCE);
+
+    ulong pacc = value;
+    uint i = local_size;
+    while (i > 0) {
+        bool include_odd = (i > ((i >> 1) << 1)) && (local_id == ((i >> 1) - 1));
+        i >>= 1;
+        if (include_odd) {
+            pacc += lacc[local_id + i + 1];
+        }
         if (local_id < i) {
             pacc += lacc[local_id + i];
             lacc[local_id] = pacc;
@@ -58,17 +98,27 @@ inline void work_group_reduction_accumulate (__global uint* acc,
     }
 
     if(local_id == 0) {
-        acc[get_group_id(0)] += pacc;
+        acc[get_group_id(0)] = pacc;
     }
 }
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
-__kernel void sum_reduction (__global ulong* acc) {
-    work_group_reduction_sum(acc, acc[get_global_id(0)]);
+__kernel void sum_accept_reduction (__global ulong* acc) {
+    work_group_reduction_sum_ulong(acc, acc[get_global_id(0)]);
 }
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
 __kernel void sum_accept_reduce (__global ulong* acc, __global uint* data) {
+    work_group_reduction_sum_ulong(acc, (ulong)data[get_global_id(0)]);
+}
+
+__attribute__((reqd_work_group_size(WGS, 1, 1)))
+__kernel void sum_means_reduction (__global float* acc) {
+    work_group_reduction_sum(acc, acc[get_global_id(0)]);
+}
+
+__attribute__((reqd_work_group_size(WGS, 1, 1)))
+__kernel void sum_means_reduce (__global float* acc, __global float* data) {
     work_group_reduction_sum(acc, (ulong)data[get_global_id(0)]);
 }
 
@@ -79,7 +129,8 @@ __kernel void stretch_move1(uint const seed,
                             __constant const float *params
                             __attribute__ ((max_constant_size(PARAMS_SIZE))),
                             __global const float *Scompl, __global float *X,
-                            __global uint *accept) {
+                            __global uint *accept,
+                            __global float *means) {
 
     // Get the index of this walker Xk
     uint k = get_global_id(0);
@@ -100,7 +151,9 @@ __kernel void stretch_move1(uint const seed,
     float q = native_exp(logpdf(params, Y) - logpdf(params, Xk));
 
     bool accepted = u.s2 <= q;
-    work_group_reduction_accumulate(accept, accepted ? 1 : 0);
+
+    work_group_reduction_accumulate(accept, accepted ? 1 : 0,
+                                    means, accepted ? Y : Xk);
 
     if (accepted) {
         X[k] = Y;

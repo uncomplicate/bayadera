@@ -10,9 +10,12 @@
   (mcmc-engine [this walker-count cl-params]))
 
 (deftype GCNStretch1D [cqueue ^long walker-count wsize ^long WGS step-counter
-                       ^ints seed cl-params cl-xs cl-s0 cl-s1 cl-accept cl-accept-acc
+                       ^ints seed cl-params cl-xs cl-s0 cl-s1
+                       cl-accept cl-accept-acc cl-means cl-means-acc
                        stretch-move-odd-kernel stretch-move-even-kernel
-                       init-walkers-kernel sum-reduction-kernel sum-accept-kernel]
+                       init-walkers-kernel
+                       sum-accept-reduction-kernel sum-accept-kernel
+                       sum-means-reduction-kernel sum-means-kernel]
   Releaseable
   (release [_]
     (release cl-params)
@@ -21,11 +24,15 @@
     (release cl-s1)
     (release cl-accept)
     (release cl-accept-acc)
+    (release cl-means)
+    (release cl-means-acc)
     (release stretch-move-odd-kernel)
     (release stretch-move-even-kernel)
     (release init-walkers-kernel)
-    (release sum-reduction-kernel)
-    (release sum-accept-kernel))
+    (release sum-accept-reduction-kernel)
+    (release sum-accept-kernel)
+    (release sum-means-reduction-kernel)
+    (release sum-means-kernel))
   MCMC
   (init! [this]
     (do
@@ -33,7 +40,7 @@
       (set-arg! init-walkers-kernel 0
                 (doto seed (aset 0 (long (rand-int Integer/MAX_VALUE)))))
       (enq-nd! cqueue init-walkers-kernel (work-size [(/ walker-count 4)]))
-      (compare-and-set! step-counter @step-counter 0)
+      (vreset! step-counter 0)
       this))
   (move! [this]
     (do
@@ -43,22 +50,22 @@
       (set-arg! stretch-move-even-kernel 0
                 (doto seed (aset 0 (long (rand-int Integer/MAX_VALUE)))))
       (enq-nd! cqueue stretch-move-even-kernel wsize)
-      (swap! step-counter inc)
+      (vswap! step-counter inc)
       cl-xs))
-  (burn-in! [this n]
+  (run! [this n]
     (do
       (dotimes [_ n] (move! this))
       this))
   (acc-rate [_]
     (if (pos? @step-counter)
       (do
-        (enq-reduce cqueue sum-accept-kernel sum-reduction-kernel
+        (enq-reduce cqueue sum-accept-kernel sum-accept-reduction-kernel
                     WGS (count-work-groups WGS (/ walker-count 2)))
         (/ (double (enq-read-long cqueue cl-accept-acc))
            (* walker-count (long @step-counter))))
       Double/NaN))
   (acor [_]
-    ))
+    :todo))
 
 (deftype GCNStretch1DEngineFactory [ctx queue prog ^long WGS]
   Releaseable
@@ -67,29 +74,37 @@
   MCMCEngineFactory
   (mcmc-engine [_ walker-count params]
     (let [walker-count (long walker-count)
-          cnt (/ walker-count 2)
+          cnt (long (/ walker-count 2))
           accept-count (count-work-groups WGS cnt)
           accept-acc-count (count-work-groups WGS accept-count)
           bytecount (long (* Float/BYTES cnt))
           seed (int-array 1)
-          cl-params (let [par-buf (cl-buffer ctx (* Float/BYTES (alength ^floats  params)) :read-only)]
+          cl-params (let [par-buf (cl-buffer ctx
+                                             (* Float/BYTES
+                                                (alength ^floats params))
+                                             :read-only)]
                       (enq-write! queue par-buf params)
                       par-buf)
           cl-xs (cl-buffer ctx (* 2 bytecount) :read-write)
           cl-s0 (cl-sub-buffer cl-xs 0 bytecount :read-write)
           cl-s1 (cl-sub-buffer cl-xs bytecount bytecount :read-write)
           cl-accept (cl-buffer ctx (* Integer/BYTES accept-count) :read-write)
-          cl-accept-acc (cl-buffer ctx (* Long/BYTES accept-acc-count) :read-write)]
+          cl-accept-acc (cl-buffer ctx (* Long/BYTES accept-acc-count) :read-write)
+          cl-means (cl-buffer ctx (* Float/BYTES accept-count) :read-write)
+          cl-means-acc (cl-buffer ctx (* Float/BYTES accept-acc-count) :read-write)]
       (->GCNStretch1D
-       queue walker-count (work-size [(/ walker-count 2)]) WGS (atom 0)
-       seed cl-params cl-xs cl-s0 cl-s1 cl-accept cl-accept-acc
+       queue walker-count (work-size [(/ walker-count 2)]) WGS (volatile! 0)
+       seed cl-params cl-xs cl-s0 cl-s1
+       cl-accept cl-accept-acc cl-means cl-means-acc
        (doto (kernel prog "stretch_move1")
-         (set-args! 1 cl-params cl-s0 cl-s1 cl-accept))
+         (set-args! 1 cl-params cl-s0 cl-s1 cl-accept cl-means))
        (doto (kernel prog "stretch_move1")
-         (set-args! 1 cl-params cl-s1 cl-s0 cl-accept))
+         (set-args! 1 cl-params cl-s1 cl-s0 cl-accept cl-means))
        (doto (kernel prog "init_walkers") (set-arg! 1 cl-xs))
-       (doto (kernel prog "sum_reduction") (set-arg! 0 cl-accept-acc))
-       (doto (kernel prog "sum_accept_reduce") (set-args! 0 cl-accept-acc cl-accept))))))
+       (doto (kernel prog "sum_accept_reduction") (set-arg! 0 cl-accept-acc))
+       (doto (kernel prog "sum_accept_reduce") (set-args! 0 cl-accept-acc cl-accept))
+       (doto (kernel prog "sum_means_reduction") (set-arg! 0 cl-means-acc))
+       (doto (kernel prog "sum_means_reduce") (set-args! 0 cl-means-acc cl-means))))))
 
 (defn ^:private copy-random123 [include-name tmp-dir-name]
   (io/copy
@@ -113,8 +128,7 @@
          [(slurp (io/resource "uncomplicate/clojurecl/kernels/reduction.cl"))
           (slurp (io/resource "uncomplicate/bayadera/mcmc/opencl/kernels/amd_gcn/random.h"))
           (slurp (io/resource "uncomplicate/bayadera/mcmc/opencl/kernels/amd_gcn/stretch-move.cl"))])
-        (format "-cl-std=CL2.0 -DNUMBER=%s -DACCUMULATOR=%s -I%s/"
-                "ulong" "ulong" tmp-dir-name)
+        (format "-cl-std=CL2.0 -DACCUMULATOR=float -I%s/" tmp-dir-name)
         nil)
        256)
       (finally

@@ -3,5 +3,6 @@
 (defprotocol MCMC
   (init! [_] [_ walkers])
   (move! [this])
-  (burn-in! [this n])
-  (acc-rate [this]))
+  (run! [this n])
+  (acc-rate [this])
+  (acor [this]))
