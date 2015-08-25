@@ -35,7 +35,8 @@ inline float logpdf(__constant float *params, float x) {
 
 // =============================================================================
 
-inline void work_group_reduction_sum1 (__global uint* acc, const uint value) {
+inline void work_group_reduction_accumulate (__global uint* acc,
+                                             const uint value) {
 
     uint local_size = get_local_size(0);
     uint local_id = get_local_id(0);
@@ -99,7 +100,7 @@ __kernel void stretch_move1(uint const seed,
     float q = native_exp(logpdf(params, Y) - logpdf(params, Xk));
 
     bool accepted = u.s2 <= q;
-    work_group_reduction_sum1(accept, accepted ? 1 : 0);
+    work_group_reduction_accumulate(accept, accepted ? 1 : 0);
 
     if (accepted) {
         X[k] = Y;
@@ -107,13 +108,23 @@ __kernel void stretch_move1(uint const seed,
 }
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
-__kernel void eval_pdf1(__constant const float *params
-                        __attribute__ ((max_constant_size(PARAMS_SIZE))),
-                        __global const float *X,
-                        __global float *pdf) {
+__kernel void pdf_kernel(__constant const float *params
+                         __attribute__ ((max_constant_size(PARAMS_SIZE))),
+                         __global const float *X,
+                         __global float *pdf) {
 
     uint gid = get_global_id(0);
     pdf[gid] = native_exp(logpdf(params, X[gid]));
+}
+
+__attribute__((reqd_work_group_size(WGS, 1, 1)))
+__kernel void logpdf_kernel(__constant const float *params
+                            __attribute__ ((max_constant_size(PARAMS_SIZE))),
+                            __global const float *X,
+                            __global float *pdf) {
+
+    uint gid = get_global_id(0);
+    pdf[gid] = logpdf(params, X[gid]);
 }
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))

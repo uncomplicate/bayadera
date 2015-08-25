@@ -3,6 +3,7 @@
             [clojure.core.async :refer [chan <!!]]
             [uncomplicate.clojurecl
              [core :refer :all]]
+            [uncomplicate.bayadera.protocols :refer :all]
             [uncomplicate.bayadera.mcmc.opencl.amd-gcn-stretch :refer :all]))
 
 (with-release [dev (first (devices (first (platforms))))

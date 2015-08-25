@@ -2,14 +2,15 @@
                           (System/getProperty "os.name")
                           "-gpp-jni")]
   (defproject uncomplicate/bayadera "0.1.0-SNAPSHOT"
-    :description "FIXME: write description"
+    :description "Clojure Bayesian Inference and Probabilistic Machine Learning Library"
     :url "http://github.com/blueberry/bayadera"
+    :scm {:name "git"
+          :url "https://github.com/blueberry/bayadera"}
     :license {:name "Eclipse Public License"
               :url "http://www.eclipse.org/legal/epl-v10.html"}
     :dependencies [[org.clojure/clojure "1.8.0-alpha4"]
                    [uncomplicate/clojurecl "0.3.0-SNAPSHOT"]
                    [uncomplicate/neanderthal "0.4.0-SNAPSHOT"]
-                   [org.apache.commons/commons-math3 "3.3"]
                    [me.raynes/fs "1.4.6"]]
 
     :global-vars {*warn-on-reflection* true

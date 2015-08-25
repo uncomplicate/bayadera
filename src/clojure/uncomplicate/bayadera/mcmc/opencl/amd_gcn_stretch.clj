@@ -3,13 +3,8 @@
             [me.raynes.fs :as fsc]
             [uncomplicate.clojurecl
              [core :refer :all]
-             [toolbox :refer [count-work-groups enq-reduce enq-read-long]]]))
-
-(defprotocol MCMC
-  (init! [_] [_ cl-buff])
-  (move! [this])
-  (burn-in! [this n])
-  (acc-rate [this]))
+             [toolbox :refer [count-work-groups enq-reduce enq-read-long]]]
+            [uncomplicate.bayadera.protocols :refer :all]))
 
 (defprotocol MCMCEngineFactory
   (mcmc-engine [this walker-count cl-params]))
@@ -59,8 +54,11 @@
       (do
         (enq-reduce cqueue sum-accept-kernel sum-reduction-kernel
                     WGS (count-work-groups WGS (/ walker-count 2)))
-        (double (/ (enq-read-long cqueue cl-accept-acc) (* walker-count (long @step-counter)))))
-      Double/NaN)))
+        (/ (double (enq-read-long cqueue cl-accept-acc))
+           (* walker-count (long @step-counter))))
+      Double/NaN))
+  (acor [_]
+    ))
 
 (deftype GCNStretch1DEngineFactory [ctx queue prog ^long WGS]
   Releaseable
