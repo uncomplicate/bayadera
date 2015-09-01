@@ -4,19 +4,24 @@
             [uncomplicate.clojurecl
              [core :refer :all]
              [toolbox :refer [count-work-groups enq-reduce enq-read-long]]]
+            [uncomplicate.neanderthal
+             [core :refer [sum]]
+             [native :refer [sv sge]]
+             [opencl :refer [clv clge read!]]]
+            [uncomplicate.neanderthal.opencl.amd-gcn :refer [gcn-single]]
             [uncomplicate.bayadera.protocols :refer :all]))
 
 (defprotocol MCMCEngineFactory
   (mcmc-engine [this walker-count cl-params]))
 
-(deftype GCNStretch1D [ctx cqueue ^long walker-count wsize ^long WGS
-                       ^ints step-counter
+(deftype GCNStretch1D [ctx cqueue neanderthal-factory ^long walker-count wsize
+                       ^long WGS ^ints step-counter
                        ^ints seed cl-params cl-xs cl-s0 cl-s1
-                       cl-accept cl-accept-acc cl-means cl-means-acc
+                       cl-accept cl-accept-acc
                        stretch-move-odd-kernel stretch-move-even-kernel
                        init-walkers-kernel
                        sum-accept-reduction-kernel sum-accept-kernel
-                       sum-means-kernel]
+                       sum-means-kernel subtract-mean-kernel]
   Releaseable
   (release [_]
     (release cl-params)
@@ -25,14 +30,13 @@
     (release cl-s1)
     (release cl-accept)
     (release cl-accept-acc)
-    (release cl-means)
-    (release cl-means-acc)
     (release stretch-move-odd-kernel)
     (release stretch-move-even-kernel)
     (release init-walkers-kernel)
     (release sum-accept-reduction-kernel)
     (release sum-accept-kernel)
-    (release sum-means-kernel))
+    (release sum-means-kernel)
+    (release subtract-mean-kernel))
   MCMC
   (init! [this]
     (do
@@ -48,7 +52,6 @@
       this))
   (move! [this]
     (do
-      (aset step-counter 0 (inc (aget step-counter 0)))
       (set-arg! stretch-move-odd-kernel 0
                 (doto seed (aset 0 (long (rand-int Integer/MAX_VALUE)))))
       (set-arg! stretch-move-odd-kernel 6 (doto step-counter))
@@ -57,22 +60,26 @@
                 (doto seed (aset 0 (long (rand-int Integer/MAX_VALUE)))))
       (set-arg! stretch-move-even-kernel 6 step-counter)
       (enq-nd! cqueue stretch-move-even-kernel wsize)
+      (aset step-counter 0 (inc (aget step-counter 0)))
       cl-xs))
   (run-sampler! [this n]
     (let [means-count (long (count-work-groups WGS (/ walker-count 2)))]
-      (with-release [cl-means-acc (cl-buffer ctx (* Float/BYTES n) :read-write)
+      (with-release [cl-means-vec (clv neanderthal-factory n)
                      cl-means (cl-buffer ctx (* Float/BYTES means-count n) :read-write)]
         (reset-counters! this)
         (enq-fill! cqueue cl-means (float-array 1))
         (set-arg! stretch-move-odd-kernel 5 cl-means)
         (set-arg! stretch-move-even-kernel 5 cl-means)
         (dotimes [i n] (move! this))
-        (set-args! sum-means-kernel 0 cl-means-acc cl-means (int-array [means-count]))
+        (set-args! sum-means-kernel 0 (.buffer cl-means-vec)
+                   cl-means (int-array [means-count]))
         (enq-nd! cqueue sum-means-kernel (work-size [n]))
-        ;; TODO
-        (let [means-host (float-array n)]
-          (enq-read! cqueue cl-means-acc means-host)
-          means-host))))
+        ;;[(read! cl-means-vec (sv n)) (read! (clge neanderthal-factory means-count n cl-means) (sge means-count n))]
+        (let [total-mean (/ (sum cl-means-vec) n)]
+          (set-args! subtract-mean-kernel 0 (.buffer cl-means-vec)
+                     (float-array [total-mean]))
+          (enq-nd! cqueue subtract-mean-kernel (work-size [n]))
+          [total-mean (read! cl-means-vec (sv n))]))))
   (acc-rate [_]
     (if (pos? (aget step-counter 0))
       (do
@@ -84,10 +91,11 @@
   (acor [_]
     :todo))
 
-(deftype GCNStretch1DEngineFactory [ctx queue prog ^long WGS]
+(deftype GCNStretch1DEngineFactory [ctx queue neanderthal-factory prog ^long WGS]
   Releaseable
   (release [_]
-    (release prog))
+    (release prog)
+    (release neanderthal-factory))
   MCMCEngineFactory
   (mcmc-engine [_ walker-count params]
     (let [walker-count (long walker-count)
@@ -107,22 +115,21 @@
           cl-s0 (cl-sub-buffer cl-xs 0 bytecount :read-write)
           cl-s1 (cl-sub-buffer cl-xs bytecount bytecount :read-write)
           cl-accept (cl-buffer ctx (* Integer/BYTES accept-count) :read-write)
-          cl-accept-acc (cl-buffer ctx (* Long/BYTES accept-acc-count) :read-write)
-          cl-means (cl-buffer ctx (* Float/BYTES accept-count) :read-write)
-          cl-means-acc (cl-buffer ctx (* Float/BYTES accept-acc-count) :read-write)]
+          cl-accept-acc (cl-buffer ctx (* Long/BYTES accept-acc-count) :read-write)]
       (->GCNStretch1D
-       ctx queue walker-count (work-size [(/ walker-count 2)]) WGS
-       step-counter
+       ctx queue neanderthal-factory
+       walker-count (work-size [(/ walker-count 2)]) WGS step-counter
        seed cl-params cl-xs cl-s0 cl-s1
-       cl-accept cl-accept-acc cl-means cl-means-acc
+       cl-accept cl-accept-acc
        (doto (kernel prog "stretch_move1")
-         (set-args! 1 cl-params cl-s0 cl-s1 cl-accept cl-means))
+         (set-args! 1 cl-params cl-s0 cl-s1 cl-accept))
        (doto (kernel prog "stretch_move1")
-         (set-args! 1 cl-params cl-s1 cl-s0 cl-accept cl-means))
+         (set-args! 1 cl-params cl-s1 cl-s0 cl-accept))
        (doto (kernel prog "init_walkers") (set-arg! 1 cl-xs))
        (doto (kernel prog "sum_accept_reduction") (set-arg! 0 cl-accept-acc))
        (doto (kernel prog "sum_accept_reduce") (set-args! 0 cl-accept-acc cl-accept))
-       (kernel prog "sum_means")))))
+       (kernel prog "sum_means")
+       (kernel prog "subtract_mean")))))
 
 (defn ^:private copy-random123 [include-name tmp-dir-name]
   (io/copy
@@ -138,16 +145,17 @@
       (doseq [res-name ["philox.h" "array.h" "features/compilerfeatures.h"
                         "features/openclfeatures.h" "features/sse.h"]]
         (copy-random123 res-name tmp-dir-name))
-      (->GCNStretch1DEngineFactory
-       ctx cqueue
-       (build-program!
-        (program-with-source
-         ctx
-         [(slurp (io/resource "uncomplicate/clojurecl/kernels/reduction.cl"))
-          (slurp (io/resource "uncomplicate/bayadera/mcmc/opencl/kernels/amd_gcn/random.h"))
-          (slurp (io/resource "uncomplicate/bayadera/mcmc/opencl/kernels/amd_gcn/stretch-move.cl"))])
-        (format "-cl-std=CL2.0 -DACCUMULATOR=float -I%s/" tmp-dir-name)
-        nil)
-       256)
+      (let [neanderthal-factory (gcn-single ctx cqueue)]
+        (->GCNStretch1DEngineFactory
+         ctx cqueue neanderthal-factory
+         (build-program!
+          (program-with-source
+           ctx
+           [(slurp (io/resource "uncomplicate/clojurecl/kernels/reduction.cl"))
+            (slurp (io/resource "uncomplicate/bayadera/mcmc/opencl/kernels/amd_gcn/random.h"))
+            (slurp (io/resource "uncomplicate/bayadera/mcmc/opencl/kernels/amd_gcn/stretch-move.cl"))])
+          (format "-cl-std=CL2.0 -DACCUMULATOR=float -I%s/" tmp-dir-name)
+          nil)
+         256))
       (finally
         (fsc/delete-dir tmp-dir-name)))))

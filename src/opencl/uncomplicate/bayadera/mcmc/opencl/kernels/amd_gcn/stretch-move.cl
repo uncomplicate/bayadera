@@ -66,9 +66,10 @@ inline void work_group_reduction_accumulate (__global uint* accept,
         work_group_barrier(CLK_LOCAL_MEM_FENCE);
     }
 
+    uint group_id = get_group_id(0);
     if(local_id == 0) {
-        accept[get_group_id(0)] += paccept;
-        acc[get_group_id(0) + step_counter] += pacc;
+        accept[group_id] += paccept;
+        acc[group_id + get_num_groups(0) * step_counter] += pacc;
     }
 }
 
@@ -123,6 +124,12 @@ __kernel void sum_means (__global float* acc, __global float* data,
         pacc += data[start + i];
     }
     acc[gid] = pacc / (n * WGS * 2);
+}
+
+__attribute__((reqd_work_group_size(WGS, 1, 1)))
+__kernel void subtract_mean (__global float* means, float mean) {
+    uint gid = get_global_id(0);
+    means[gid] = means[gid] - mean;
 }
 
 // =============================================================================
