@@ -110,12 +110,12 @@ __kernel void sum_accept_reduction (__global ulong* acc) {
 }
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
-__kernel void sum_accept_reduce (__global ulong* acc, __global uint* data) {
+__kernel void sum_accept_reduce (__global ulong* acc, __global const uint* data) {
     work_group_reduction_sum_ulong(acc, (ulong)data[get_global_id(0)]);
 }
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
-__kernel void sum_means (__global float* acc, __global float* data,
+__kernel void sum_means (__global float* acc, __global const float* data,
                          const uint n) {
     uint gid = get_global_id(0);
     uint start = gid * n;
@@ -127,10 +127,83 @@ __kernel void sum_means (__global float* acc, __global float* data,
 }
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
-__kernel void subtract_mean (__global float* means, float mean) {
+__kernel void subtract_mean (__global float* means, const float mean) {
     uint gid = get_global_id(0);
-    means[gid] = means[gid] - mean;
+    means[gid] -= mean;
 }
+
+inline void work_group_reduction_autocovariance (__global float* c0acc,
+                                                 __global float* dacc,
+                                                 const float x2,
+                                                 const float xacc) {
+
+    uint local_size = get_local_size(0);
+    uint local_id = get_local_id(0);
+
+    __local float lc0[WGS];
+    lc0[local_id] = x2;
+
+    __local float ld[WGS];
+    ld[local_id] = xacc;
+
+    work_group_barrier(CLK_LOCAL_MEM_FENCE);
+
+    float pc0 = x2;
+    float pd = xacc;
+
+    uint i = local_size;
+    while (i > 0) {
+        i >>= 1;
+        if (local_id < i) {
+            pc0 += lc0[local_id + i];
+            lc0[local_id] = pc0;
+            pd += ld[local_id + i];
+            ld[local_id] = pd;
+        }
+        work_group_barrier(CLK_LOCAL_MEM_FENCE);
+    }
+
+    uint group_id = get_group_id(0);
+    if(local_id == 0) {
+        c0acc[group_id] = pc0;
+        dacc[group_id] = pd;
+    }
+}
+
+#define TAUMAX 8
+#define WINMULT 8
+#define MAXLAG TAUMAX * WINMULT
+#define MINFAC 8
+
+__attribute__((reqd_work_group_size(WGS, 1, 1)))
+__kernel void autocovariance (__global float* c0acc, __global float* dacc,
+                              __global float* const means) {
+    uint gid = get_global_id(0);
+    uint lid = get_local_id(0);
+
+    __local float local_means[WGS + MAXLAG];
+
+    float x = 0.0 + means[gid];
+    local_means[lid] = x;
+
+    if (lid < MAXLAG) {
+        local_means[WGS + lid] = means [WGS + gid];
+    }
+
+    work_group_barrier(CLK_LOCAL_MEM_FENCE);
+
+    float xacc = 0.0;
+
+    for (uint s = 0; s < MAXLAG; s++) {
+        xacc += x * local_means[lid + s + 1];
+    }
+
+    xacc = x * x + 2 * xacc;
+
+    work_group_reduction_autocovariance (c0acc, dacc, x * x, xacc);
+}
+
+
 
 // =============================================================================
 

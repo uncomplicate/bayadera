@@ -6,22 +6,22 @@
              [toolbox :refer [count-work-groups enq-reduce enq-read-long]]]
             [uncomplicate.neanderthal
              [core :refer [sum]]
-             [native :refer [sv sge]]
-             [opencl :refer [clv clge read!]]]
-            [uncomplicate.neanderthal.opencl.amd-gcn :refer [gcn-single]]
+             [opencl :refer [clv read!]]]
+            [uncomplicate.neanderthal.opencl.amd-gcn :refer [gcn-single gcn-double]]
             [uncomplicate.bayadera.protocols :refer :all]))
 
 (defprotocol MCMCEngineFactory
   (mcmc-engine [this walker-count cl-params]))
 
-(deftype GCNStretch1D [ctx cqueue neanderthal-factory ^long walker-count wsize
+(deftype GCNStretch1D [ctx cqueue neanderthal-single neanderthal-double ^long walker-count wsize
                        ^long WGS ^ints step-counter
                        ^ints seed cl-params cl-xs cl-s0 cl-s1
                        cl-accept cl-accept-acc
                        stretch-move-odd-kernel stretch-move-even-kernel
                        init-walkers-kernel
                        sum-accept-reduction-kernel sum-accept-kernel
-                       sum-means-kernel subtract-mean-kernel]
+                       sum-means-kernel subtract-mean-kernel
+                       autocovariance-kernel]
   Releaseable
   (release [_]
     (release cl-params)
@@ -36,7 +36,8 @@
     (release sum-accept-reduction-kernel)
     (release sum-accept-kernel)
     (release sum-means-kernel)
-    (release subtract-mean-kernel))
+    (release subtract-mean-kernel)
+    (release autocovariance-kernel))
   MCMC
   (init! [this]
     (do
@@ -63,9 +64,14 @@
       (aset step-counter 0 (inc (aget step-counter 0)))
       cl-xs))
   (run-sampler! [this n]
-    (let [means-count (long (count-work-groups WGS (/ walker-count 2)))]
-      (with-release [cl-means-vec (clv neanderthal-factory n)
-                     cl-means (cl-buffer ctx (* Float/BYTES means-count n) :read-write)]
+    (let [means-count (long (count-work-groups WGS (/ walker-count 2)))
+          max-lag 64
+          i-max (- n max-lag)
+          autocov-count (long (count-work-groups WGS i-max))]
+      (with-release [cl-means-vec (clv neanderthal-single n)
+                     cl-means (cl-buffer ctx (* Float/BYTES means-count n) :read-write)
+                     cl-c0-vec (clv neanderthal-single autocov-count)
+                     cl-d-vec (clv neanderthal-single autocov-count)]
         (reset-counters! this)
         (enq-fill! cqueue cl-means (float-array 1))
         (set-arg! stretch-move-odd-kernel 5 cl-means)
@@ -74,12 +80,24 @@
         (set-args! sum-means-kernel 0 (.buffer cl-means-vec)
                    cl-means (int-array [means-count]))
         (enq-nd! cqueue sum-means-kernel (work-size [n]))
-        ;;[(read! cl-means-vec (sv n)) (read! (clge neanderthal-factory means-count n cl-means) (sge means-count n))]
         (let [total-mean (/ (sum cl-means-vec) n)]
           (set-args! subtract-mean-kernel 0 (.buffer cl-means-vec)
                      (float-array [total-mean]))
           (enq-nd! cqueue subtract-mean-kernel (work-size [n]))
-          [total-mean (read! cl-means-vec (sv n))]))))
+
+          (set-args! autocovariance-kernel 0 (.buffer cl-c0-vec)
+                     (.buffer cl-d-vec) (.buffer cl-means-vec))
+          (enq-nd! cqueue autocovariance-kernel (work-size [i-max]));;TODO magic number
+
+          (let [c0 (/ (sum cl-c0-vec) i-max )
+                d (/ (sum cl-d-vec) i-max)
+                sigma (Math/sqrt (/ d n))
+                tau (/ d c0)]
+            {:c0 c0
+             :d d
+             :mean total-mean
+             :sigma sigma
+             :tau tau})))))
   (acc-rate [_]
     (if (pos? (aget step-counter 0))
       (do
@@ -91,11 +109,14 @@
   (acor [_]
     :todo))
 
-(deftype GCNStretch1DEngineFactory [ctx queue neanderthal-factory prog ^long WGS]
+(deftype GCNStretch1DEngineFactory [ctx queue
+                                    neanderthal-single neanderthal-double
+                                    prog ^long WGS]
   Releaseable
   (release [_]
     (release prog)
-    (release neanderthal-factory))
+    (release neanderthal-single)
+    (release neanderthal-double))
   MCMCEngineFactory
   (mcmc-engine [_ walker-count params]
     (let [walker-count (long walker-count)
@@ -117,7 +138,7 @@
           cl-accept (cl-buffer ctx (* Integer/BYTES accept-count) :read-write)
           cl-accept-acc (cl-buffer ctx (* Long/BYTES accept-acc-count) :read-write)]
       (->GCNStretch1D
-       ctx queue neanderthal-factory
+       ctx queue neanderthal-single neanderthal-double
        walker-count (work-size [(/ walker-count 2)]) WGS step-counter
        seed cl-params cl-xs cl-s0 cl-s1
        cl-accept cl-accept-acc
@@ -129,7 +150,8 @@
        (doto (kernel prog "sum_accept_reduction") (set-arg! 0 cl-accept-acc))
        (doto (kernel prog "sum_accept_reduce") (set-args! 0 cl-accept-acc cl-accept))
        (kernel prog "sum_means")
-       (kernel prog "subtract_mean")))))
+       (kernel prog "subtract_mean")
+       (kernel prog "autocovariance")))))
 
 (defn ^:private copy-random123 [include-name tmp-dir-name]
   (io/copy
@@ -145,9 +167,10 @@
       (doseq [res-name ["philox.h" "array.h" "features/compilerfeatures.h"
                         "features/openclfeatures.h" "features/sse.h"]]
         (copy-random123 res-name tmp-dir-name))
-      (let [neanderthal-factory (gcn-single ctx cqueue)]
+      (let [neanderthal-single (gcn-single ctx cqueue)
+            neanderthal-double (gcn-double ctx cqueue)]
         (->GCNStretch1DEngineFactory
-         ctx cqueue neanderthal-factory
+         ctx cqueue neanderthal-single neanderthal-double
          (build-program!
           (program-with-source
            ctx
