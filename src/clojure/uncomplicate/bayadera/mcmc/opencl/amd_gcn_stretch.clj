@@ -22,6 +22,7 @@
                        ^ints step-counter
                        cl-params cl-xs cl-s0 cl-s1 cl-accept cl-accept-acc
                        stretch-move-odd-kernel stretch-move-even-kernel
+                       stretch-move-odd-bare-kernel stretch-move-even-bare-kernel
                        init-walkers-kernel
                        sum-accept-reduction-kernel sum-accept-kernel
                        sum-means-kernel subtract-mean-kernel
@@ -36,6 +37,8 @@
     (release cl-accept-acc)
     (release stretch-move-odd-kernel)
     (release stretch-move-even-kernel)
+    (release stretch-move-odd-bare-kernel)
+    (release stretch-move-even-bare-kernel)
     (release init-walkers-kernel)
     (release sum-accept-reduction-kernel)
     (release sum-accept-kernel)
@@ -54,28 +57,35 @@
         (do
           (set-arg! init-walkers-kernel 0 seed)
           (enq-nd! cqueue init-walkers-kernel (work-size [(/ walker-count 4)]))
-          (set-arg! stretch-move-odd-kernel 0 (inc! seed))
-          (set-arg! stretch-move-even-kernel 0 (inc! seed))
+          (init! this seed)
           this))
       (throw (IllegalArgumentException. "Seed must be an integer."))))
   (init! [this seed]
-    (if (integer? seed)
-      (let [seed (int-array [seed])]
-        (do
-          (set-arg! stretch-move-odd-kernel 0 (inc! seed))
-          (set-arg! stretch-move-even-kernel 0 (inc! seed))
-          (enq-fill! cqueue cl-accept (int-array 1))
-          (aset step-counter 0 0)
-          this))
-      (throw (IllegalArgumentException. "Seed must be an integer."))))
+    (do
+      (set-arg! stretch-move-odd-kernel 0 (inc! seed))
+      (set-arg! stretch-move-even-kernel 0 (inc! seed))
+      (set-arg! stretch-move-odd-bare-kernel 0 (inc! seed))
+      (set-arg! stretch-move-even-bare-kernel 0 (inc! seed))
+      (enq-fill! cqueue cl-accept (int-array 1))
+      (aset step-counter 0 0)
+      this))
   (init! [this]
-   (init! this (rand-int Integer/MAX_VALUE)))
+    (init! this (int-array [(rand-int Integer/MAX_VALUE)])))
   (move! [this]
     (do
       (set-arg! stretch-move-odd-kernel 6 step-counter)
       (set-arg! stretch-move-even-kernel 6 step-counter)
       (enq-nd! cqueue stretch-move-odd-kernel wsize)
       (enq-nd! cqueue stretch-move-even-kernel wsize)
+      (inc! step-counter)
+      cl-xs))
+  (move-bare! [this]
+    (do
+      (set-arg! stretch-move-odd-bare-kernel 4 step-counter)
+      (set-arg! stretch-move-even-bare-kernel 4 step-counter)
+      (enq-nd! cqueue stretch-move-odd-bare-kernel wsize)
+      (enq-nd! cqueue stretch-move-even-bare-kernel wsize)
+      (inc! step-counter)
       cl-xs))
   (burn-in! [this n]
     (let [means-count (long (count-work-groups WGS (/ walker-count 2)))]
@@ -84,11 +94,8 @@
         (aset step-counter 0 0)
         (set-arg! stretch-move-odd-kernel 5 cl-means)
         (set-arg! stretch-move-even-kernel 5 cl-means)
-        (set-arg! stretch-move-odd-kernel 7 (float-array [0]))
-        (set-arg! stretch-move-even-kernel 7 (float-array [0]))
         (dotimes [i n]
-          (move! this)
-          (inc! step-counter))
+          (move-bare! this))
         this)))
   (run-sampler! [this n]
     (let [means-count (long (count-work-groups WGS (/ walker-count 2)))]
@@ -99,11 +106,8 @@
         (enq-fill! cqueue cl-means (float-array 1));;TODO unnecessary?
         (set-arg! stretch-move-odd-kernel 5 cl-means)
         (set-arg! stretch-move-even-kernel 5 cl-means)
-        (set-arg! stretch-move-odd-kernel 7 (float-array [1]))
-        (set-arg! stretch-move-even-kernel 7 (float-array [1]))
         (dotimes [i n]
-          (move! this)
-          (inc! step-counter))
+          (move! this))
         (set-args! sum-means-kernel 0 (.buffer means-vec)
                    cl-means (int-array [means-count]))
         (enq-nd! cqueue sum-means-kernel (work-size [n]))
@@ -175,10 +179,14 @@
            walker-count (work-size [(/ walker-count 2)]) WGS step-counter
            cl-params cl-xs cl-s0 cl-s1
            cl-accept cl-accept-acc
-           (doto (kernel prog "stretch_move1")
-             (set-args! 1 cl-params cl-s0 cl-s1 cl-accept))
-           (doto (kernel prog "stretch_move1")
+           (doto (kernel prog "stretch_move1_accu")
              (set-args! 1 cl-params cl-s1 cl-s0 cl-accept))
+           (doto (kernel prog "stretch_move1_accu")
+             (set-args! 1 cl-params cl-s0 cl-s1 cl-accept))
+           (doto (kernel prog "stretch_move1_bare")
+             (set-args! 1 cl-params cl-s1 cl-s0))
+           (doto (kernel prog "stretch_move1_bare")
+             (set-args! 1 cl-params cl-s0 cl-s1))
            (doto (kernel prog "init_walkers") (set-arg! 1 cl-xs))
            (doto (kernel prog "sum_accept_reduction") (set-arg! 0 cl-accept-acc))
            (doto (kernel prog "sum_accept_reduce") (set-args! 0 cl-accept-acc cl-accept))
