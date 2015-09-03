@@ -89,20 +89,16 @@
       cl-xs))
   (burn-in! [this n]
     (let [means-count (long (count-work-groups WGS (/ walker-count 2)))]
-      (with-release [cl-means (cl-buffer ctx (* Float/BYTES means-count (long n))
-                                         :read-write)]
-        (aset step-counter 0 0)
-        (set-arg! stretch-move-odd-kernel 5 cl-means)
-        (set-arg! stretch-move-even-kernel 5 cl-means)
-        (dotimes [i n]
-          (move-bare! this))
-        this)))
+      (aset step-counter 0 0)
+      (dotimes [i n]
+        (move-bare! this));;TODO do the last move! and collect acc-rate
+      this))
   (run-sampler! [this n]
     (let [means-count (long (count-work-groups WGS (/ walker-count 2)))]
       (with-release [means-vec (clv neanderthal-engine n)
                      cl-means (cl-buffer ctx (* Float/BYTES means-count (long n))
                                          :read-write)]
-        (init! this)
+        (aset step-counter 0 0)
         (enq-fill! cqueue cl-means (float-array 1));;TODO unnecessary?
         (set-arg! stretch-move-odd-kernel 5 cl-means)
         (set-arg! stretch-move-even-kernel 5 cl-means)
