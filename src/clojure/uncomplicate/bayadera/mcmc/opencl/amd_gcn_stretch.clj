@@ -5,8 +5,8 @@
              [core :refer :all]
              [toolbox :refer [count-work-groups enq-reduce enq-read-long]]]
             [uncomplicate.neanderthal
-             [math :refer [power-of-2?]]
-             [core :refer [sum dim]]
+             [math :refer [sqrt]]
+             [core :refer [asum sum dim vect?]]
              [opencl :refer [clv read!]]]
             [uncomplicate.neanderthal.opencl.amd-gcn :refer [gcn-single]]
             [uncomplicate.bayadera.protocols :refer :all]))
@@ -18,7 +18,8 @@
   (doto a (aset 0 (inc (aget a 0)))))
 
 (deftype GCNStretch1D [ctx cqueue neanderthal-engine
-                       ^long walker-count wsize ^long WGS ^ints step-counter
+                       ^long walker-count wsize ^long WGS
+                       ^ints step-counter
                        cl-params cl-xs cl-s0 cl-s1 cl-accept cl-accept-acc
                        stretch-move-odd-kernel stretch-move-even-kernel
                        init-walkers-kernel
@@ -42,7 +43,12 @@
     (release subtract-mean-kernel)
     (release autocovariance-kernel))
   MCMC
-  (init! [this seed];;TODO =============== maybe separate init-walkers and move the rest of the init to reset-counters! and rename that to init? currently I also have a curious time < 0 when seed is 137. Maybe also some variant of init should in fact initialize cl-means to the max size of requested number of sampler runs that can be partially run?
+  (init-walkers! [this seed cl-walkers]
+    (do
+      (init-walkers! this seed)
+      (enq-copy! cqueue cl-walkers cl-xs)
+      this))
+  (init-walkers! [this seed]
     (if (integer? seed)
       (let [seed (int-array [seed])]
         (do
@@ -50,31 +56,51 @@
           (enq-nd! cqueue init-walkers-kernel (work-size [(/ walker-count 4)]))
           (set-arg! stretch-move-odd-kernel 0 (inc! seed))
           (set-arg! stretch-move-even-kernel 0 (inc! seed))
-          (reset-counters! this)
+          this))
+      (throw (IllegalArgumentException. "Seed must be an integer."))))
+  (init! [this seed]
+    (if (integer? seed)
+      (let [seed (int-array [seed])]
+        (do
+          (set-arg! stretch-move-odd-kernel 0 (inc! seed))
+          (set-arg! stretch-move-even-kernel 0 (inc! seed))
+          (enq-fill! cqueue cl-accept (int-array 1))
+          (aset step-counter 0 0)
           this))
       (throw (IllegalArgumentException. "Seed must be an integer."))))
   (init! [this]
    (init! this (rand-int Integer/MAX_VALUE)))
-  (reset-counters! [this]
-    (do
-      (enq-fill! cqueue cl-accept (int-array 1))
-      (aset step-counter 0 0)
-      this))
   (move! [this]
     (do
       (set-arg! stretch-move-odd-kernel 6 step-counter)
-      (enq-nd! cqueue stretch-move-odd-kernel wsize)
       (set-arg! stretch-move-even-kernel 6 step-counter)
+      (enq-nd! cqueue stretch-move-odd-kernel wsize)
       (enq-nd! cqueue stretch-move-even-kernel wsize)
       cl-xs))
+  (burn-in! [this n]
+    (let [means-count (long (count-work-groups WGS (/ walker-count 2)))]
+      (with-release [cl-means (cl-buffer ctx (* Float/BYTES means-count (long n))
+                                         :read-write)]
+        (aset step-counter 0 0)
+        (set-arg! stretch-move-odd-kernel 5 cl-means)
+        (set-arg! stretch-move-even-kernel 5 cl-means)
+        (set-arg! stretch-move-odd-kernel 7 (float-array [0]))
+        (set-arg! stretch-move-even-kernel 7 (float-array [0]))
+        (dotimes [i n]
+          (move! this)
+          (inc! step-counter))
+        this)))
   (run-sampler! [this n]
     (let [means-count (long (count-work-groups WGS (/ walker-count 2)))]
       (with-release [means-vec (clv neanderthal-engine n)
-                     cl-means (cl-buffer ctx (* Float/BYTES means-count n) :read-write)]
-        (reset-counters! this)
-        (enq-fill! cqueue cl-means (float-array 1))
+                     cl-means (cl-buffer ctx (* Float/BYTES means-count (long n))
+                                         :read-write)]
+        (init! this)
+        (enq-fill! cqueue cl-means (float-array 1));;TODO unnecessary?
         (set-arg! stretch-move-odd-kernel 5 cl-means)
         (set-arg! stretch-move-even-kernel 5 cl-means)
+        (set-arg! stretch-move-odd-kernel 7 (float-array [1]))
+        (set-arg! stretch-move-even-kernel 7 (float-array [1]))
         (dotimes [i n]
           (move! this)
           (inc! step-counter))
@@ -92,24 +118,31 @@
       Double/NaN))
   (acor [_ sample]
     (let [n (dim sample)
+          min-fac 16 ;; TODO magic number
           MAXLAG 64 ;;TODO magic number
-          i-max (- n MAXLAG)
+          MINLAG 4
+          lag (max MINLAG (min (quot n min-fac) MAXLAG))
+          i-max (- n lag)
           autocov-count (count-work-groups WGS i-max)]
-      (if (<= (* MAXLAG 2) n)
+      (if (<= (* lag min-fac) n)
         (with-release [c0-vec (clv neanderthal-engine autocov-count)
                        d-vec (clv neanderthal-engine autocov-count)]
-          (let [sample-mean (/ (sum sample) n)]
+          (let [sample-mean (/ (float (sum sample)) n)]
             (set-args! subtract-mean-kernel 0 (.buffer sample)
                        (float-array [sample-mean]))
             (enq-nd! cqueue subtract-mean-kernel (work-size [n]))
-            (set-args! autocovariance-kernel 0 (.buffer c0-vec)
+            (set-args! autocovariance-kernel 0
+                       (int-array [lag]) (.buffer c0-vec)
                        (.buffer d-vec) (.buffer sample))
             (enq-nd! cqueue autocovariance-kernel (work-size [i-max]))
-            (let [d (sum d-vec)]
-              (->Autocorrelation (/ d (sum c0-vec)) sample-mean (/ d n i-max)
-                                 (* n walker-count) d))))
+            (let [d (float (sum d-vec))]
+              (->Autocorrelation (/ d (float (sum c0-vec))) sample-mean
+                                 (sqrt (/ d i-max n))
+                                 (* n walker-count) n walker-count lag))))
         (throw (IllegalArgumentException.
-                (format "Number of steps (%d) must not be less than %d." n (* 2 MAXLAG))))))))
+                (format (str "The autocorrelation time is too long relative to the variance."
+                             "Number of steps (%d) must not be less than %d.")
+                        n (* lag min-fac))))))))
 
 (deftype GCNStretch1DEngineFactory [ctx queue neanderthal-engine
                                     prog ^long WGS]
@@ -119,42 +152,42 @@
     (release neanderthal-engine))
   MCMCEngineFactory
   (mcmc-engine [_ walker-count params]
-    (if (and (<= (* 2 WGS) walker-count) (power-of-2? walker-count))
-      (let [walker-count (long walker-count)
-            cnt (long (/ walker-count 2))
-            accept-count (count-work-groups WGS cnt)
-            accept-acc-count (count-work-groups WGS accept-count)
-            bytecount (long (* Float/BYTES cnt))
-            step-counter (int-array 1)
-            cl-params (let [par-buf (cl-buffer ctx
-                                               (* Float/BYTES
-                                                  (alength ^floats params))
-                                               :read-only)]
-                        (enq-write! queue par-buf params)
-                        par-buf)
-            cl-xs (cl-buffer ctx (* 2 bytecount) :read-write)
-            cl-s0 (cl-sub-buffer cl-xs 0 bytecount :read-write)
-            cl-s1 (cl-sub-buffer cl-xs bytecount bytecount :read-write)
-            cl-accept (cl-buffer ctx (* Integer/BYTES accept-count) :read-write)
-            cl-accept-acc (cl-buffer ctx (* Long/BYTES accept-acc-count) :read-write)]
-        (->GCNStretch1D
-         ctx queue neanderthal-engine
-         walker-count (work-size [(/ walker-count 2)]) WGS step-counter
-         cl-params cl-xs cl-s0 cl-s1
-         cl-accept cl-accept-acc
-         (doto (kernel prog "stretch_move1")
-           (set-args! 0 (rand-ints) cl-params cl-s0 cl-s1 cl-accept))
-         (doto (kernel prog "stretch_move1")
-           (set-args! 0 (rand-ints) cl-params cl-s1 cl-s0 cl-accept))
-         (doto (kernel prog "init_walkers") (set-args! (rand-ints) cl-xs))
-         (doto (kernel prog "sum_accept_reduction") (set-arg! 0 cl-accept-acc))
-         (doto (kernel prog "sum_accept_reduce") (set-args! 0 cl-accept-acc cl-accept))
-         (kernel prog "sum_means")
-         (kernel prog "subtract_mean")
-         (kernel prog "autocovariance")))
-      (throw (IllegalArgumentException.
-              (format "Number of walkers (%d) must be a power of 2, not less than %d."
-                      walker-count (* 2 WGS)))))))
+    (let [walker-count (long walker-count)]
+      (if (and (<= (* 2 WGS) walker-count) (zero? (rem walker-count (* 2 WGS))))
+        (let [cnt (long (/ walker-count 2))
+              accept-count (count-work-groups WGS cnt)
+              accept-acc-count (count-work-groups WGS accept-count)
+              bytecount (long (* Float/BYTES cnt))
+              step-counter (int-array 1)
+              cl-params (let [par-buf (cl-buffer ctx
+                                                 (* Float/BYTES
+                                                    (alength ^floats params))
+                                                 :read-only)]
+                          (enq-write! queue par-buf params)
+                          par-buf)
+              cl-xs (cl-buffer ctx (* 2 bytecount) :read-write)
+              cl-s0 (cl-sub-buffer cl-xs 0 bytecount :read-write)
+              cl-s1 (cl-sub-buffer cl-xs bytecount bytecount :read-write)
+              cl-accept (cl-buffer ctx (* Integer/BYTES accept-count) :read-write)
+              cl-accept-acc (cl-buffer ctx (* Long/BYTES accept-acc-count) :read-write)]
+          (->GCNStretch1D
+           ctx queue neanderthal-engine
+           walker-count (work-size [(/ walker-count 2)]) WGS step-counter
+           cl-params cl-xs cl-s0 cl-s1
+           cl-accept cl-accept-acc
+           (doto (kernel prog "stretch_move1")
+             (set-args! 1 cl-params cl-s0 cl-s1 cl-accept))
+           (doto (kernel prog "stretch_move1")
+             (set-args! 1 cl-params cl-s1 cl-s0 cl-accept))
+           (doto (kernel prog "init_walkers") (set-arg! 1 cl-xs))
+           (doto (kernel prog "sum_accept_reduction") (set-arg! 0 cl-accept-acc))
+           (doto (kernel prog "sum_accept_reduce") (set-args! 0 cl-accept-acc cl-accept))
+           (kernel prog "sum_means")
+           (kernel prog "subtract_mean")
+           (kernel prog "autocovariance")))
+        (throw (IllegalArgumentException.
+                (format "Number of walkers (%d) must be a multiple of %d."
+                        walker-count (* 2 WGS))))))))
 
 (defn ^:private copy-random123 [include-name tmp-dir-name]
   (io/copy

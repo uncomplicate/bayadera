@@ -1,11 +1,14 @@
 (ns uncomplicate.bayadera.protocols)
 
-(defrecord Autocorrelation [^float time ^float mean ^float std ^long size d])
+(defrecord Autocorrelation [^float tau ^float mean ^float sigma ^long size
+                            ^long steps ^long walkers ^long lag])
 
 (defprotocol MCMC
-  (init! [this] [this seed])
+  (init-walkers! [this seed] [this seed cl-walkers])
+  (init! [this] [this seed] [this seed walkers])
+  (burn-in! [this n])
   (reset-counters! [_])
-  (move! [this])
+  (move! [this] [this step-counter])
   (run-sampler! [_ n])
   (acc-rate [_])
   (acor [_ sample]))

@@ -170,13 +170,13 @@ inline void work_group_reduction_autocovariance (__global float* c0acc,
     }
 }
 
-#define TAUMAX 8
-#define WINMULT 8
+#define TAUMAX 16
+#define WINMULT 4
 #define MAXLAG TAUMAX * WINMULT
-#define MINFAC 8
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
-__kernel void autocovariance (__global float* c0acc, __global float* dacc,
+__kernel void autocovariance (const uint lag,
+                              __global float* c0acc, __global float* dacc,
                               __global float* const means) {
     uint gid = get_global_id(0);
     uint lid = get_local_id(0);
@@ -186,7 +186,7 @@ __kernel void autocovariance (__global float* c0acc, __global float* dacc,
     float x = 0.0 + means[gid];
     local_means[lid] = x;
 
-    if (lid < MAXLAG) {
+    if (lid < lag) {
         local_means[WGS + lid] = means [WGS + gid];
     }
 
@@ -194,7 +194,7 @@ __kernel void autocovariance (__global float* c0acc, __global float* dacc,
 
     float xacc = 0.0;
 
-    for (uint s = 0; s < MAXLAG; s++) {
+    for (uint s = 0; s < lag; s++) {
         xacc += x * local_means[lid + s + 1];
     }
 
@@ -213,7 +213,8 @@ __kernel void stretch_move1(const uint seed,
                             __attribute__ ((max_constant_size(PARAMS_SIZE))),
                             __global const float *Scompl, __global float *X,
                             __global uint *accept,
-                            __global float *means, const uint step_counter) {
+                            __global float *means,
+                            const uint step_counter, const int accumulate) {
 
     // Get the index of this walker Xk
     uint k = get_global_id(0);
@@ -235,8 +236,10 @@ __kernel void stretch_move1(const uint seed,
 
     bool accepted = u.s2 <= q;
 
-    work_group_reduction_accumulate(accept, accepted ? 1 : 0,
-                                    means, accepted ? Y : Xk, step_counter);
+    if (0 < accumulate) {
+        work_group_reduction_accumulate(accept, accepted ? 1 : 0,
+                                        means, accepted ? Y : Xk, step_counter);
+    }
 
     if (accepted) {
         X[k] = Y;
