@@ -13,14 +13,6 @@
     #define WGS 256
 #endif
 
-#ifndef A
-    #define A 2.0f
-#endif
-
-#define A0 (1.0f / A)
-#define A1 (2.0f * (1.0f - 1.0f / A))
-#define A2 (A - 2.0f + (1.0f / A))
-
 
 // We'll test this with gaussian
 inline float logpdf(__constant float *params, float x) {
@@ -202,7 +194,7 @@ __kernel void autocovariance (const uint lag,
 
 inline float stretch_move1(const uint seed, __constant const float* params,
                            const float* Scompl, float* X, const float Xk,
-                           const uint step_counter) {
+                           const uint step_counter, const float a) {
 
     // Get the index of this walker Xk
     uint k = get_global_id(0);
@@ -219,7 +211,9 @@ inline float stretch_move1(const uint seed, __constant const float* params,
 
     // Compute the proposal Y. Since pow(z, n-1) == 1, z is directly computed
     // Draw a sample from g(z) using the formula from [Christen 2007]
-    float Y = Xj + (A2 * u.s1 * u.s1 + A1 * u.s1 + A0) * (Xk - Xj);
+    float Y = Xj + ((a - 2.0f + 1.0f / a) * u.s1 * u.s1 +
+                    (2.0f * (1.0f - 1.0f / a)) * u.s1 +
+                    1.0f / a) * (Xk - Xj);
     float q = native_exp(logpdf(params, Y) - logpdf(params, Xk));
 
     bool accepted = u.s2 <= q;
@@ -236,11 +230,11 @@ __kernel void stretch_move1_accu(const uint seed,
                                  __global const float *Scompl, __global float *X,
                                  __global uint *accept,
                                  __global float *means,
-                                 const uint step_counter) {
+                                 const uint step_counter, const float a) {
 
     uint k = get_global_id(0);
     float Xk = X[k];
-    float res = stretch_move1(seed, params, Scompl, X, Xk, step_counter);
+    float res = stretch_move1(seed, params, Scompl, X, Xk, step_counter, a);
 
     bool accepted = res != Xk;
 
@@ -256,18 +250,16 @@ __kernel void stretch_move1_bare(const uint seed,
                                  __constant const float *params
                                  __attribute__ ((max_constant_size(PARAMS_SIZE))),
                                  __global const float *Scompl, __global float *X,
-                                 const uint step_counter) {
+                                 const uint step_counter, const float a) {
     uint k = get_global_id(0);
     float Xk = X[k];
 
-    float res = stretch_move1(seed, params, Scompl, X, Xk, step_counter);
+    float res = stretch_move1(seed, params, Scompl, X, Xk, step_counter, a);
 
     if ( res != Xk) {
         X[k] = res;
     }
 }
-
-
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
 __kernel void pdf_kernel(__constant const float *params

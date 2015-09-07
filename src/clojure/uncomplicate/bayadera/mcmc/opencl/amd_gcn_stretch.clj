@@ -80,13 +80,24 @@
       (enq-nd! cqueue stretch-move-even-bare-kernel wsize)
       (inc! step-counter)
       cl-xs))
-  (burn-in! [this n]
+  (burn-in! [this n a]
     (do
       (aset step-counter 0 0)
-      (dotimes [i n]
-        (move-bare! this));;TODO do the last move! and collect acc-rate
-      this))
-  (run-sampler! [this n]
+      (set-arg! stretch-move-odd-bare-kernel 5 a)
+      (set-arg! stretch-move-even-bare-kernel 5 a)
+      (dotimes [i (dec n)]
+        (move-bare! this))
+      (let [means-count (long (count-work-groups WGS (/ walker-count 2)))]
+        (with-release [cl-means (cl-buffer ctx (* Float/BYTES) :read-write)]
+          (aset step-counter 0 0)
+          (enq-fill! cqueue cl-accept (int-array 1))
+          (set-arg! stretch-move-odd-kernel 5 cl-means)
+          (set-arg! stretch-move-even-kernel 5 cl-means)
+          (set-arg! stretch-move-odd-kernel 7 a)
+          (set-arg! stretch-move-even-kernel 7 a)
+          (move! this)
+          (acc-rate this)))))
+  (run-sampler! [this n a]
     (let [means-count (long (count-work-groups WGS (/ walker-count 2)))]
       (with-release [means-vec (clv neanderthal-engine n)
                      cl-means (cl-buffer ctx (* Float/BYTES means-count (long n))
@@ -95,6 +106,9 @@
         (enq-fill! cqueue cl-means (float-array 1))
         (set-arg! stretch-move-odd-kernel 5 cl-means)
         (set-arg! stretch-move-even-kernel 5 cl-means)
+        (set-arg! stretch-move-odd-kernel 7 a)
+        (set-arg! stretch-move-even-kernel 7 a)
+
         (dotimes [i n]
           (move! this))
         (set-args! sum-means-kernel 0 (.buffer means-vec)
@@ -191,7 +205,7 @@
                          include-name)))
    (io/file (format "%s/Random123/%s" tmp-dir-name include-name))))
 
-(defn gcn-stretch-1d-engine-factory [ctx cqueue]
+(defn gcn-stretch-1d-engine-factory [ctx cqueue a]
   (let [tmp-dir-name (fsc/temp-dir "uncomplicate/")]
     (try
       (fsc/mkdirs (format "%s/%s" tmp-dir-name "Random123/features/"))
@@ -207,7 +221,7 @@
            [(slurp (io/resource "uncomplicate/clojurecl/kernels/reduction.cl"))
             (slurp (io/resource "uncomplicate/bayadera/mcmc/opencl/kernels/amd_gcn/random.h"))
             (slurp (io/resource "uncomplicate/bayadera/mcmc/opencl/kernels/amd_gcn/stretch-move.cl"))])
-          (format "-cl-std=CL2.0 -DA=8.0f  -DACCUMULATOR=float -I%s/" tmp-dir-name)
+          (format "-cl-std=CL2.0 -DA=%f  -DACCUMULATOR=float -I%s/" a tmp-dir-name)
           nil)
          256))
       (finally

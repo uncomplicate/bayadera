@@ -6,10 +6,10 @@
 (defprotocol MCMC
   (init-walkers! [this seed] [this seed cl-walkers])
   (init! [this] [this seed] [this seed walkers])
-  (burn-in! [this n])
+  (burn-in! [this n a])
   (reset-counters! [_])
   (move! [this])
   (move-bare! [this])
-  (run-sampler! [_ n])
+  (run-sampler! [_ n a])
   (acc-rate [_])
   (acor [_ sample]))

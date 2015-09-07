@@ -13,18 +13,19 @@
    "Test for MCMC stretch engine."
    (let [walker-count (* 2 256 44)
          params (float-array [200 1])
+         a (float-array [2.0])
          xs (float-array walker-count)
          run-cnt 140]
-     (with-release [mcmc-engine-factory (gcn-stretch-1d-engine-factory ctx cqueue)
+     (with-release [mcmc-engine-factory (gcn-stretch-1d-engine-factory ctx cqueue 2.0)
                     engine (mcmc-engine mcmc-engine-factory walker-count params)]
        (init-walkers! engine (int-array [123]))
        (init! engine (int-array [123]))
-       (time (do (burn-in! engine 128) (finish! cqueue))) => :burn-in
-
-       (time (run-sampler! engine 128)) => :run-sampler
+       (time (burn-in! engine 100 a))  => :burn-in
+       (init! engine (int-array [567]))
+       (time (run-sampler! engine 128 a)) => :run-sampler
        (enq-read! cqueue (.cl-xs engine) xs) => cqueue
-       (/ (reduce + xs) walker-count) => 200.0;;(roughly 200.0)
+       (Math/abs (- 200 (/ (reduce + xs) walker-count))) => 0.0;;(roughly 200.0)
        ;;(frequencies (map #(Math/round (* % 10)) xs)) => :Xk
-       (< 0.75(acc-rate engine) 0.80) => true
+
 
        ))))
