@@ -13,17 +13,14 @@
     #define WGS 256
 #endif
 
-#ifndef A0
-    #define A0 0.6666667f
+#ifndef A
+    #define A 2.0f
 #endif
 
-#ifndef A1
-    #define A1 1.3333334f
-#endif
+#define A0 (1.0f / A)
+#define A1 (2.0f * (1.0f - 1.0f / A))
+#define A2 (A - 2.0f + (1.0f / A))
 
-#ifndef A2
-    #define A2 1.3333334f
-#endif
 
 // We'll test this with gaussian
 inline float logpdf(__constant float *params, float x) {
@@ -222,7 +219,7 @@ inline float stretch_move1(const uint seed, __constant const float* params,
 
     // Compute the proposal Y. Since pow(z, n-1) == 1, z is directly computed
     // Draw a sample from g(z) using the formula from [Christen 2007]
-    float Y = Xj + (A2 * u.s1 * u.s1 + A1 * u.s1 - A2) * (Xk - Xj);
+    float Y = Xj + (A2 * u.s1 * u.s1 + A1 * u.s1 + A0) * (Xk - Xj);
     float q = native_exp(logpdf(params, Y) - logpdf(params, Xk));
 
     bool accepted = u.s2 <= q;

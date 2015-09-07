@@ -48,18 +48,11 @@
   MCMC
   (init-walkers! [this seed cl-walkers]
     (do
-      (init-walkers! this seed)
-      (enq-copy! cqueue cl-walkers cl-xs)
-      this))
+      (enq-copy! cqueue cl-walkers cl-xs)))
   (init-walkers! [this seed]
-    (if (integer? seed)
-      (let [seed (int-array [seed])]
-        (do
-          (set-arg! init-walkers-kernel 0 seed)
-          (enq-nd! cqueue init-walkers-kernel (work-size [(/ walker-count 4)]))
-          (init! this seed)
-          this))
-      (throw (IllegalArgumentException. "Seed must be an integer."))))
+    (do
+     (set-arg! init-walkers-kernel 0 seed)
+     (enq-nd! cqueue init-walkers-kernel (work-size [(/ walker-count 4)]))))
   (init! [this seed]
     (do
       (set-arg! stretch-move-odd-kernel 0 (inc! seed))
@@ -88,7 +81,7 @@
       (inc! step-counter)
       cl-xs))
   (burn-in! [this n]
-    (let [means-count (long (count-work-groups WGS (/ walker-count 2)))]
+    (do
       (aset step-counter 0 0)
       (dotimes [i n]
         (move-bare! this));;TODO do the last move! and collect acc-rate
@@ -99,7 +92,7 @@
                      cl-means (cl-buffer ctx (* Float/BYTES means-count (long n))
                                          :read-write)]
         (aset step-counter 0 0)
-        (enq-fill! cqueue cl-means (float-array 1));;TODO unnecessary?
+        (enq-fill! cqueue cl-means (float-array 1))
         (set-arg! stretch-move-odd-kernel 5 cl-means)
         (set-arg! stretch-move-even-kernel 5 cl-means)
         (dotimes [i n]
@@ -107,7 +100,7 @@
         (set-args! sum-means-kernel 0 (.buffer means-vec)
                    cl-means (int-array [means-count]))
         (enq-nd! cqueue sum-means-kernel (work-size [n]))
-        (acor this means-vec))))
+        (assoc (acor this means-vec) :acc-rate  (acc-rate this)))))
   (acc-rate [_]
     (if (pos? (aget step-counter 0))
       (do
@@ -131,21 +124,19 @@
             (set-args! subtract-mean-kernel 0 (.buffer sample)
                        (float-array [sample-mean]))
             (enq-nd! cqueue subtract-mean-kernel (work-size [n]))
-            (set-args! autocovariance-kernel 0
-                       (int-array [lag]) (.buffer c0-vec)
+            (set-args! autocovariance-kernel 0 (int-array [lag]) (.buffer c0-vec)
                        (.buffer d-vec) (.buffer sample))
             (enq-nd! cqueue autocovariance-kernel (work-size [i-max]))
             (let [d (float (sum d-vec))]
               (->Autocorrelation (/ d (float (sum c0-vec))) sample-mean
                                  (sqrt (/ d i-max n))
-                                 (* n walker-count) n walker-count lag))))
+                                 (* n walker-count) n walker-count lag 0.0))))
         (throw (IllegalArgumentException.
                 (format (str "The autocorrelation time is too long relative to the variance."
                              "Number of steps (%d) must not be less than %d.")
                         n (* lag min-fac))))))))
 
-(deftype GCNStretch1DEngineFactory [ctx queue neanderthal-engine
-                                    prog ^long WGS]
+(deftype GCNStretch1DEngineFactory [ctx queue neanderthal-engine prog ^long WGS]
   Releaseable
   (release [_]
     (release prog)
@@ -216,7 +207,7 @@
            [(slurp (io/resource "uncomplicate/clojurecl/kernels/reduction.cl"))
             (slurp (io/resource "uncomplicate/bayadera/mcmc/opencl/kernels/amd_gcn/random.h"))
             (slurp (io/resource "uncomplicate/bayadera/mcmc/opencl/kernels/amd_gcn/stretch-move.cl"))])
-          (format "-cl-std=CL2.0 -DACCUMULATOR=float -I%s/" tmp-dir-name)
+          (format "-cl-std=CL2.0 -DA=8.0f  -DACCUMULATOR=float -I%s/" tmp-dir-name)
           nil)
          256))
       (finally
