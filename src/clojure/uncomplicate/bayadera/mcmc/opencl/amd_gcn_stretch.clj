@@ -14,6 +14,12 @@
 (defprotocol MCMCEngineFactory
   (mcmc-engine [this walker-count cl-params]))
 
+(defprotocol MCMCStretch
+  (move! [this])
+  (move-bare! [this])
+  (acc-rate [this])
+  (acor [this sample]))
+
 (defn ^:private inc! [^ints a]
   (doto a (aset 0 (inc (aget a 0)))))
 
@@ -45,76 +51,23 @@
     (release sum-means-kernel)
     (release subtract-mean-kernel)
     (release autocovariance-kernel))
-  MCMC
-  (init-walkers! [this seed cl-walkers]
-    (do
-      (enq-copy! cqueue cl-walkers cl-xs)))
-  (init-walkers! [this seed]
-    (do
-     (set-arg! init-walkers-kernel 0 seed)
-     (enq-nd! cqueue init-walkers-kernel (work-size [(/ walker-count 4)]))))
-  (init! [this seed]
-    (do
-      (set-arg! stretch-move-odd-kernel 0 (inc! seed))
-      (set-arg! stretch-move-even-kernel 0 (inc! seed))
-      (set-arg! stretch-move-odd-bare-kernel 0 (inc! seed))
-      (set-arg! stretch-move-even-bare-kernel 0 (inc! seed))
-      (enq-fill! cqueue cl-accept (int-array 1))
-      (aset step-counter 0 0)
-      this))
-  (init! [this]
-    (init! this (int-array [(rand-int Integer/MAX_VALUE)])))
+  MCMCStretch
   (move! [this]
     (do
-      (set-arg! stretch-move-odd-kernel 6 step-counter)
-      (set-arg! stretch-move-even-kernel 6 step-counter)
+      (set-arg! stretch-move-odd-kernel 7 step-counter)
+      (set-arg! stretch-move-even-kernel 7 step-counter)
       (enq-nd! cqueue stretch-move-odd-kernel wsize)
       (enq-nd! cqueue stretch-move-even-kernel wsize)
       (inc! step-counter)
       cl-xs))
   (move-bare! [this]
     (do
-      (set-arg! stretch-move-odd-bare-kernel 4 step-counter)
-      (set-arg! stretch-move-even-bare-kernel 4 step-counter)
+      (set-arg! stretch-move-odd-bare-kernel 5 step-counter)
+      (set-arg! stretch-move-even-bare-kernel 5 step-counter)
       (enq-nd! cqueue stretch-move-odd-bare-kernel wsize)
       (enq-nd! cqueue stretch-move-even-bare-kernel wsize)
       (inc! step-counter)
       cl-xs))
-  (burn-in! [this n a]
-    (do
-      (aset step-counter 0 0)
-      (set-arg! stretch-move-odd-bare-kernel 5 a)
-      (set-arg! stretch-move-even-bare-kernel 5 a)
-      (dotimes [i (dec n)]
-        (move-bare! this))
-      (let [means-count (long (count-work-groups WGS (/ walker-count 2)))]
-        (with-release [cl-means (cl-buffer ctx (* Float/BYTES) :read-write)]
-          (aset step-counter 0 0)
-          (enq-fill! cqueue cl-accept (int-array 1))
-          (set-arg! stretch-move-odd-kernel 5 cl-means)
-          (set-arg! stretch-move-even-kernel 5 cl-means)
-          (set-arg! stretch-move-odd-kernel 7 a)
-          (set-arg! stretch-move-even-kernel 7 a)
-          (move! this)
-          (acc-rate this)))))
-  (run-sampler! [this n a]
-    (let [means-count (long (count-work-groups WGS (/ walker-count 2)))]
-      (with-release [means-vec (clv neanderthal-engine n)
-                     cl-means (cl-buffer ctx (* Float/BYTES means-count (long n))
-                                         :read-write)]
-        (aset step-counter 0 0)
-        (enq-fill! cqueue cl-means (float-array 1))
-        (set-arg! stretch-move-odd-kernel 5 cl-means)
-        (set-arg! stretch-move-even-kernel 5 cl-means)
-        (set-arg! stretch-move-odd-kernel 7 a)
-        (set-arg! stretch-move-even-kernel 7 a)
-
-        (dotimes [i n]
-          (move! this))
-        (set-args! sum-means-kernel 0 (.buffer means-vec)
-                   cl-means (int-array [means-count]))
-        (enq-nd! cqueue sum-means-kernel (work-size [n]))
-        (assoc (acor this means-vec) :acc-rate  (acc-rate this)))))
   (acc-rate [_]
     (if (pos? (aget step-counter 0))
       (do
@@ -123,7 +76,7 @@
         (/ (double (enq-read-long cqueue cl-accept-acc))
            (* walker-count (aget step-counter 0))))
       Double/NaN))
-  (acor [_ sample];;TODO when the last wgsize is less than maxlag, we get junk autocovariance.
+  (acor [_ sample]
     (let [n (dim sample)
           min-fac 16 ;; TODO magic number
           MINLAG 4
@@ -150,7 +103,59 @@
         (throw (IllegalArgumentException.
                 (format (str "The autocorrelation time is too long relative to the variance."
                              "Number of steps (%d) must not be less than %d.")
-                        n (* lag min-fac))))))))
+                        n (* lag min-fac)))))))
+  MCMC
+  (set-position! [this position]
+    (do
+      (if (cl-buffer? position)
+        (enq-copy! cqueue position cl-xs)
+        (do
+          (set-arg! init-walkers-kernel 0 position)
+          (enq-nd! cqueue init-walkers-kernel (work-size [(/ walker-count 4)]))))
+      this))
+  (init! [this seed]
+    (do
+      (set-arg! stretch-move-odd-kernel 0 (inc! seed))
+      (set-arg! stretch-move-even-kernel 0 (inc! seed))
+      (set-arg! stretch-move-odd-bare-kernel 0 (inc! seed))
+      (set-arg! stretch-move-even-bare-kernel 0 (inc! seed))
+      (enq-fill! cqueue cl-accept (int-array 1))
+      (aset step-counter 0 0)
+      this))
+  (burn-in! [this n a]
+    (do
+      (aset step-counter 0 0)
+      (set-arg! stretch-move-odd-bare-kernel 4 a)
+      (set-arg! stretch-move-even-bare-kernel 4 a)
+      (dotimes [i (dec (long n))]
+        (move-bare! this))
+      (let [means-count (long (count-work-groups WGS (/ walker-count 2)))]
+        (with-release [cl-means (cl-buffer ctx (* Float/BYTES) :read-write)]
+          (aset step-counter 0 0)
+          (enq-fill! cqueue cl-accept (int-array 1))
+          (set-arg! stretch-move-odd-kernel 5 cl-means)
+          (set-arg! stretch-move-even-kernel 5 cl-means)
+          (set-arg! stretch-move-odd-kernel 6 a)
+          (set-arg! stretch-move-even-kernel 6 a)
+          (move! this)
+          (acc-rate this)))))
+  (run-sampler! [this n a]
+    (let [means-count (long (count-work-groups WGS (/ walker-count 2)))]
+      (with-release [means-vec (clv neanderthal-engine n)
+                     cl-means (cl-buffer ctx (* Float/BYTES means-count (long n))
+                                         :read-write)]
+        (aset step-counter 0 0)
+        (enq-fill! cqueue cl-means (float-array 1))
+        (set-arg! stretch-move-odd-kernel 5 cl-means)
+        (set-arg! stretch-move-even-kernel 5 cl-means)
+        (set-arg! stretch-move-odd-kernel 6 a)
+        (set-arg! stretch-move-even-kernel 6 a)
+        (dotimes [i n]
+          (move! this))
+        (set-args! sum-means-kernel 0 (.buffer means-vec)
+                   cl-means (int-array [means-count]))
+        (enq-nd! cqueue sum-means-kernel (work-size [n]))
+        (assoc (acor this means-vec) :acc-rate  (acc-rate this))))))
 
 (deftype GCNStretch1DEngineFactory [ctx queue neanderthal-engine prog ^long WGS]
   Releaseable

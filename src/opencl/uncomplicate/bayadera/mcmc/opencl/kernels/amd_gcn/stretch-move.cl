@@ -211,16 +211,23 @@ inline float stretch_move1(const uint seed, __constant const float* params,
 
     // Draw a walker Xj at random from the complementary ensemble S(~i)(t)
     float Xj = Scompl[(uint)(u.s0 * K2)];
-    //float Xk = X[k];
 
     // Compute the proposal Y. Since pow(z, n-1) == 1, z is directly computed
     // Draw a sample from g(z) using the formula from [Christen 2007]
     float Y = Xj + ((a - 2.0f + 1.0f / a) * u.s1 * u.s1 +
                     (2.0f * (1.0f - 1.0f / a)) * u.s1 +
                     1.0f / a) * (Xk - Xj);
-    float q = native_exp(logpdf(params, Y) - logpdf(params, Xk));
+
+    float logpdf_y = logpdf(params, Y);
+    float q = (isfinite(logpdf_y)) ?
+        native_exp(logpdf(params, Y) - logpdf(params, Xk)) : 0.0f;
 
     bool accepted = u.s2 <= q;
+
+    if (accepted) {
+        X[k] = Y;
+    }
+
     return accepted ? Y : Xk;
 }
 
@@ -234,19 +241,13 @@ __kernel void stretch_move1_accu(const uint seed,
                                  __global const float *Scompl, __global float *X,
                                  __global uint *accept,
                                  __global float *means,
-                                 const uint step_counter, const float a) {
+                                 const float a, const uint step_counter) {
 
-    uint k = get_global_id(0);
-    float Xk = X[k];
+    float Xk = X[get_global_id(0)];
     float res = stretch_move1(seed, params, Scompl, X, Xk, step_counter, a);
 
-    bool accepted = res != Xk;
-
-    work_group_reduction_accumulate(accept, accepted ? 1 : 0, means, res, step_counter);
-
-    if (accepted) {
-        X[k] = res;
-    }
+    work_group_reduction_accumulate(accept, (res != Xk) ? 1 : 0, means,
+                                    res, step_counter);
 }
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
@@ -254,15 +255,9 @@ __kernel void stretch_move1_bare(const uint seed,
                                  __constant const float *params
                                  __attribute__ ((max_constant_size(PARAMS_SIZE))),
                                  __global const float *Scompl, __global float *X,
-                                 const uint step_counter, const float a) {
-    uint k = get_global_id(0);
-    float Xk = X[k];
-
-    float res = stretch_move1(seed, params, Scompl, X, Xk, step_counter, a);
-
-    if ( res != Xk) {
-        X[k] = res;
-    }
+                                 const float a, const uint step_counter) {
+    float Xk = X[get_global_id(0)];
+    stretch_move1(seed, params, Scompl, X, Xk, step_counter, a);
 }
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))

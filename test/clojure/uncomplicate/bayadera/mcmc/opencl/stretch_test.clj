@@ -18,9 +18,9 @@
          run-cnt 140]
      (with-release [mcmc-engine-factory (gcn-stretch-1d-engine-factory ctx cqueue)
                     engine (mcmc-engine mcmc-engine-factory walker-count params)]
-       (init-walkers! engine (int-array [123]))
+       (set-position! engine (int-array [123]))
        (init! engine (int-array [12333]))
-       (time (burn-in! engine 256 a))  => :burn-in
+       (time (burn-in! engine 64 a))  => :burn-in
        (init! engine (int-array [567]))
        (time (run-sampler! engine 67 a)) => :run-sampler
        (enq-read! cqueue (.cl-xs engine) xs) => cqueue
