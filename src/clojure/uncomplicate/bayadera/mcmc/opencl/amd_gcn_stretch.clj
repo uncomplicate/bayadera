@@ -178,11 +178,9 @@
               accept-acc-count (count-work-groups WGS accept-count)
               bytecount (long (* Float/BYTES cnt))
               step-counter (int-array 1)
-              cl-params (let [par-buf (cl-buffer ctx
-                                                 (* Float/BYTES
-                                                    (alength ^floats params))
+              cl-params (let [par-buf (cl-buffer ctx (* Float/BYTES (dim params))
                                                  :read-only)]
-                          (enq-write! queue par-buf params)
+                          (enq-write! queue par-buf (.buffer params))
                           par-buf)
               cl-xs (cl-buffer ctx (* 2 bytecount) :read-write)
               cl-s0 (cl-sub-buffer cl-xs 0 bytecount :read-write)
