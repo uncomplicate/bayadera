@@ -169,32 +169,31 @@ __kernel void autocovariance (const uint lag,
                               __global float* const means,
                               const uint imax) {
     uint gid = get_global_id(0);
-
     uint lid = get_local_id(0);
     uint local_size = get_local_size(0);
 
     __local float local_means[WGS + MAXLAG];
 
-    float x = 0.0 + means[gid];
+    float x = means[gid];
     local_means[lid] = x;
 
-    if (lid < lag) {
-        local_means[lid + local_size] = means [gid + local_size];
-    }
+    bool load_lag = (lid < lag) && (gid + local_size < get_global_size(0));
+
+    local_means[lid + local_size] = load_lag ? means[gid + local_size] : 0.0f;
 
     work_group_barrier(CLK_LOCAL_MEM_FENCE);
 
-    if (gid < imax) {
-        float xacc = 0.0;
+    float xacc = 0.0f;
 
-        for (uint s = 0; s < lag; s++) {
-            xacc += x * local_means[lid + s + 1];
-        }
-
-        xacc = x * x + 2 * xacc;
-
-        work_group_reduction_autocovariance (c0acc, dacc, x * x, xacc);
+    for (uint s = 0; s < lag; s++) {
+        xacc += x * local_means[lid + s + 1];
     }
+
+    bool compute = gid < imax;
+    xacc = compute ? x * x + 2 * xacc : 0.0f;
+
+    work_group_reduction_autocovariance(c0acc, dacc, compute? x*x : 0.0f, xacc);
+
 }
 
 inline float stretch_move1(const uint seed, __constant const float* params,

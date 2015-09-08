@@ -6,7 +6,7 @@
              [toolbox :refer [count-work-groups enq-reduce enq-read-long]]]
             [uncomplicate.neanderthal
              [math :refer [sqrt]]
-             [core :refer [asum sum dim vect? freduce]]
+             [core :refer [asum sum dim vect? freduce entry iamax]]
              [opencl :refer [clv read!]]]
             [uncomplicate.neanderthal.opencl.amd-gcn :refer [gcn-single]]
             [uncomplicate.bayadera.protocols :refer :all]))
@@ -126,13 +126,13 @@
   (acor [_ sample];;TODO when the last wgsize is less than maxlag, we get junk autocovariance.
     (let [n (dim sample)
           min-fac 16 ;; TODO magic number
-          MINLAG 16
+          MINLAG 4
           WINMULT 16
           TAUMAX 16
           MAXLAG (* TAUMAX WINMULT) ;;TODO magic number
           lag (max MINLAG (min (quot n min-fac) MAXLAG))
           i-max (- n lag)
-          autocov-count (count-work-groups WGS i-max)]
+          autocov-count (count-work-groups WGS n)]
       (if (<= (* lag min-fac) n)
         (with-release [c0-vec (clv neanderthal-engine autocov-count)
                        d-vec (clv neanderthal-engine autocov-count)]
@@ -144,9 +144,9 @@
                        (.buffer d-vec) (.buffer sample) (int-array [i-max]))
             (enq-nd! cqueue autocovariance-kernel (work-size [n]))
             (let [d (float (sum d-vec))]
-              (assoc (->Autocorrelation (/ d (float (sum c0-vec))) sample-mean
-                                        (sqrt (/ d i-max n))
-                                        (* n walker-count) n walker-count lag 0.0)))))
+              (->Autocorrelation (/ d (float (sum c0-vec))) sample-mean
+                                 (sqrt (/ d i-max n))
+                                 (* n walker-count) n walker-count lag 0.0))))
         (throw (IllegalArgumentException.
                 (format (str "The autocorrelation time is too long relative to the variance."
                              "Number of steps (%d) must not be less than %d.")

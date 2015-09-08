@@ -19,10 +19,10 @@
      (with-release [mcmc-engine-factory (gcn-stretch-1d-engine-factory ctx cqueue)
                     engine (mcmc-engine mcmc-engine-factory walker-count params)]
        (init-walkers! engine (int-array [123]))
-       (init! engine (int-array [123]))
+       (init! engine (int-array [12333]))
        (time (burn-in! engine 256 a))  => :burn-in
        (init! engine (int-array [567]))
-       (time (run-sampler! engine 1000001 a)) => :run-sampler
+       (time (run-sampler! engine 67 a)) => :run-sampler
        (enq-read! cqueue (.cl-xs engine) xs) => cqueue
        (Math/abs (- 200 (/ (reduce + xs) walker-count))) => 0.0;;(roughly 200.0)
        ;;(frequencies (map #(Math/round (* % 10)) xs)) => :Xk
