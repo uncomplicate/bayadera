@@ -26,10 +26,12 @@
 (deftype GCNStretch1D [ctx cqueue neanderthal-engine
                        ^long walker-count wsize ^long WGS
                        ^ints step-counter
-                       cl-params cl-xs cl-s0 cl-s1 cl-accept cl-accept-acc
+                       cl-params cl-xs cl-s0 cl-s1
+                       cl-logpdf-xs cl-logpdf-s0 cl-logpdf-s1
+                       cl-accept cl-accept-acc
                        stretch-move-odd-kernel stretch-move-even-kernel
                        stretch-move-odd-bare-kernel stretch-move-even-bare-kernel
-                       init-walkers-kernel
+                       init-walkers-kernel logpdf-kernel
                        sum-accept-reduction-kernel sum-accept-kernel
                        sum-means-kernel subtract-mean-kernel
                        autocovariance-kernel]
@@ -39,6 +41,9 @@
     (release cl-xs)
     (release cl-s0)
     (release cl-s1)
+    (release cl-logpdf-xs)
+    (release cl-logpdf-s0)
+    (release cl-logpdf-s1)
     (release cl-accept)
     (release cl-accept-acc)
     (release stretch-move-odd-kernel)
@@ -46,6 +51,7 @@
     (release stretch-move-odd-bare-kernel)
     (release stretch-move-even-bare-kernel)
     (release init-walkers-kernel)
+    (release logpdf-kernel)
     (release sum-accept-reduction-kernel)
     (release sum-accept-kernel)
     (release sum-means-kernel)
@@ -54,16 +60,16 @@
   MCMCStretch
   (move! [this]
     (do
-      (set-arg! stretch-move-odd-kernel 7 step-counter)
-      (set-arg! stretch-move-even-kernel 7 step-counter)
+      (set-arg! stretch-move-odd-kernel 8 step-counter)
+      (set-arg! stretch-move-even-kernel 8 step-counter)
       (enq-nd! cqueue stretch-move-odd-kernel wsize)
       (enq-nd! cqueue stretch-move-even-kernel wsize)
       (inc! step-counter)
       cl-xs))
   (move-bare! [this]
     (do
-      (set-arg! stretch-move-odd-bare-kernel 5 step-counter)
-      (set-arg! stretch-move-even-bare-kernel 5 step-counter)
+      (set-arg! stretch-move-odd-bare-kernel 6 step-counter)
+      (set-arg! stretch-move-even-bare-kernel 6 step-counter)
       (enq-nd! cqueue stretch-move-odd-bare-kernel wsize)
       (enq-nd! cqueue stretch-move-even-bare-kernel wsize)
       (inc! step-counter)
@@ -112,6 +118,7 @@
         (do
           (set-arg! init-walkers-kernel 0 position)
           (enq-nd! cqueue init-walkers-kernel (work-size [(/ walker-count 4)]))))
+      (enq-nd! cqueue logpdf-kernel (work-size [walker-count]))
       this))
   (init! [this seed]
     (do
@@ -125,18 +132,18 @@
   (burn-in! [this n a]
     (do
       (aset step-counter 0 0)
-      (set-arg! stretch-move-odd-bare-kernel 4 a)
-      (set-arg! stretch-move-even-bare-kernel 4 a)
+      (set-arg! stretch-move-odd-bare-kernel 5 a)
+      (set-arg! stretch-move-even-bare-kernel 5 a)
       (dotimes [i (dec (long n))]
         (move-bare! this))
       (let [means-count (long (count-work-groups WGS (/ walker-count 2)))]
         (with-release [cl-means (cl-buffer ctx (* Float/BYTES) :read-write)]
           (aset step-counter 0 0)
           (enq-fill! cqueue cl-accept (int-array 1))
-          (set-arg! stretch-move-odd-kernel 5 cl-means)
-          (set-arg! stretch-move-even-kernel 5 cl-means)
-          (set-arg! stretch-move-odd-kernel 6 a)
-          (set-arg! stretch-move-even-kernel 6 a)
+          (set-arg! stretch-move-odd-kernel 6 cl-means)
+          (set-arg! stretch-move-even-kernel 6 cl-means)
+          (set-arg! stretch-move-odd-kernel 7 a)
+          (set-arg! stretch-move-even-kernel 7 a)
           (move! this)
           (acc-rate this)))))
   (run-sampler! [this n a]
@@ -146,10 +153,10 @@
                                          :read-write)]
         (aset step-counter 0 0)
         (enq-fill! cqueue cl-means (float-array 1))
-        (set-arg! stretch-move-odd-kernel 5 cl-means)
-        (set-arg! stretch-move-even-kernel 5 cl-means)
-        (set-arg! stretch-move-odd-kernel 6 a)
-        (set-arg! stretch-move-even-kernel 6 a)
+        (set-arg! stretch-move-odd-kernel 6 cl-means)
+        (set-arg! stretch-move-even-kernel 6 cl-means)
+        (set-arg! stretch-move-odd-kernel 7 a)
+        (set-arg! stretch-move-even-kernel 7 a)
         (dotimes [i n]
           (move! this))
         (set-args! sum-means-kernel 0 (.buffer means-vec)
@@ -180,22 +187,26 @@
               cl-xs (cl-buffer ctx (* 2 bytecount) :read-write)
               cl-s0 (cl-sub-buffer cl-xs 0 bytecount :read-write)
               cl-s1 (cl-sub-buffer cl-xs bytecount bytecount :read-write)
+              cl-logpdf-xs (cl-buffer ctx (* 2 bytecount) :read-write)
+              cl-logpdf-s0 (cl-sub-buffer cl-logpdf-xs 0 bytecount :read-write)
+              cl-logpdf-s1 (cl-sub-buffer cl-logpdf-xs bytecount bytecount :read-write)
               cl-accept (cl-buffer ctx (* Integer/BYTES accept-count) :read-write)
               cl-accept-acc (cl-buffer ctx (* Long/BYTES accept-acc-count) :read-write)]
           (->GCNStretch1D
            ctx queue neanderthal-engine
            walker-count (work-size [(/ walker-count 2)]) WGS step-counter
-           cl-params cl-xs cl-s0 cl-s1
+           cl-params cl-xs cl-s0 cl-s1 cl-logpdf-xs cl-logpdf-s0 cl-logpdf-s1
            cl-accept cl-accept-acc
            (doto (kernel prog "stretch_move1_accu")
-             (set-args! 1 cl-params cl-s1 cl-s0 cl-accept))
+             (set-args! 1 cl-params cl-s1 cl-s0 cl-logpdf-s0 cl-accept))
            (doto (kernel prog "stretch_move1_accu")
-             (set-args! 1 cl-params cl-s0 cl-s1 cl-accept))
+             (set-args! 1 cl-params cl-s0 cl-s1 cl-logpdf-s1 cl-accept))
            (doto (kernel prog "stretch_move1_bare")
-             (set-args! 1 cl-params cl-s1 cl-s0))
+             (set-args! 1 cl-params cl-s1 cl-s0 cl-logpdf-s0))
            (doto (kernel prog "stretch_move1_bare")
-             (set-args! 1 cl-params cl-s0 cl-s1))
+             (set-args! 1 cl-params cl-s0 cl-s1 cl-logpdf-s1))
            (doto (kernel prog "init_walkers") (set-arg! 1 cl-xs))
+           (doto (kernel prog "log_pdf") (set-args! 0 cl-params cl-xs cl-logpdf-xs))
            (doto (kernel prog "sum_accept_reduction") (set-arg! 0 cl-accept-acc))
            (doto (kernel prog "sum_accept_reduce") (set-args! 0 cl-accept-acc cl-accept))
            (kernel prog "sum_means")

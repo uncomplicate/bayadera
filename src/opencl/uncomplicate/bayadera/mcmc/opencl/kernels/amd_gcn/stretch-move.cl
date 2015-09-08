@@ -198,6 +198,7 @@ __kernel void autocovariance (const uint lag,
 
 inline float stretch_move1(const uint seed, __constant const float* params,
                            const float* Scompl, float* X, const float Xk,
+                           float* logpdf_X,
                            const uint step_counter, const float a) {
 
     // Get the index of this walker Xk
@@ -220,31 +221,32 @@ inline float stretch_move1(const uint seed, __constant const float* params,
 
     float logpdf_y = logpdf(params, Y);
     float q = (isfinite(logpdf_y)) ?
-        native_exp(logpdf(params, Y) - logpdf(params, Xk)) : 0.0f;
+        native_exp(logpdf(params, Y) - logpdf_X[k]) : 0.0f;
 
     bool accepted = u.s2 <= q;
 
     if (accepted) {
         X[k] = Y;
+        logpdf_X[k] = logpdf_y;
     }
 
     return accepted ? Y : Xk;
 }
 
-
 // =============================================================================
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
 __kernel void stretch_move1_accu(const uint seed,
-                                 __constant const float *params
+                                 __constant const float* params
                                  __attribute__ ((max_constant_size(PARAMS_SIZE))),
-                                 __global const float *Scompl, __global float *X,
-                                 __global uint *accept,
+                                 __global const float* Scompl, __global float *X,
+                                 __global float* logpdf_X, __global uint *accept,
                                  __global float *means,
                                  const float a, const uint step_counter) {
 
     float Xk = X[get_global_id(0)];
-    float res = stretch_move1(seed, params, Scompl, X, Xk, step_counter, a);
+    float res = stretch_move1(seed, params, Scompl, X, Xk, logpdf_X,
+                              step_counter, a);
 
     work_group_reduction_accumulate(accept, (res != Xk) ? 1 : 0, means,
                                     res, step_counter);
@@ -255,29 +257,28 @@ __kernel void stretch_move1_bare(const uint seed,
                                  __constant const float *params
                                  __attribute__ ((max_constant_size(PARAMS_SIZE))),
                                  __global const float *Scompl, __global float *X,
+                                 __global float* logpdf_X,
                                  const float a, const uint step_counter) {
     float Xk = X[get_global_id(0)];
-    stretch_move1(seed, params, Scompl, X, Xk, step_counter, a);
+    stretch_move1(seed, params, Scompl, X, Xk, logpdf_X, step_counter, a);
 }
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
-__kernel void pdf_kernel(__constant const float *params
-                         __attribute__ ((max_constant_size(PARAMS_SIZE))),
-                         __global const float *X,
-                         __global float *pdf) {
-
+__kernel void log_pdf(__constant const float* params
+                      __attribute__ ((max_constant_size(PARAMS_SIZE))),
+                      __global const float* X, __global float* logpdf_X) {
     uint gid = get_global_id(0);
-    pdf[gid] = native_exp(logpdf(params, X[gid]));
+    logpdf_X[gid] = logpdf(params, X[gid]);
 }
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
-__kernel void logpdf_kernel(__constant const float *params
-                            __attribute__ ((max_constant_size(PARAMS_SIZE))),
-                            __global const float *X,
-                            __global float *pdf) {
+__kernel void pdf(__constant const float *params
+                  __attribute__ ((max_constant_size(PARAMS_SIZE))),
+                  __global const float *X,
+                  __global float *pdf_X) {
 
     uint gid = get_global_id(0);
-    pdf[gid] = logpdf(params, X[gid]);
+    pdf_X[gid] = native_exp(logpdf(params, X[gid]));
 }
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
