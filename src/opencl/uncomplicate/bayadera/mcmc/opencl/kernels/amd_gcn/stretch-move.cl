@@ -160,15 +160,18 @@ inline void work_group_reduction_autocovariance (__global float* c0acc,
 }
 
 #define TAUMAX 16
-#define WINMULT 4
+#define WINMULT 16
 #define MAXLAG TAUMAX * WINMULT
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
 __kernel void autocovariance (const uint lag,
                               __global float* c0acc, __global float* dacc,
-                              __global float* const means) {
+                              __global float* const means,
+                              const uint imax) {
     uint gid = get_global_id(0);
+
     uint lid = get_local_id(0);
+    uint local_size = get_local_size(0);
 
     __local float local_means[WGS + MAXLAG];
 
@@ -176,20 +179,22 @@ __kernel void autocovariance (const uint lag,
     local_means[lid] = x;
 
     if (lid < lag) {
-        local_means[WGS + lid] = means [WGS + gid];
+        local_means[lid + local_size] = means [gid + local_size];
     }
 
     work_group_barrier(CLK_LOCAL_MEM_FENCE);
 
-    float xacc = 0.0;
+    if (gid < imax) {
+        float xacc = 0.0;
 
-    for (uint s = 0; s < lag; s++) {
-        xacc += x * local_means[lid + s + 1];
+        for (uint s = 0; s < lag; s++) {
+            xacc += x * local_means[lid + s + 1];
+        }
+
+        xacc = x * x + 2 * xacc;
+
+        work_group_reduction_autocovariance (c0acc, dacc, x * x, xacc);
     }
-
-    xacc = x * x + 2 * xacc;
-
-    work_group_reduction_autocovariance (c0acc, dacc, x * x, xacc);
 }
 
 inline float stretch_move1(const uint seed, __constant const float* params,

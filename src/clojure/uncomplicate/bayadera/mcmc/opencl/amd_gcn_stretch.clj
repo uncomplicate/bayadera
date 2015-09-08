@@ -6,7 +6,7 @@
              [toolbox :refer [count-work-groups enq-reduce enq-read-long]]]
             [uncomplicate.neanderthal
              [math :refer [sqrt]]
-             [core :refer [asum sum dim vect?]]
+             [core :refer [asum sum dim vect? freduce]]
              [opencl :refer [clv read!]]]
             [uncomplicate.neanderthal.opencl.amd-gcn :refer [gcn-single]]
             [uncomplicate.bayadera.protocols :refer :all]))
@@ -123,11 +123,13 @@
         (/ (double (enq-read-long cqueue cl-accept-acc))
            (* walker-count (aget step-counter 0))))
       Double/NaN))
-  (acor [_ sample]
+  (acor [_ sample];;TODO when the last wgsize is less than maxlag, we get junk autocovariance.
     (let [n (dim sample)
           min-fac 16 ;; TODO magic number
-          MAXLAG 64 ;;TODO magic number
-          MINLAG 4
+          MINLAG 16
+          WINMULT 16
+          TAUMAX 16
+          MAXLAG (* TAUMAX WINMULT) ;;TODO magic number
           lag (max MINLAG (min (quot n min-fac) MAXLAG))
           i-max (- n lag)
           autocov-count (count-work-groups WGS i-max)]
@@ -139,12 +141,12 @@
                        (float-array [sample-mean]))
             (enq-nd! cqueue subtract-mean-kernel (work-size [n]))
             (set-args! autocovariance-kernel 0 (int-array [lag]) (.buffer c0-vec)
-                       (.buffer d-vec) (.buffer sample))
-            (enq-nd! cqueue autocovariance-kernel (work-size [i-max]))
+                       (.buffer d-vec) (.buffer sample) (int-array [i-max]))
+            (enq-nd! cqueue autocovariance-kernel (work-size [n]))
             (let [d (float (sum d-vec))]
-              (->Autocorrelation (/ d (float (sum c0-vec))) sample-mean
-                                 (sqrt (/ d i-max n))
-                                 (* n walker-count) n walker-count lag 0.0))))
+              (assoc (->Autocorrelation (/ d (float (sum c0-vec))) sample-mean
+                                        (sqrt (/ d i-max n))
+                                        (* n walker-count) n walker-count lag 0.0)))))
         (throw (IllegalArgumentException.
                 (format (str "The autocorrelation time is too long relative to the variance."
                              "Number of steps (%d) must not be less than %d.")
@@ -205,7 +207,7 @@
                          include-name)))
    (io/file (format "%s/Random123/%s" tmp-dir-name include-name))))
 
-(defn gcn-stretch-1d-engine-factory [ctx cqueue a]
+(defn gcn-stretch-1d-engine-factory [ctx cqueue]
   (let [tmp-dir-name (fsc/temp-dir "uncomplicate/")]
     (try
       (fsc/mkdirs (format "%s/%s" tmp-dir-name "Random123/features/"))
@@ -221,7 +223,7 @@
            [(slurp (io/resource "uncomplicate/clojurecl/kernels/reduction.cl"))
             (slurp (io/resource "uncomplicate/bayadera/mcmc/opencl/kernels/amd_gcn/random.h"))
             (slurp (io/resource "uncomplicate/bayadera/mcmc/opencl/kernels/amd_gcn/stretch-move.cl"))])
-          (format "-cl-std=CL2.0 -DA=%f  -DACCUMULATOR=float -I%s/" a tmp-dir-name)
+          (format "-cl-std=CL2.0 -DACCUMULATOR=float -I%s/" tmp-dir-name)
           nil)
          256))
       (finally
