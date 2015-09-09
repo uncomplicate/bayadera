@@ -84,28 +84,27 @@
       Double/NaN))
   (acor [_ sample]
     (let [n (dim sample)
-          min-fac 16 ;; TODO magic number
+          min-fac 16
           MINLAG 4
           WINMULT 16
           TAUMAX 16
-          MAXLAG (* TAUMAX WINMULT) ;;TODO magic number
-          lag (max MINLAG (min (quot n min-fac) MAXLAG))
+          lag (max MINLAG (min (quot n min-fac) WGS))
           i-max (- n lag)
-          autocov-count (count-work-groups WGS n)]
+          autocov-count (count-work-groups WGS n)
+          sample-mean (/ (float (sum sample)) n)]
       (if (<= (* lag min-fac) n)
         (with-release [c0-vec (clv neanderthal-engine autocov-count)
                        d-vec (clv neanderthal-engine autocov-count)]
-          (let [sample-mean (/ (float (sum sample)) n)]
-            (set-args! subtract-mean-kernel 0 (.buffer sample)
-                       (float-array [sample-mean]))
-            (enq-nd! cqueue subtract-mean-kernel (work-size [n]))
-            (set-args! autocovariance-kernel 0 (int-array [lag]) (.buffer c0-vec)
-                       (.buffer d-vec) (.buffer sample) (int-array [i-max]))
-            (enq-nd! cqueue autocovariance-kernel (work-size [n]))
-            (let [d (float (sum d-vec))]
-              (->Autocorrelation (/ d (float (sum c0-vec))) sample-mean
-                                 (sqrt (/ d i-max n))
-                                 (* n walker-count) n walker-count lag 0.0))))
+          (set-args! subtract-mean-kernel 0 (.buffer sample)
+                     (float-array [sample-mean]))
+          (enq-nd! cqueue subtract-mean-kernel (work-size [n]))
+          (set-args! autocovariance-kernel 0 (int-array [lag]) (.buffer c0-vec)
+                     (.buffer d-vec) (.buffer sample) (int-array [i-max]))
+          (enq-nd! cqueue autocovariance-kernel (work-size [n]))
+          (let [d (float (sum d-vec))]
+            (->Autocorrelation (/ d (float (sum c0-vec))) sample-mean
+                               (sqrt (/ d i-max n))
+                               (* n walker-count) n walker-count lag 0.0)))
         (throw (IllegalArgumentException.
                 (format (str "The autocorrelation time is too long relative to the variance."
                              "Number of steps (%d) must not be less than %d.")
@@ -180,7 +179,7 @@
               step-counter (int-array 1)
               cl-params (let [par-buf (cl-buffer ctx (* Float/BYTES (dim params))
                                                  :read-only)]
-                          (enq-write! queue par-buf (.buffer params))
+                          (enq-write! queue par-buf (.buffer params));;TODO USE .buffer directly!
                           par-buf)
               cl-xs (cl-buffer ctx (* 2 bytecount) :read-write)
               cl-s0 (cl-sub-buffer cl-xs 0 bytecount :read-write)
@@ -221,11 +220,11 @@
 (defn ^:private copy-random123 [include-name tmp-dir-name]
   (io/copy
    (io/input-stream
-    (io/resource (format "uncomplicate/bayadera/mcmc/opencl/include/Random123/%s"
+    (io/resource (format "uncomplicate/bayadera/rng/opencl/include/Random123/%s"
                          include-name)))
    (io/file (format "%s/Random123/%s" tmp-dir-name include-name))))
 
-(defn gcn-stretch-1d-engine-factory [ctx cqueue]
+(defn gcn-stretch-1d-engine-factory [ctx cqueue dist-source]
   (let [tmp-dir-name (fsc/temp-dir "uncomplicate/")]
     (try
       (fsc/mkdirs (format "%s/%s" tmp-dir-name "Random123/features/"))
@@ -239,8 +238,10 @@
           (program-with-source
            ctx
            [(slurp (io/resource "uncomplicate/clojurecl/kernels/reduction.cl"))
-            (slurp (io/resource "uncomplicate/bayadera/mcmc/opencl/kernels/amd_gcn/random.h"))
-            (slurp (io/resource "uncomplicate/bayadera/mcmc/opencl/kernels/amd_gcn/stretch-move.cl"))])
+            (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/sampling.h"))
+            dist-source
+            (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/kernels.cl"))
+            (slurp (io/resource "uncomplicate/bayadera/mcmc/opencl/amd_gcn/stretch-move.cl"))])
           (format "-cl-std=CL2.0 -DACCUMULATOR=float -I%s/" tmp-dir-name)
           nil)
          256))

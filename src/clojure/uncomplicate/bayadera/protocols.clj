@@ -8,3 +8,10 @@
   (init! [this seed])
   (burn-in! [this n a])
   (run-sampler! [this n a]))
+
+(defprotocol DistributionEngine
+  (logpdf! [_ n params x res])
+  (pdf! [_ n params x res]))
+
+(defprotocol RandomSampler
+  (sample! [this seed res] [this seed n params res]))

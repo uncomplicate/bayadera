@@ -1,10 +1,5 @@
 #include "Random123/philox.h"
 
-
-#ifndef M_SQRT_2PI_F
-#define M_SQRT_2PI_F 0.9189385332046727f
-#endif
-
 #ifndef PARAMS_SIZE
     #define PARAMS_SIZE 2
 #endif
@@ -12,15 +7,6 @@
 #ifndef WGS
     #define WGS 256
 #endif
-
-
-// We'll test this with gaussian
-inline float logpdf(__constant float *params, float x) {
-    float mu = params[0];
-    float sigma = params[1];
-    return (x - mu) * (x - mu) / (-2.0f * sigma * sigma)
-        - native_log(sigma) - M_SQRT_2PI_F;
-}
 
 // =============================================================================
 
@@ -159,10 +145,6 @@ inline void work_group_reduction_autocovariance (__global float* c0acc,
     }
 }
 
-#define TAUMAX 16
-#define WINMULT 16
-#define MAXLAG TAUMAX * WINMULT
-
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
 __kernel void autocovariance (const uint lag,
                               __global float* c0acc, __global float* dacc,
@@ -172,7 +154,7 @@ __kernel void autocovariance (const uint lag,
     uint lid = get_local_id(0);
     uint local_size = get_local_size(0);
 
-    __local float local_means[WGS + MAXLAG];
+    __local float local_means[2 * WGS];
 
     float x = means[gid];
     local_means[lid] = x;
@@ -263,24 +245,7 @@ __kernel void stretch_move1_bare(const uint seed,
     stretch_move1(seed, params, Scompl, X, Xk, logpdf_X, step_counter, a);
 }
 
-__attribute__((reqd_work_group_size(WGS, 1, 1)))
-__kernel void log_pdf(__constant const float* params
-                      __attribute__ ((max_constant_size(PARAMS_SIZE))),
-                      __global const float* X, __global float* logpdf_X) {
-    uint gid = get_global_id(0);
-    logpdf_X[gid] = logpdf(params, X[gid]);
-}
-
-__attribute__((reqd_work_group_size(WGS, 1, 1)))
-__kernel void pdf(__constant const float *params
-                  __attribute__ ((max_constant_size(PARAMS_SIZE))),
-                  __global const float *X,
-                  __global float *pdf_X) {
-
-    uint gid = get_global_id(0);
-    pdf_X[gid] = native_exp(logpdf(params, X[gid]));
-}
-
+// Uniformly distribute walkers' starting positions for between low and high.
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
 __kernel void init_walkers(const uint seed, const float low, const float high,
                            __global float4 *xs){
