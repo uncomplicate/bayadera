@@ -12,7 +12,7 @@
             [uncomplicate.bayadera.protocols :refer :all]))
 
 (defprotocol MCMCEngineFactory
-  (mcmc-engine [this walker-count cl-params]))
+  (mcmc-engine [this walker-count cl-params low high]))
 
 (defprotocol MCMCStretch
   (move! [this])
@@ -170,7 +170,7 @@
     (release prog)
     (release neanderthal-engine))
   MCMCEngineFactory
-  (mcmc-engine [_ walker-count params]
+  (mcmc-engine [_ walker-count params low high]
     (let [walker-count (long walker-count)]
       (if (and (<= (* 2 WGS) walker-count) (zero? (rem walker-count (* 2 WGS))))
         (let [cnt (long (/ walker-count 2))
@@ -203,10 +203,14 @@
              (set-args! 1 cl-params cl-s1 cl-s0 cl-logpdf-s0))
            (doto (kernel prog "stretch_move1_bare")
              (set-args! 1 cl-params cl-s0 cl-s1 cl-logpdf-s1))
-           (doto (kernel prog "init_walkers") (set-arg! 1 cl-xs))
-           (doto (kernel prog "log_pdf") (set-args! 0 cl-params cl-xs cl-logpdf-xs))
-           (doto (kernel prog "sum_accept_reduction") (set-arg! 0 cl-accept-acc))
-           (doto (kernel prog "sum_accept_reduce") (set-args! 0 cl-accept-acc cl-accept))
+           (doto (kernel prog "init_walkers")
+             (set-args! 1 (float-array [low]) (float-array [high]) cl-xs))
+           (doto (kernel prog "log_pdf")
+             (set-args! 0 cl-params cl-xs cl-logpdf-xs))
+           (doto (kernel prog "sum_accept_reduction")
+             (set-arg! 0 cl-accept-acc))
+           (doto (kernel prog "sum_accept_reduce")
+             (set-args! 0 cl-accept-acc cl-accept))
            (kernel prog "sum_means")
            (kernel prog "subtract_mean")
            (kernel prog "autocovariance")))
