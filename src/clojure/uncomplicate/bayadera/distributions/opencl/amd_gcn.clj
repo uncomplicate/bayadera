@@ -6,7 +6,7 @@
 
 (defprotocol DistributionEngineFactory
   (random-sampler [_])
-  (distribution-engine [_ name]))
+  (distribution-engine [_]))
 
 (deftype GCNDistributionEngine [cqueue logpdf-kernel pdf-kernel]
   Releaseable
@@ -43,8 +43,10 @@
   DistributionEngineFactory
   (random-sampler [_]
     (->GCNDirectSampler cqueue (kernel prog (str name "_sample"))))
-  (distribution-engine [_ name]
-    (->GCNDistributionEngine cqueue (kernel prog "log_pdf") (kernel prog "pdf"))))
+  (distribution-engine [_]
+    (->GCNDistributionEngine cqueue
+                             (kernel prog "logpdf_kernel")
+                             (kernel prog "pdf_kernel"))))
 
 (defn ^:private copy-random123 [include-name tmp-dir-name]
   (io/copy
@@ -52,13 +54,6 @@
     (io/resource (format "uncomplicate/bayadera/rng/opencl/include/Random123/%s"
                          include-name)))
    (io/file (format "%s/Random123/%s" tmp-dir-name include-name))))
-
-(defn logpdf-source [dist-name]
-  (str
-   (slurp (io/resource
-           (format "uncomplicate/bayadera/distributions/opencl/%s.h" dist-name)))
-   "\n"
-   (format "\ninline float logpdf(__constant float* params, float x) {return %s_logpdf(params, x);}\n" dist-name)))
 
 (defn gcn-distribution-engine-factory [ctx cqueue dist-name]
   (let [tmp-dir-name (fsc/temp-dir "uncomplicate/")]
@@ -73,10 +68,11 @@
         (program-with-source
          ctx
          [(slurp (io/resource "uncomplicate/bayadera/distributions/opencl/sampling.h"))
-          (logpdf-source dist-name)
+          (slurp (io/resource (format "uncomplicate/bayadera/distributions/opencl/%s.h" dist-name)))
           (slurp (io/resource (format "uncomplicate/bayadera/distributions/opencl/%s.cl" dist-name)))
           (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/kernels.cl"))])
-        (format "-cl-std=CL2.0 -I%s/" tmp-dir-name)
+        (format "-cl-std=CL2.0 -DDIST_LOGPDF=%s_logpdf -DDIST_PDF=%s_pdf -I%s/"
+                dist-name dist-name tmp-dir-name)
         nil)
        dist-name)
       (finally

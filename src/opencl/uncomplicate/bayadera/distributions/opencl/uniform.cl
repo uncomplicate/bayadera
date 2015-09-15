@@ -14,10 +14,10 @@ __kernel void uniform_sample(const uint seed, __constant const float* params
     philox4x32_key_t key = {{seed, 0xdecafaaa, 0xfacebead, 0x12345678}};
     philox4x32_ctr_t cnt = {{gid, 0xf00dcafe, 0xdeadbeef, 0xbeeff00d}};
 
-    float low = params[0];
-    float high = params[1];
+    float lower = params[0];
+    float upper = params[1];
 
     x[gid] = u01fpt_oo_4x32_24(((uint4*)philox4x32(cnt, key).v)[0])
-        * (high - low) + low;
+        * (upper - lower) + lower;
 
 }

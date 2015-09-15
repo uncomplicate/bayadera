@@ -204,7 +204,7 @@
              (set-args! 1 cl-params cl-s0 cl-s1 cl-logpdf-s1))
            (doto (kernel prog "init_walkers")
              (set-args! 1 (float-array [low]) (float-array [high]) cl-xs))
-           (doto (kernel prog "log_pdf")
+           (doto (kernel prog "logpdf_kernel")
              (set-args! 0 cl-params cl-xs cl-logpdf-xs))
            (doto (kernel prog "sum_accept_reduction")
              (set-arg! 0 cl-accept-acc))
@@ -224,7 +224,7 @@
                          include-name)))
    (io/file (format "%s/Random123/%s" tmp-dir-name include-name))))
 
-(defn gcn-stretch-1d-engine-factory [ctx cqueue dist-source]
+(defn gcn-stretch-1d-engine-factory [ctx cqueue dist-name]
   (let [tmp-dir-name (fsc/temp-dir "uncomplicate/")]
     (try
       (fsc/mkdirs (format "%s/%s" tmp-dir-name "Random123/features/"))
@@ -239,10 +239,12 @@
            ctx
            [(slurp (io/resource "uncomplicate/clojurecl/kernels/reduction.cl"))
             (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/sampling.h"))
-            dist-source
+            (slurp (io/resource (format "uncomplicate/bayadera/distributions/opencl/%s.h" dist-name)))
+            (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/pdfs.h"))
             (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/kernels.cl"))
             (slurp (io/resource "uncomplicate/bayadera/mcmc/opencl/amd_gcn/stretch-move.cl"))])
-          (format "-cl-std=CL2.0 -DACCUMULATOR=float -I%s/" tmp-dir-name)
+          (format "-cl-std=CL2.0 -DDIST_LOGPDF=%s_logpdf -DDIST_PDF=%s_pdf -DACCUMULATOR=float -I%s/"
+                  dist-name dist-name tmp-dir-name)
           nil)
          256))
       (finally
