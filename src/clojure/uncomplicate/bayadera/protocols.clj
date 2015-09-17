@@ -10,8 +10,36 @@
   (run-sampler! [this n a]))
 
 (defprotocol DistributionEngine
-  (logpdf! [_ n params x res])
-  (pdf! [_ n params x res]))
+  (logpdf! [_ dist x res])
+  (pdf! [_ dist x res]))
 
 (defprotocol RandomSampler
-  (sample! [this seed res] [this seed n params res]))
+  (sample! [this seed dist res]))
+
+(defprotocol Distribution
+  (parameters [_]))
+
+(defprotocol Location
+  (mean [this])
+  (median [this]))
+
+(defprotocol Spread
+  (total-range [x])
+  (interquartile-range [x])
+  (variance [x])
+  (sd [x]))
+
+(defprotocol Association
+  (cov [x y])
+  (corr [x y]))
+
+(defprotocol SamplerProvider
+  (sampler [_]))
+
+(defprotocol DistributionEngineProvider
+  (distribution-engine [_]))
+
+(defprotocol DistributionEngineFactory
+  (vector-factory [_])
+  (random-sampler [_ name])
+  (dist-engine [_ name]))

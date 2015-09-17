@@ -239,8 +239,7 @@
            ctx
            [(slurp (io/resource "uncomplicate/clojurecl/kernels/reduction.cl"))
             (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/sampling.h"))
-            (slurp (io/resource (format "uncomplicate/bayadera/distributions/opencl/%s.h" dist-name)))
-            (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/pdfs.h"))
+            (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/measures.h"))
             (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/kernels.cl"))
             (slurp (io/resource "uncomplicate/bayadera/mcmc/opencl/amd_gcn/stretch-move.cl"))])
           (format "-cl-std=CL2.0 -DDIST_LOGPDF=%s_logpdf -DDIST_PDF=%s_pdf -DACCUMULATOR=float -I%s/"

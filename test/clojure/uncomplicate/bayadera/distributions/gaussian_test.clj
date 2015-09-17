@@ -1,4 +1,4 @@
-(ns uncomplicate.bayadera.distributions.gaussian_test.clj
+(ns uncomplicate.bayadera.distributions.gaussian-test
   (:require [midje.sweet :refer :all]
             [uncomplicate.clojurecl.core :refer :all]
             [uncomplicate.neanderthal
@@ -8,7 +8,6 @@
             [uncomplicate.bayadera.distributions.opencl.amd-gcn :refer :all]
             [uncomplicate.neanderthal.opencl :refer [clv read! write!]]
             [uncomplicate.neanderthal.opencl.amd-gcn :refer [gcn-single]]))
-
 
 (with-release [dev (first (devices (first (platforms))))
                ctx (context [dev])
