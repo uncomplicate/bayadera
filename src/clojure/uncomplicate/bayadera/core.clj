@@ -12,6 +12,9 @@
 (defn sd [x]
   (p/sd x))
 
+(defn variance [x]
+  (p/variance x))
+
 (defn sample! [dist result]
   (p/sample! (p/sampler dist) (rand-int Integer/MAX_VALUE) (p/parameters dist) (p/data result)))
 
