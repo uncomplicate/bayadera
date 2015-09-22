@@ -2,12 +2,15 @@
   (:require [clojure.java.io :as io]
             [me.raynes.fs :as fsc]
             [uncomplicate.clojurecl.core :refer :all]
+            [uncomplicate.clojurecl.toolbox
+             :refer [enq-reduce enq-read-double]]
             [uncomplicate.neanderthal
              [core :refer [dim sum nrm2]]
-             [protocols :refer [BlockCreator]]
+             [protocols :as np]
              [opencl :refer [clv clge]]]
             [uncomplicate.neanderthal.opencl.amd-gcn :refer [gcn-single]]
-            [uncomplicate.bayadera.protocols :refer :all]))
+            [uncomplicate.bayadera.protocols :refer :all])
+  (:import [uncomplicate.neanderthal.opencl.amd_gcn GCNVectorEngine]))
 
 (deftype GCNDirectSampler [cqueue sample-kernel]
   Releaseable
@@ -43,30 +46,28 @@
     (release variance-kernel))
   Spread
   (variance [_ dataset]
-    #_(let [dataset-mean (mean dataset)
-            data (data dataset)
-            WGS (.WGS neand-factory)]
-        (set-arg! variance-kernel (.acc neand-factory)
-                  (.buffer (data dataset)))
-        (enq-reduce variance-kernel sum-reduction-kernel WGS (dim data)))
-    (let [sx (sum (data dataset))
-          nrm (nrm2 (data dataset))
-          n (dim (data dataset))]
-      (/ (- (* nrm nrm) (/ (* sx sx ) n)) n))))
+    (let [mu (mean dataset)
+          data-vect (data dataset)
+          neand-eng ^GCNVectorEngine (np/engine data-vect)
+          WGS (.WGS neand-eng)]
+        (set-args! variance-kernel (.reduce-acc neand-eng)
+                  (.buffer data-vect) (float-array [mu]))
+        (enq-reduce cqueue variance-kernel (.sum-reduction-kernel neand-eng) WGS (dim data-vect))
+        (/ (enq-read-double cqueue (.reduce-acc neand-eng)) (dim data-vect)))))
 
 (deftype GCNEngineFactory [cqueue neand-factory prog]
   Releaseable
   (release [_]
     (release prog)
     (release neand-factory))
-  BlockCreator
+  np/BlockCreator
   (create-block [_ n]
     (clv neand-factory n))
   (create-block [_ m n]
     (clge neand-factory m n))
   EngineFactory
   (dataset-engine [_ data-vect]
-    (->GCNDataSetEngine cqueue (kernel prog "gaussian_sample")));;TODO variance
+    (->GCNDataSetEngine cqueue (kernel prog "variance_reduce")))
   (random-sampler [_ dist-name]
     (->GCNDirectSampler cqueue (kernel prog (str dist-name "_sample"))))
   (distribution-engine [_ dist-name]
@@ -94,11 +95,11 @@
               (build-program!
                (program-with-source
                 ctx
-                [(slurp (io/resource "uncomplicate/bayadera/distributions/opencl/sampling.h"))
+                [(slurp (io/resource "uncomplicate/clojurecl/kernels/reduction.cl"))
+                 (slurp (io/resource "uncomplicate/bayadera/dataset/opencl/amd-gcn.cl"))
+                 (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/sampling.h"))
                  (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/measures.h"))
-                 (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/kernels.cl"))
-                 ;;TODO(slurp (io/resource "uncomplicate/bayadera/dataset/opencl/amd-gcn.cl"))
-                 ])
+                 (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/kernels.cl"))])
                (format "-cl-std=CL2.0 -I%s/" tmp-dir-name)
                nil)))
            (finally

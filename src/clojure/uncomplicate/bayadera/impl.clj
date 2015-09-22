@@ -35,7 +35,7 @@
     (->UnivariateDataSet engine-factory (dataset-engine engine-factory data) data)))
 
 (deftype GaussianDistribution [eng-factory eng samp params
-                               ^float mu ^float sigma]
+                               ^double mu ^double sigma]
   Releaseable
   (release [_]
     (release eng)

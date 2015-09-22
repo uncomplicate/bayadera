@@ -14,14 +14,16 @@
                cqueue (command-queue ctx dev)]
   (facts
    "Core functions for gaussian distribution."
-   (let [sample-count (* 2 256 44)]
+   (let [sample-count (* 2 256 44)
+         mu 200000000.0
+         sigma 10.0]
      (with-release [dist-engine (gcn-engine-factory ctx cqueue)
-                    dist (gaussian dist-engine 200000000 10)
+                    dist (gaussian dist-engine mu sigma)
                     cl-sample (sample dist sample-count)]
 
-       (mean dist) => 200.0
-       (sd dist) => 10.0
-       (mean cl-sample) => (roughly 200.0)
-       (sd cl-sample) => (roughly 10.0)
+       (mean dist) => mu
+       (sd dist) => sigma
+       (mean cl-sample) => (roughly mu)
+       (sd cl-sample) => (roughly sigma)
 
        ))))
