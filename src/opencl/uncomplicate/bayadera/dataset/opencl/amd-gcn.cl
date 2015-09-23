@@ -16,23 +16,23 @@ __kernel void mean_variance_reduce(__global ACCUMULATOR* x_acc,
     uint lsize = get_local_size(0);
 
     ACCUMULATOR xi = x[gid];
+    __local ACCUMULATOR lmu;
 
-    work_group_reduction_sum(x_acc, xi);
+    ACCUMULATOR sum = work_group_reduction_sum(x_acc, xi);
 
     if (lid == 0) {
-        //lmu = sum / n
-        x_acc[group_id] /= lsize;
+        lmu = sum / lsize;
+        x_acc[group_id] = sum / lsize;
     }
     work_group_barrier(CLK_LOCAL_MEM_FENCE);
 
-    ACCUMULATOR lmu = x_acc[group_id];
+    //lmu = x_acc[group_id];
 
-    work_group_reduction_sum(m2n_acc, (xi - lmu) * (xi - lmu));
+    sum = work_group_reduction_sum(m2n_acc, (xi - lmu) * (xi - lmu));
 
-    /*if (lid == 0) {
-
-        m2n_acc[group_id] = sum;
-    }*/
+    if (lid == 0) {
+        m2n_acc[group_id] = sum * lsize / (lsize - 1);
+    }
 
 }
 

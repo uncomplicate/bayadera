@@ -3,10 +3,11 @@
             [me.raynes.fs :as fsc]
             [uncomplicate.clojurecl.core :refer :all]
             [uncomplicate.clojurecl.toolbox
-             :refer [enq-reduce enq-read-float count-work-groups]]
+             :refer [enq-reduce enq-read-double count-work-groups]]
             [uncomplicate.neanderthal
              [core :refer [dim sum nrm2]]
              [protocols :as np]
+             [native :refer [sv]]
              [opencl :refer [clv clge gcn-single]]]
             [uncomplicate.bayadera.protocols :refer :all])
   (:import [uncomplicate.neanderthal.opencl.amd_gcn GCNVectorEngine]))
@@ -68,8 +69,8 @@
       (enq-reduce-weighted cqueue mean-variance-kernel
                            mean-variance-reduction-kernel WGS (dim data-vect))
 
-      [(enq-read-float cqueue (.reduce-acc neand-eng))
-       (/ (enq-read-float cqueue reduction-acc) (dim data-vect))])))
+      (sv (enq-read-double cqueue (.reduce-acc neand-eng))
+          (/ (enq-read-double cqueue reduction-acc) (dim data-vect))))))
 
 (deftype GCNEngineFactory [ctx cqueue neand-factory prog]
   Releaseable
@@ -125,7 +126,7 @@
                  (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/sampling.h"))
                  (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/measures.h"))
                  (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/kernels.cl"))])
-               (format "-cl-std=CL2.0 -DACCUMULATOR=float -I%s/" tmp-dir-name)
+               (format "-cl-std=CL2.0 -I%s/" tmp-dir-name)
                nil)))
            (finally
              (fsc/delete-dir tmp-dir-name)))))

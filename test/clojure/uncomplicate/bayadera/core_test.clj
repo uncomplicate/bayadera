@@ -15,8 +15,8 @@
                cqueue (command-queue ctx dev)]
   (facts
    "Core functions for gaussian distribution."
-   (let [sample-count (* 2 256 440000)
-         mu 2000000.0
+   (let [sample-count (* 2 256 44000)
+         mu 200.0
          sigma 10.0
          temp-reduction-acc (double-array (/ sample-count 256))]
      (with-release [dist-engine (gcn-engine-factory ctx cqueue)
