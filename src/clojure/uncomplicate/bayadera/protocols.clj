@@ -10,8 +10,8 @@
 (defprotocol Spread
   (total-range [x])
   (interquartile-range [x])
-  (mean-variance [x] [engine x])
-  (variance [x] [engine x])
+  (mean-variance [x])
+  (variance [x])
   (sd [x]))
 
 (defprotocol Association
@@ -32,9 +32,7 @@
   (pdf! [_ x res]))
 
 (defprotocol RandomSampler
-  (sample!
-    [this seed res]
-    [this seed]))
+  (sample! [this seed res] [this seed]))
 
 (defprotocol MCMC
   (set-position! [this position])

@@ -40,29 +40,14 @@
       (enq-nd! cqueue pdf-kernel (work-size [(dim x)]))
       this)))
 
-(defn enq-reduce-weighted
-  [queue main-kernel reduce-kernel max-local-size n]
-  (loop [queue (enq-nd! queue main-kernel (work-size [n]))
-         global-size (count-work-groups max-local-size n)
-         tail-rem (rem n max-local-size)]
-    (if (= 1 global-size)
-      queue
-      (recur
-       (do (set-arg! reduce-kernel 2 (int-array [tail-rem]))
-           (enq-nd! queue reduce-kernel (work-size [global-size])))
-       (count-work-groups max-local-size global-size)
-       (rem global-size max-local-size)))))
-
-(defrecord GCNDataSetEngine [cqueue
-                             variance-kernel]
+(defrecord GCNDataSetEngine [cqueue data-vect variance-kernel]
   Releaseable
   (release [_]
     (release variance-kernel))
   Spread
-  (mean-variance [this dataset]
-    (let [data-vect (data dataset)
-          neand-eng ^GCNVectorEngine (np/engine data-vect)
-          m (mean dataset)]
+  (mean-variance [this]
+    (let [neand-eng ^GCNVectorEngine (np/engine data-vect)
+          m (/ (sum data-vect) (dim data-vect))]
       (set-arg! variance-kernel 2 (float-array [m]))
       (enq-reduce cqueue variance-kernel (.sum-reduction-kernel neand-eng)
                   (.WGS neand-eng) (dim data-vect))
@@ -82,7 +67,7 @@
   (dataset-engine [_ data-vect]
     (let [neand-eng ^GCNVectorEngine (np/engine data-vect)]
       (->GCNDataSetEngine
-       cqueue
+       cqueue data-vect
        (doto (kernel prog "variance_reduce")
          (set-args! 0 (.reduce-acc neand-eng) (.buffer data-vect))))))
   (random-sampler [_ dist-name params]

@@ -18,7 +18,8 @@
     (release data-vect))
   Group
   (zero [_]
-    (univariate-dataset engine-factory (zero data-vect)))
+    (let [d (zero data-vect)]
+      (univariate-dataset engine-factory (dataset-engine engine-factory d) d)))
   DataSet
   (data [_]
     data-vect)
@@ -27,9 +28,9 @@
     (/ (sum data-vect) (dim data-vect)))
   Spread
   (mean-variance [this]
-    (mean-variance engine this))
+    (mean-variance engine))
   (variance [this]
-    (entry (mean-variance engine this) 1))
+    (entry (mean-variance engine) 1))
   (sd [this]
     (sqrt (variance this))))
 
@@ -37,7 +38,19 @@
   (let [data (create-block engine-factory n)]
     (->UnivariateDataSet engine-factory (dataset-engine engine-factory data) data)))
 
-(deftype GaussianDistribution [eng-factory eng samp ^double mu ^double sigma]
+(defrecord GaussianParameters [^double mu ^double sigma]
+  Location
+  (mean [_]
+    mu)
+  Spread
+  (mean-variance [x]
+    (sv mu (variance x)))
+  (variance [_]
+    (* sigma sigma))
+  (sd [_]
+    sigma))
+
+(deftype UnivariateDistribution [eng-factory eng samp params]
   Releaseable
   (release [_]
     (release eng)
@@ -47,7 +60,7 @@
     (univariate-dataset eng-factory n))
   Distribution
   (parameters [_]
-    (sv mu sigma))
+    params)
   SamplerProvider
   (sampler [_]
     samp)
@@ -56,18 +69,18 @@
     eng)
   Location
   (mean [_]
-    mu)
+    (mean params))
   Spread
   (mean-variance [_]
-    :TODO)
+    (mean-variance params))
   (variance [_]
-    (* sigma sigma))
+    (variance params))
   (sd [_]
-    sigma))
+    (sd params)))
 
 (defn gaussian [eng-factory ^double mu ^double sigma]
   (let [params (sv mu sigma)]
-    (->GaussianDistribution eng-factory
+    (->UnivariateDistribution eng-factory
                             (distribution-engine eng-factory "gaussian" params)
                             (random-sampler eng-factory "gaussian" params)
-                            mu sigma)))
+                            (->GaussianParameters mu sigma))))
