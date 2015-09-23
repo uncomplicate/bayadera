@@ -2,21 +2,31 @@
   (:require [uncomplicate.neanderthal
              [protocols :as np]
              [math :refer [sqrt]]
-             [core :refer [zero dim]]]
+             [core :refer [zero dim alter!]]
+             [real :refer [entry]]]
             [uncomplicate.bayadera.protocols :as p]
             [uncomplicate.bayadera.impl :refer :all]))
+
+(defn mean-variance [x]
+  (p/mean-variance x))
+
+(defn mean-sd [x]
+  (alter! (p/mean-variance x) 1 sqrt))
 
 (defn mean [x]
   (p/mean x))
 
-(defn sd [x]
-  (p/sd x))
-
 (defn variance [x]
   (p/variance x))
 
+(defn sd [x]
+  (p/sd x))
+
+(defn parameters [dist]
+  (p/parameters dist))
+
 (defn sample! [dist result]
-  (p/sample! (p/sampler dist) (rand-int Integer/MAX_VALUE) (p/parameters dist) (p/data result)))
+  (p/sample! (p/sampler dist) (rand-int Integer/MAX_VALUE) (p/data result)))
 
 (defn sample [dist n]
   (let [result (p/create-dataset dist n)]
@@ -24,7 +34,7 @@
     result))
 
 (defn pdf! [dist xs result]
-  (p/pdf! (p/engine dist) (p/parameters dist) xs result))
+  (p/pdf! (p/engine dist) xs result))
 
 (defn pdf [dist xs]
   (let [result (zero xs)]

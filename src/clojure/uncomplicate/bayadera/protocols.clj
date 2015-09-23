@@ -10,6 +10,7 @@
 (defprotocol Spread
   (total-range [x])
   (interquartile-range [x])
+  (mean-variance [x] [engine x])
   (variance [x] [engine x])
   (sd [x]))
 
@@ -27,13 +28,13 @@
   (create-dataset [_ n]))
 
 (defprotocol DistributionEngine
-  (logpdf! [_ dist x res])
-  (pdf! [_ dist x res]))
+  (logpdf! [_ x res])
+  (pdf! [_ x res]))
 
 (defprotocol RandomSampler
   (sample!
-    [this seed params res]
-    [this seed params]))
+    [this seed res]
+    [this seed]))
 
 (defprotocol MCMC
   (set-position! [this position])
@@ -48,6 +49,6 @@
   (engine [_]))
 
 (defprotocol EngineFactory
-  (random-sampler [_ name])
-  (distribution-engine [_ name])
+  (random-sampler [_ name params])
+  (distribution-engine [_ name params])
   (dataset-engine [_ data]))

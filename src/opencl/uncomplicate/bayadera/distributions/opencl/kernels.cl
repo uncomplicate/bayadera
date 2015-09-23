@@ -18,7 +18,7 @@ __kernel void gaussian_logpdf_kernel(__constant const float* params
 }
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
-__kernel void gaussian_pdf_kernel(__constant const float *params
+__kernel void gaussian_pdf_kernel(__constant const float* params
                                   __attribute__ ((max_constant_size(2))),
                                   __global const float* x, __global float* res) {
 
@@ -27,9 +27,9 @@ __kernel void gaussian_pdf_kernel(__constant const float *params
 }
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
-__kernel void gaussian_sample(const uint seed, __constant const float* params
-                              __attribute__ ((max_constant_size(2))),
-                              __global float4* x) {
+__kernel void gaussian_sample( __constant const float* params
+                               __attribute__ ((max_constant_size(2))),
+                               const uint seed, __global float4* x) {
 
     uint gid = get_global_id(0);
     // Generate uniform(0,1) floats
@@ -52,18 +52,18 @@ __kernel void uniform_logpdf_kernel(__constant const float* params
 }
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
-__kernel void uniform_pdf_kernel(__constant const float *params
-                                  __attribute__ ((max_constant_size(2))),
-                                  __global const float* x, __global float* res) {
+__kernel void uniform_pdf_kernel(__constant const float* params
+                                 __attribute__ ((max_constant_size(2))),
+                                 __global const float* x, __global float* res) {
 
     uint gid = get_global_id(0);
     res[gid] = uniform_pdf(params, x[gid]);
 }
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
-__kernel void uniform_sample(const uint seed, __constant const float* params
-                             __attribute__ ((max_constant_size(2))),
-                             __global float4* x) {
+__kernel void uniform_sample( __constant const float* params
+                              __attribute__ ((max_constant_size(2))),
+                              const uint seed, __global float4* x) {
 
     uint gid = get_global_id(0);
     // Generate uniform(0,1) floats

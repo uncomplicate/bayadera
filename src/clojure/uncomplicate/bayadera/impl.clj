@@ -5,6 +5,7 @@
              [protocols :refer [Group zero create-block write!]]
              [math :refer [sqrt]]
              [core :refer [sum dim nrm2]]
+             [real :refer [entry]]
              [native :refer [sv]]]
             [uncomplicate.bayadera.protocols :refer :all]))
 
@@ -25,8 +26,10 @@
   (mean [_]
     (/ (sum data-vect) (dim data-vect)))
   Spread
+  (mean-variance [this]
+    (mean-variance engine this))
   (variance [this]
-    (variance engine this))
+    (entry (mean-variance engine this) 1))
   (sd [this]
     (sqrt (variance this))))
 
@@ -34,19 +37,17 @@
   (let [data (create-block engine-factory n)]
     (->UnivariateDataSet engine-factory (dataset-engine engine-factory data) data)))
 
-(deftype GaussianDistribution [eng-factory eng samp params
-                               ^double mu ^double sigma]
+(deftype GaussianDistribution [eng-factory eng samp ^double mu ^double sigma]
   Releaseable
   (release [_]
     (release eng)
-    (release samp)
-    (release params))
+    (release samp))
   DataSetCreator
   (create-dataset [_ n]
     (univariate-dataset eng-factory n))
   Distribution
   (parameters [_]
-    params)
+    (sv mu sigma))
   SamplerProvider
   (sampler [_]
     samp)
@@ -57,14 +58,16 @@
   (mean [_]
     mu)
   Spread
+  (mean-variance [_]
+    :TODO)
   (variance [_]
     (* sigma sigma))
   (sd [_]
     sigma))
 
 (defn gaussian [eng-factory ^double mu ^double sigma]
-  (->GaussianDistribution eng-factory
-                          (distribution-engine eng-factory "gaussian")
-                          (random-sampler eng-factory "gaussian")
-                          (write! (create-block eng-factory 2) (sv mu sigma))
-                          mu sigma))
+  (let [params (sv mu sigma)]
+    (->GaussianDistribution eng-factory
+                            (distribution-engine eng-factory "gaussian" params)
+                            (random-sampler eng-factory "gaussian" params)
+                            mu sigma)))

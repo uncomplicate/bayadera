@@ -17,9 +17,9 @@
   (release [_]
     (release sample-kernel))
   RandomSampler
-  (sample! [this seed params res]
+  (sample! [this seed res]
     (do
-      (set-args! sample-kernel (int-array [seed]) (.buffer params) (.buffer res))
+      (set-args! sample-kernel 1 (int-array [seed]) (.buffer res))
       (enq-nd! cqueue sample-kernel (work-size [(dim res)]))
       this)))
 
@@ -29,14 +29,14 @@
     (release logpdf-kernel)
     (release pdf-kernel))
   DistributionEngine
-  (logpdf! [this params x res]
+  (logpdf! [this x res]
     (do
-      (set-args! logpdf-kernel (.buffer params) (.buffer x) (.buffer res))
+      (set-args! logpdf-kernel 1 (.buffer x) (.buffer res))
       (enq-nd! cqueue logpdf-kernel (work-size [(dim x)]))
       this))
-  (pdf! [this params x res]
+  (pdf! [this x res]
     (do
-      (set-args! pdf-kernel (.buffer params) (.buffer x) (.buffer res))
+      (set-args! pdf-kernel 1 (.buffer x) (.buffer res))
       (enq-nd! cqueue pdf-kernel (work-size [(dim x)]))
       this)))
 
@@ -54,23 +54,19 @@
        (rem global-size max-local-size)))))
 
 (defrecord GCNDataSetEngine [cqueue
-                             reduction-acc
-                             mean-variance-kernel mean-variance-reduction-kernel]
+                             variance-kernel]
   Releaseable
   (release [_]
-    (release reduction-acc)
-    (release mean-variance-kernel)
-    (release mean-variance-reduction-kernel))
+    (release variance-kernel))
   Spread
-  (variance [_ dataset]
+  (mean-variance [this dataset]
     (let [data-vect (data dataset)
           neand-eng ^GCNVectorEngine (np/engine data-vect)
-          WGS (.WGS neand-eng)]
-      (enq-reduce-weighted cqueue mean-variance-kernel
-                           mean-variance-reduction-kernel WGS (dim data-vect))
-
-      (sv (enq-read-double cqueue (.reduce-acc neand-eng))
-          (/ (enq-read-double cqueue reduction-acc) (dim data-vect))))))
+          m (mean dataset)]
+      (set-arg! variance-kernel 2 (float-array [m]))
+      (enq-reduce cqueue variance-kernel (.sum-reduction-kernel neand-eng)
+                  (.WGS neand-eng) (dim data-vect))
+      (sv m (/ (enq-read-double cqueue (.reduce-acc neand-eng)) (dec (dim data-vect)))))))
 
 (deftype GCNEngineFactory [ctx cqueue neand-factory prog]
   Releaseable
@@ -84,22 +80,25 @@
     (clge neand-factory m n))
   EngineFactory
   (dataset-engine [_ data-vect]
-    (let [neand-eng ^GCNVectorEngine (np/engine data-vect)
-          acc-size (* Double/BYTES (count-work-groups (.WGS neand-eng) (dim data-vect)))
-          cl-acc (cl-buffer ctx acc-size :read-write)]
+    (let [neand-eng ^GCNVectorEngine (np/engine data-vect)]
       (->GCNDataSetEngine
-       cqueue cl-acc
-       (doto (kernel prog "mean_variance_reduce")
-         (set-args! 0 (.reduce-acc neand-eng)
-                    cl-acc (.buffer data-vect)))
-       (doto (kernel prog "mean_variance_reduction")
-         (set-args! 0 (.reduce-acc neand-eng) cl-acc)))))
-  (random-sampler [_ dist-name]
-    (->GCNDirectSampler cqueue (kernel prog (str dist-name "_sample"))))
-  (distribution-engine [_ dist-name]
-    (->GCNDistributionEngine cqueue
-                             (kernel prog (str dist-name "_logpdf_kernel"))
-                             (kernel prog (str dist-name "_pdf_kernel")))))
+       cqueue
+       (doto (kernel prog "variance_reduce")
+         (set-args! 0 (.reduce-acc neand-eng) (.buffer data-vect))))))
+  (random-sampler [_ dist-name params]
+    (let [cl-params (cl-buffer ctx (* Float/BYTES 2) :read-only)]
+      (enq-write! cqueue cl-params (.buffer params))
+      (->GCNDirectSampler cqueue (doto (kernel prog (str dist-name "_sample"))
+                                   (set-arg! 0 cl-params)))))
+  (distribution-engine [_ dist-name params]
+    (let [cl-params (cl-buffer ctx (* Float/BYTES 2) :read-only)]
+      (enq-write! cqueue cl-params (.buffer params))
+      (->GCNDistributionEngine
+       cqueue
+       (doto (kernel prog (str dist-name "_logpdf_kernel"))
+         (set-arg! 0 cl-params))
+       (doto (kernel prog (str dist-name "_pdf_kernel"))
+         (set-arg! 0 cl-params))))))
 
 (defn ^:private copy-random123 [include-name tmp-dir-name]
   (io/copy
