@@ -11,10 +11,10 @@
 
 (declare univariate-dataset)
 
-(defrecord UnivariateDataSet [engine-factory engine data-vect]
+(defrecord UnivariateDataSet [engine-factory eng data-vect]
   Releaseable
   (release [_]
-    (release engine)
+    (release eng)
     (release data-vect))
   Group
   (zero [_]
@@ -28,27 +28,15 @@
     (/ (sum data-vect) (dim data-vect)))
   Spread
   (mean-variance [this]
-    (mean-variance engine))
+    (mean-variance eng))
   (variance [this]
-    (entry (mean-variance engine) 1))
+    (entry (mean-variance eng) 1))
   (sd [this]
     (sqrt (variance this))))
 
 (defn univariate-dataset [engine-factory n]
   (let [data (create-block engine-factory n)]
     (->UnivariateDataSet engine-factory (dataset-engine engine-factory data) data)))
-
-(defrecord GaussianParameters [^double mu ^double sigma]
-  Location
-  (mean [_]
-    mu)
-  Spread
-  (mean-variance [x]
-    (sv mu (variance x)))
-  (variance [_]
-    (* sigma sigma))
-  (sd [_]
-    sigma))
 
 (deftype UnivariateDistribution [eng-factory eng samp params]
   Releaseable
@@ -78,9 +66,40 @@
   (sd [_]
     (sd params)))
 
+(defrecord GaussianParameters [^double mu ^double sigma]
+  Location
+  (mean [_]
+    mu)
+  Spread
+  (mean-variance [x]
+    (sv mu (variance x)))
+  (variance [_]
+    (* sigma sigma))
+  (sd [_]
+    sigma))
+
 (defn gaussian [eng-factory ^double mu ^double sigma]
   (let [params (sv mu sigma)]
     (->UnivariateDistribution eng-factory
-                            (distribution-engine eng-factory "gaussian" params)
-                            (random-sampler eng-factory "gaussian" params)
-                            (->GaussianParameters mu sigma))))
+                              (distribution-engine eng-factory "gaussian" params)
+                              (random-sampler eng-factory "gaussian" params)
+                              (->GaussianParameters mu sigma))))
+
+(defrecord UniformParameters [^double a ^double b]
+  Location
+  (mean [_]
+    (/ (+ a b) 2.0))
+  Spread
+  (mean-variance [this]
+    (sv (mean this) (variance this)))
+  (variance [_]
+    (/ (* (- b a) (- b a)) 12.0))
+  (sd [this]
+    (sqrt (variance this))))
+
+(defn uniform [eng-factory ^double a ^double b]
+  (let [params (sv a b)]
+    (->UnivariateDistribution eng-factory
+                              (distribution-engine eng-factory "uniform" params)
+                              (random-sampler eng-factory "uniform" params)
+                              (->UniformParameters a b))))

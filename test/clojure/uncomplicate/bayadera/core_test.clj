@@ -25,7 +25,23 @@
        (mean dist) => mu
        (sd dist) => sigma
        (mean cl-sample) => (roughly mu)
-       (sd cl-sample) => (roughly sigma)
+       (sd cl-sample) => (roughly sigma (/ sigma 100))
+       (mean-variance cl-sample) => (sv (mean cl-sample) (variance cl-sample))
+       (mean-sd cl-sample) => (sv (mean cl-sample) (sd cl-sample))
+       )))
+
+
+  (facts
+   "Core functions for uniform distribution."
+   (let [sample-count (* 256 44 94)
+         a 100.0
+         b 133.4]
+     (with-release [dist-engine (gcn-engine-factory ctx cqueue)
+                    dist (uniform dist-engine a b)
+                    cl-sample (sample dist sample-count)]
+
+       (mean cl-sample) => (roughly (mean dist))
+       (sd cl-sample) => (roughly (sd dist) (/ (sd dist) 100.0))
        (mean-variance cl-sample) => (sv (mean cl-sample) (variance cl-sample))
        (mean-sd cl-sample) => (sv (mean cl-sample) (sd cl-sample))
        ))))
