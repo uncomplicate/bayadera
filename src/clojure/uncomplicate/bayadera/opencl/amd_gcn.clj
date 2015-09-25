@@ -7,6 +7,7 @@
             [uncomplicate.neanderthal
              [core :refer [dim sum nrm2]]
              [protocols :as np]
+             [block :refer [buffer]]
              [native :refer [sv]]
              [opencl :refer [clv clge gcn-single]]]
             [uncomplicate.bayadera.protocols :refer :all])
@@ -19,7 +20,7 @@
   RandomSampler
   (sample! [this seed res]
     (do
-      (set-args! sample-kernel 1 (int-array [seed]) (.buffer res))
+      (set-args! sample-kernel 1 (int-array [seed]) (buffer res))
       (enq-nd! cqueue sample-kernel (work-size [(dim res)]))
       this)))
 
@@ -31,12 +32,12 @@
   DistributionEngine
   (logpdf! [this x res]
     (do
-      (set-args! logpdf-kernel 1 (.buffer x) (.buffer res))
+      (set-args! logpdf-kernel 1 (buffer x) (buffer res))
       (enq-nd! cqueue logpdf-kernel (work-size [(dim x)]))
       this))
   (pdf! [this x res]
     (do
-      (set-args! pdf-kernel 1 (.buffer x) (.buffer res))
+      (set-args! pdf-kernel 1 (buffer x) (buffer res))
       (enq-nd! cqueue pdf-kernel (work-size [(dim x)]))
       this)))
 
@@ -69,15 +70,15 @@
       (->GCNDataSetEngine
        cqueue data-vect
        (doto (kernel prog "variance_reduce")
-         (set-args! 0 (.reduce-acc neand-eng) (.buffer data-vect))))))
+         (set-args! 0 (.reduce-acc neand-eng) (buffer data-vect))))))
   (random-sampler [_ dist-name params]
     (let [cl-params (cl-buffer ctx (* Float/BYTES 2) :read-only)]
-      (enq-write! cqueue cl-params (.buffer params))
+      (enq-write! cqueue cl-params (buffer params))
       (->GCNDirectSampler cqueue (doto (kernel prog (str dist-name "_sample"))
                                    (set-arg! 0 cl-params)))))
   (distribution-engine [_ dist-name params]
     (let [cl-params (cl-buffer ctx (* Float/BYTES 2) :read-only)]
-      (enq-write! cqueue cl-params (.buffer params))
+      (enq-write! cqueue cl-params (buffer params))
       (->GCNDistributionEngine
        cqueue
        (doto (kernel prog (str dist-name "_logpdf_kernel"))

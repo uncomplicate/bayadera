@@ -4,11 +4,11 @@
             [uncomplicate.clojurecl.core :refer :all]
             [uncomplicate.neanderthal
              [core :refer [dim sum]]
-             [native :refer [sv]]]
+             [native :refer [sv]]
+             [block :refer [buffer]]]
+            [uncomplicate.neanderthal.opencl :refer [clv read! write! gcn-single]]
             [uncomplicate.bayadera.protocols :refer :all]
-            [uncomplicate.bayadera.mcmc.opencl.amd-gcn-stretch :refer :all]
-            [uncomplicate.neanderthal.opencl :refer [clv read! write!]]
-            [uncomplicate.neanderthal.opencl.amd-gcn :refer [gcn-single]]))
+            [uncomplicate.bayadera.mcmc.opencl.amd-gcn-stretch :refer :all]))
 
 (with-release [dev (first (devices (first (platforms))))
                ctx (context [dev])
@@ -28,5 +28,5 @@
        (< 0.45 (time (burn-in! engine 512 a)) 0.5)  => true
        (init! engine (int-array [567]))
        (time (:tau (run-sampler! engine 67 a))) => (float 5.51686)
-       (enq-read! cqueue (.cl-xs engine) (.buffer xs)) => cqueue
+       (enq-read! cqueue (.cl-xs engine) (buffer xs)) => cqueue
        (/ (sum xs) (dim xs)) => (roughly 200.0)))))

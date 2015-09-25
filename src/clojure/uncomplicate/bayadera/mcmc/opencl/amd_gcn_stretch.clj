@@ -7,8 +7,8 @@
             [uncomplicate.neanderthal
              [math :refer [sqrt]]
              [core :refer [asum sum dim vect? freduce entry iamax]]
-             [opencl :refer [clv read!]]]
-            [uncomplicate.neanderthal.opencl.amd-gcn :refer [gcn-single]]
+             [block :refer [buffer]]
+             [opencl :refer [clv read! gcn-single]]]
             [uncomplicate.bayadera.protocols :refer :all]))
 
 (defprotocol MCMCEngineFactory
@@ -95,11 +95,11 @@
       (if (<= (* lag min-fac) n)
         (with-release [c0-vec (clv neanderthal-engine autocov-count)
                        d-vec (clv neanderthal-engine autocov-count)]
-          (set-args! subtract-mean-kernel 0 (.buffer sample)
+          (set-args! subtract-mean-kernel 0 (buffer sample)
                      (float-array [sample-mean]))
           (enq-nd! cqueue subtract-mean-kernel (work-size [n]))
-          (set-args! autocovariance-kernel 0 (int-array [lag]) (.buffer c0-vec)
-                     (.buffer d-vec) (.buffer sample) (int-array [i-max]))
+          (set-args! autocovariance-kernel 0 (int-array [lag]) (buffer c0-vec)
+                     (buffer d-vec) (buffer sample) (int-array [i-max]))
           (enq-nd! cqueue autocovariance-kernel (work-size [n]))
           (let [d (float (sum d-vec))]
             (->Autocorrelation (/ d (float (sum c0-vec))) sample-mean
@@ -158,7 +158,7 @@
         (set-arg! stretch-move-even-kernel 7 a)
         (dotimes [i n]
           (move! this))
-        (set-args! sum-means-kernel 0 (.buffer means-vec)
+        (set-args! sum-means-kernel 0 (buffer means-vec)
                    cl-means (int-array [means-count]))
         (enq-nd! cqueue sum-means-kernel (work-size [n]))
         (assoc (acor this means-vec) :acc-rate  (acc-rate this))))))
@@ -179,7 +179,7 @@
               step-counter (int-array 1)
               cl-params (let [par-buf (cl-buffer ctx (* Float/BYTES (dim params))
                                                  :read-only)]
-                          (enq-write! queue par-buf (.buffer params));;TODO USE .buffer directly!
+                          (enq-write! queue par-buf (buffer params))
                           par-buf)
               cl-xs (cl-buffer ctx (* 2 bytecount) :read-write)
               cl-s0 (cl-sub-buffer cl-xs 0 bytecount :read-write)

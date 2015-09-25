@@ -1,4 +1,4 @@
-(ns uncomplicate.bayadera.distributions.core-test
+(ns uncomplicate.bayadera.core-test
   (:require [midje.sweet :refer :all]
             [uncomplicate.clojurecl.core :refer :all]
             [uncomplicate.neanderthal
