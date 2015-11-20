@@ -1,8 +1,7 @@
 (ns uncomplicate.bayadera.core
   (:require [uncomplicate.neanderthal
-             [protocols :as np]
              [math :refer [sqrt]]
-             [core :refer [zero dim alter!]]
+             [core :refer [raw dim alter!]]
              [real :refer [entry]]]
             [uncomplicate.bayadera.protocols :as p]
             [uncomplicate.bayadera.impl :refer :all]))
@@ -37,6 +36,6 @@
   (p/pdf! (p/engine dist) xs result))
 
 (defn pdf [dist xs]
-  (let [result (zero xs)]
+  (let [result (raw xs)]
     (pdf! dist xs result)
     result))

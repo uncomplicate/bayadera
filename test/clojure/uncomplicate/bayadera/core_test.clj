@@ -10,7 +10,7 @@
              [impl :refer :all]]
             [uncomplicate.bayadera.opencl.amd-gcn :refer [gcn-engine-factory]]))
 
-(with-release [dev (first (devices (first (platforms))))
+(with-release [dev (first (sort-by-cl-version (devices (first (platforms)))))
                ctx (context [dev])
                cqueue (command-queue ctx dev)]
   (facts

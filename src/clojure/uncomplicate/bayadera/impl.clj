@@ -2,9 +2,9 @@
   (:require [clojure.java.io :as io]
             [uncomplicate.clojurecl.core :refer [Releaseable release]]
             [uncomplicate.neanderthal
-             [protocols :refer [Group zero create-block write!]]
+             [protocols :refer [Container zero FactoryProvider factory]]
              [math :refer [sqrt]]
-             [core :refer [sum dim nrm2]]
+             [core :refer [sum dim nrm2 create]]
              [real :refer [entry]]
              [native :refer [sv]]]
             [uncomplicate.bayadera.protocols :refer :all]))
@@ -16,10 +16,9 @@
   (release [_]
     (release eng)
     (release data-vect))
-  Group
+  Container
   (zero [_]
-    (let [d (zero data-vect)]
-      (univariate-dataset engine-factory (dataset-engine engine-factory d) d)))
+    (univariate-dataset engine-factory (zero data-vect)))
   DataSet
   (data [_]
     data-vect)
@@ -35,7 +34,7 @@
     (sqrt (variance this))))
 
 (defn univariate-dataset [engine-factory n]
-  (let [data (create-block engine-factory n)]
+  (let [data (create (factory engine-factory) n)]
     (->UnivariateDataSet engine-factory (dataset-engine engine-factory data) data)))
 
 (deftype UnivariateDistribution [eng-factory eng samp params]

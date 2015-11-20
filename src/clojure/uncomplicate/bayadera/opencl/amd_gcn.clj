@@ -3,13 +3,14 @@
             [me.raynes.fs :as fsc]
             [uncomplicate.clojurecl.core :refer :all]
             [uncomplicate.clojurecl.toolbox
-             :refer [enq-reduce enq-read-double count-work-groups]]
+             :refer [enq-reduce enq-read-double count-work-groups
+                     wrap-int wrap-float]]
             [uncomplicate.neanderthal
-             [core :refer [dim sum nrm2]]
+             [core :refer [dim sum nrm2 create]]
              [protocols :as np]
              [block :refer [buffer]]
              [native :refer [sv]]
-             [opencl :refer [clv clge gcn-single]]]
+             [opencl :refer [gcn-single]]]
             [uncomplicate.bayadera.protocols :refer :all])
   (:import [uncomplicate.neanderthal.opencl.amd_gcn GCNVectorEngine]))
 
@@ -20,25 +21,26 @@
   RandomSampler
   (sample! [this seed res]
     (do
-      (set-args! sample-kernel 1 (int-array [seed]) (buffer res))
-      (enq-nd! cqueue sample-kernel (work-size [(dim res)]))
+      (set-args! sample-kernel 1 (wrap-int seed) (buffer res))
+      (enq-nd! cqueue sample-kernel (work-size-1d (dim res)))
       this)))
 
 (deftype GCNDistributionEngine [cqueue logpdf-kernel pdf-kernel]
   Releaseable
   (release [_]
-    (release logpdf-kernel)
-    (release pdf-kernel))
+    (and
+     (release logpdf-kernel)
+     (release pdf-kernel)))
   DistributionEngine
   (logpdf! [this x res]
     (do
       (set-args! logpdf-kernel 1 (buffer x) (buffer res))
-      (enq-nd! cqueue logpdf-kernel (work-size [(dim x)]))
+      (enq-nd! cqueue logpdf-kernel (work-size-1d (dim x)))
       this))
   (pdf! [this x res]
     (do
       (set-args! pdf-kernel 1 (buffer x) (buffer res))
-      (enq-nd! cqueue pdf-kernel (work-size [(dim x)]))
+      (enq-nd! cqueue pdf-kernel (work-size-1d (dim x)))
       this)))
 
 (defrecord GCNDataSetEngine [cqueue data-vect variance-kernel]
@@ -49,7 +51,7 @@
   (mean-variance [this]
     (let [neand-eng ^GCNVectorEngine (np/engine data-vect)
           m (/ (sum data-vect) (dim data-vect))]
-      (set-arg! variance-kernel 2 (float-array [m]))
+      (set-arg! variance-kernel 2 (wrap-float m))
       (enq-reduce cqueue variance-kernel (.sum-reduction-kernel neand-eng)
                   (.WGS neand-eng) (dim data-vect))
       (sv m (/ (enq-read-double cqueue (.reduce-acc neand-eng)) (dec (dim data-vect)))))))
@@ -57,13 +59,11 @@
 (deftype GCNEngineFactory [ctx cqueue neand-factory prog]
   Releaseable
   (release [_]
-    (release prog)
-    (release neand-factory))
-  np/BlockCreator
-  (create-block [_ n]
-    (clv neand-factory n))
-  (create-block [_ m n]
-    (clge neand-factory m n))
+    (and
+     (release prog)
+     (release neand-factory)))
+  np/FactoryProvider
+  (factory [_] neand-factory)
   EngineFactory
   (dataset-engine [_ data-vect]
     (let [neand-eng ^GCNVectorEngine (np/engine data-vect)]

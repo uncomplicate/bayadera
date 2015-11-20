@@ -6,9 +6,9 @@
              [toolbox :refer [count-work-groups enq-reduce enq-read-long]]]
             [uncomplicate.neanderthal
              [math :refer [sqrt]]
-             [core :refer [asum sum dim vect? freduce entry iamax]]
+             [core :refer [asum sum dim vect? freduce entry iamax create]]
              [block :refer [buffer]]
-             [opencl :refer [clv read! gcn-single]]]
+             [opencl :refer [gcn-single]]]
             [uncomplicate.bayadera.protocols :refer :all]))
 
 (defprotocol MCMCEngineFactory
@@ -37,26 +37,27 @@
                        autocovariance-kernel]
   Releaseable
   (release [_]
-    (release cl-params)
-    (release cl-xs)
-    (release cl-s0)
-    (release cl-s1)
-    (release cl-logpdf-xs)
-    (release cl-logpdf-s0)
-    (release cl-logpdf-s1)
-    (release cl-accept)
-    (release cl-accept-acc)
-    (release stretch-move-odd-kernel)
-    (release stretch-move-even-kernel)
-    (release stretch-move-odd-bare-kernel)
-    (release stretch-move-even-bare-kernel)
-    (release init-walkers-kernel)
-    (release logpdf-kernel)
-    (release sum-accept-reduction-kernel)
-    (release sum-accept-kernel)
-    (release sum-means-kernel)
-    (release subtract-mean-kernel)
-    (release autocovariance-kernel))
+    (and
+     (release cl-params)
+     (release cl-xs)
+     (release cl-s0)
+     (release cl-s1)
+     (release cl-logpdf-xs)
+     (release cl-logpdf-s0)
+     (release cl-logpdf-s1)
+     (release cl-accept)
+     (release cl-accept-acc)
+     (release stretch-move-odd-kernel)
+     (release stretch-move-even-kernel)
+     (release stretch-move-odd-bare-kernel)
+     (release stretch-move-even-bare-kernel)
+     (release init-walkers-kernel)
+     (release logpdf-kernel)
+     (release sum-accept-reduction-kernel)
+     (release sum-accept-kernel)
+     (release sum-means-kernel)
+     (release subtract-mean-kernel)
+     (release autocovariance-kernel)))
   MCMCStretch
   (move! [this]
     (do
@@ -93,8 +94,8 @@
           autocov-count (count-work-groups WGS n)
           sample-mean (/ (float (sum sample)) n)]
       (if (<= (* lag min-fac) n)
-        (with-release [c0-vec (clv neanderthal-engine autocov-count)
-                       d-vec (clv neanderthal-engine autocov-count)]
+        (with-release [c0-vec (create neanderthal-engine autocov-count)
+                       d-vec (create neanderthal-engine autocov-count)]
           (set-args! subtract-mean-kernel 0 (buffer sample)
                      (float-array [sample-mean]))
           (enq-nd! cqueue subtract-mean-kernel (work-size [n]))
@@ -147,7 +148,7 @@
           (acc-rate this)))))
   (run-sampler! [this n a]
     (let [means-count (long (count-work-groups WGS (/ walker-count 2)))]
-      (with-release [means-vec (clv neanderthal-engine n)
+      (with-release [means-vec (create neanderthal-engine n)
                      cl-means (cl-buffer ctx (* Float/BYTES means-count (long n))
                                          :read-write)]
         (aset step-counter 0 0)
@@ -166,8 +167,9 @@
 (deftype GCNStretch1DEngineFactory [ctx queue neanderthal-engine prog ^long WGS]
   Releaseable
   (release [_]
-    (release prog)
-    (release neanderthal-engine))
+    (and
+     (release prog)
+     (release neanderthal-engine)))
   MCMCEngineFactory
   (mcmc-engine [_ walker-count params low high]
     (let [walker-count (long walker-count)]
