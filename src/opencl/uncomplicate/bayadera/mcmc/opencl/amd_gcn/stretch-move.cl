@@ -201,9 +201,9 @@ inline float stretch_move1(const uint seed, __constant const float* params,
                     (2.0f * (1.0f - 1.0f / a)) * u.s1 +
                     1.0f / a) * (Xk - Xj);
 
-    float logpdf_y = DIST_LOGPDF(params, Y);
+    float logpdf_y = LOGPDF(params, Y);
     float q = (isfinite(logpdf_y)) ?
-        native_exp(DIST_LOGPDF(params, Y) - logpdf_X[k]) : 0.0f;
+        native_exp(LOGPDF(params, Y) - logpdf_X[k]) : 0.0f;
 
     bool accepted = u.s2 <= q;
 
@@ -255,20 +255,4 @@ __kernel void init_walkers(const uint seed, const float low, const float high,
     philox4x32_ctr_t cnt = {{gid, 0xf00dcafe, 0xdeadbeef, 0xbeeff00d}};
     xs[gid] = (float4)u01fpt_oo_4x32_24(((uint4*)philox4x32(cnt, key).v)[0])
         * (high - low) + low;
-}
-
-__attribute__((reqd_work_group_size(WGS, 1, 1)))
-__kernel void logpdf_kernel(__constant const float *params
-                            __attribute__ ((max_constant_size(2))),
-                            __global const float* x, __global float* res) {
-    uint gid = get_global_id(0);
-    res[gid] = DIST_LOGPDF(params, x[gid]);
-}
-
-__attribute__((reqd_work_group_size(WGS, 1, 1)))
-__kernel void pdf_kernel(__constant const float *params
-                         __attribute__ ((max_constant_size(2))),
-                         __global const float* x, __global float* res) {
-    uint gid = get_global_id(0);
-    res[gid] = DIST_PDF(params, x[gid]);
 }

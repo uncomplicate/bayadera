@@ -19,7 +19,10 @@
     :jvm-opts ^:replace ["-Dclojure.compiler.direct-linking=true"
                          "-XX:MaxDirectMemorySize=16g" "-XX:+UseLargePages"]
 
-    :aot [uncomplicate.bayadera.opencl.amd-gcn
+    :aot [uncomplicate.bayadera.protocols
+          uncomplicate.bayadera.impl
+          uncomplicate.bayadera.core
+          uncomplicate.bayadera.opencl.amd-gcn
           uncomplicate.bayadera.mcmc.opencl.amd-gcn-stretch]
 
     :codox {:src-dir-uri "http://github.com/uncomplicate/bayadera/blob/master"

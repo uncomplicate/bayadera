@@ -18,8 +18,8 @@
    (let [sample-count (* 256 44 94)
          mu 200.0
          sigma 10.0]
-     (with-release [dist-engine (gcn-engine-factory ctx cqueue)
-                    dist (gaussian dist-engine mu sigma)
+     (with-release [engine-factory (gcn-engine-factory ctx cqueue)
+                    dist (gaussian engine-factory mu sigma)
                     cl-sample (sample dist sample-count)]
 
        (mean dist) => mu
@@ -36,8 +36,8 @@
    (let [sample-count (* 256 44 94)
          a 100.0
          b 133.4]
-     (with-release [dist-engine (gcn-engine-factory ctx cqueue)
-                    dist (uniform dist-engine a b)
+     (with-release [engine-factory (gcn-engine-factory ctx cqueue)
+                    dist (uniform engine-factory a b)
                     cl-sample (sample dist sample-count)]
 
        (mean cl-sample) => (roughly (mean dist))

@@ -10,6 +10,7 @@
              [block :refer [buffer]]]
             [uncomplicate.neanderthal.opencl :refer [gcn-single]]
             [uncomplicate.bayadera.protocols :refer :all]
+            [uncomplicate.bayadera.opencl.amd-gcn :refer [gaussian-model]]
             [uncomplicate.bayadera.mcmc.opencl.amd-gcn-stretch :refer :all]))
 
 (with-release [dev (first (sort-by-cl-version (devices (first (platforms)))))
@@ -23,7 +24,7 @@
          xs (sv walker-count)
          run-cnt 140]
      (with-release [mcmc-engine-factory (gcn-stretch-1d-engine-factory
-                                         ctx cqueue "gaussian")
+                                         ctx cqueue gaussian-model)
                     engine (mcmc-engine mcmc-engine-factory walker-count params 190 210)]
        (set-position! engine (wrap-int 123))
        (init! engine (wrap-int 1243))
