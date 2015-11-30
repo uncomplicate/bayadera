@@ -2,7 +2,7 @@
   (:require [clojure.java.io :as io]
             [uncomplicate.clojurecl.core :refer [Releaseable release]]
             [uncomplicate.neanderthal
-             [protocols :refer [Container zero raw  FactoryProvider factory]]
+             [protocols :refer [Container zero raw]]
              [math :refer [sqrt]]
              [core :refer [dim create]]
              [real :refer [entry sum]]
@@ -14,9 +14,7 @@
 (defrecord UnivariateDataSet [dataset-eng data-vect]
   Releaseable
   (release [_]
-    (and
-     (release dataset-eng)
-     (release data-vect)))
+    (release data-vect))
   Container
   (zero [_]
     (univariate-dataset dataset-eng (zero data-vect)))
@@ -39,12 +37,16 @@
   (sd [this]
     (sqrt (variance this))))
 
-(deftype UnivariateDistribution [dist-eng samp dataset-eng params]
+(deftype UnivariateDistribution [bayadera-factory dist-eng samp meas params]
   Releaseable
-  (release [_] true)
-  DataSetCreator
-  (create-dataset [_ n]
-    (univariate-dataset dataset-eng n))
+  (release [_]
+    (release params))
+  Distribution
+  (parameters [_]
+    params)
+  FactoryProvider
+  (factory [_]
+    bayadera-factory)
   SamplerProvider
   (sampler [_]
     samp)
@@ -53,9 +55,9 @@
     dist-eng)
   MeasureProvider
   (measures [_]
-    params))
+    meas))
 
-(defrecord GaussianParameters [^double mu ^double sigma]
+(defrecord GaussianMeasures [^double mu ^double sigma]
   Location
   (mean [_]
     mu)
@@ -67,7 +69,7 @@
   (sd [_]
     sigma))
 
-(defrecord UniformParameters [^double a ^double b]
+(defrecord UniformMeasures [^double a ^double b]
   Location
   (mean [_]
     (/ (+ a b) 2.0))

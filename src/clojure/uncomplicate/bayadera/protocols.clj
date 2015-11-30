@@ -24,9 +24,6 @@
 (defprotocol DataSet
   (data [_]))
 
-(defprotocol DataSetCreator
-  (create-dataset [_ n]))
-
 (defprotocol DistributionEngine
   (logpdf! [_ params x res])
   (pdf! [_ params x res]))
@@ -48,6 +45,9 @@
 
 (defprotocol EngineProvider
   (engine [_]))
+
+(defprotocol FactoryProvider
+  (factory [_]))
 
 (defprotocol DistributionEngineFactory
   (gaussian-engine [this])

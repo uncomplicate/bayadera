@@ -75,7 +75,7 @@
      (let [prog (build-program!
                  (program-with-source
                   ctx [(:functions model) general-source])
-                 (format "-cl-std=CL2.0 -DLOGPDF=%s -DPDF=%s -DWGS=%s -I%s/"
+                 (format "-cl-std=CL2.0 -DLOGPDF=%s -DPDF=%s -DWGS=%s"
                          (:logpdf model) (:pdf model) WGS)
                  nil)]
        (->GCNDistributionEngine cqueue prog)))
@@ -140,7 +140,9 @@
 
 (let [gaussian-model
       (->CLDistributionModel "gaussian_pdf" "gaussian_logpdf"
-                             (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/gaussian.h"))
+                             (str (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/uniform.h"))
+                                  "\n"
+                                  (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/gaussian.h")))
                              (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/gaussian.cl")))
       uniform-model
       (->CLDistributionModel "uniform_pdf"

@@ -2,7 +2,7 @@
   (:require [uncomplicate.neanderthal
              [protocols :as np]
              [math :refer [sqrt]]
-             [core :refer [raw dim alter! create]]
+             [core :refer [raw dim alter! create transfer!]]
              [real :refer [entry]]]
             [uncomplicate.bayadera.protocols :as p]
             [uncomplicate.bayadera.impl :refer :all]))
@@ -12,16 +12,18 @@
                        (create (np/factory factory) n)))
 
 (defn gaussian [factory ^double mu ^double sigma]
-  (->UnivariateDistribution (p/gaussian-engine factory)
+  (->UnivariateDistribution factory
+                            (p/gaussian-engine factory)
                             (p/gaussian-sampler factory)
-                            (p/dataset-engine factory)
-                            (->GaussianParameters mu sigma)))
+                            (->GaussianMeasures mu sigma)
+                            (transfer! [mu sigma] (create (np/factory factory) 2))))
 
 (defn uniform [factory ^double a ^double b]
-  (->UnivariateDistribution (p/uniform-engine factory)
+  (->UnivariateDistribution factory
+                            (p/uniform-engine factory)
                             (p/uniform-sampler factory)
-                            (p/dataset-engine factory)
-                            (->UniformParameters a b)))
+                            (->UniformMeasures a b)
+                            (transfer! [a b] (create (np/factory factory) 2))))
 
 (defn mean-variance [x]
   (p/mean-variance (p/measures x)))
@@ -42,10 +44,10 @@
   (p/parameters dist))
 
 (defn sample! [dist result]
-  (p/sample! (p/sampler dist) (rand-int Integer/MAX_VALUE) (p/data result)))
+  (p/sample! (p/sampler dist) (rand-int Integer/MAX_VALUE) (p/parameters dist) (p/data result)))
 
 (defn sample [dist n]
-  (let [result (p/create-dataset dist n)]
+  (let [result (dataset (p/factory dist) n)]
     (sample! dist result)
     result))
 
