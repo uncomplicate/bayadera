@@ -11,9 +11,6 @@
              [opencl :refer [gcn-single]]]
             [uncomplicate.bayadera.protocols :refer :all]))
 
-(defprotocol MCMCEngineFactory
-  (mcmc-engine [this walker-count cl-params low high]))
-
 (defprotocol MCMCStretch
   (move! [this])
   (move-bare! [this])
@@ -110,6 +107,16 @@
                 (format (str "The autocorrelation time is too long relative to the variance."
                              "Number of steps (%d) must not be less than %d.")
                         n (* lag min-fac)))))))
+  RandomSampler
+  (init! [this seed]
+    (do
+      (set-arg! stretch-move-odd-kernel 0 (inc! seed))
+      (set-arg! stretch-move-even-kernel 0 (inc! seed))
+      (set-arg! stretch-move-odd-bare-kernel 0 (inc! seed))
+      (set-arg! stretch-move-even-bare-kernel 0 (inc! seed))
+      (enq-fill! cqueue cl-accept (int-array 1))
+      (aset step-counter 0 0)
+      this))
   MCMC
   (set-position! [this position]
     (do
@@ -119,15 +126,6 @@
           (set-arg! init-walkers-kernel 0 position)
           (enq-nd! cqueue init-walkers-kernel (work-size [(/ walker-count 4)]))))
       (enq-nd! cqueue logpdf-kernel (work-size [walker-count]))
-      this))
-  (init! [this seed]
-    (do
-      (set-arg! stretch-move-odd-kernel 0 (inc! seed))
-      (set-arg! stretch-move-even-kernel 0 (inc! seed))
-      (set-arg! stretch-move-odd-bare-kernel 0 (inc! seed))
-      (set-arg! stretch-move-even-bare-kernel 0 (inc! seed))
-      (enq-fill! cqueue cl-accept (int-array 1))
-      (aset step-counter 0 0)
       this))
   (burn-in! [this n a]
     (do
@@ -226,27 +224,30 @@
                          include-name)))
    (io/file (format "%s/Random123/%s" tmp-dir-name include-name))))
 
-(defn gcn-stretch-1d-engine-factory [ctx cqueue model]
-  (let [tmp-dir-name (fsc/temp-dir "uncomplicate/")]
-    (try
-      (fsc/mkdirs (format "%s/%s" tmp-dir-name "Random123/features/"))
-      (doseq [res-name ["philox.h" "array.h" "features/compilerfeatures.h"
-                        "features/openclfeatures.h" "features/sse.h"]]
-        (copy-random123 res-name tmp-dir-name))
-      (let [neanderthal-engine (gcn-single ctx cqueue)]
-        (->GCNStretch1DEngineFactory
-         ctx cqueue neanderthal-engine
-         (build-program!
-          (program-with-source
-           ctx
-           [(slurp (io/resource "uncomplicate/clojurecl/kernels/reduction.cl"))
-            (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/uniform.h"))
-            (:functions model)
-            (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/kernels.cl"))
-            (slurp (io/resource "uncomplicate/bayadera/mcmc/opencl/amd_gcn/stretch-move.cl"))])
-          (format "-cl-std=CL2.0 -DLOGPDF=%s -DPDF=%s -DACCUMULATOR=float -I%s/"
-                  (:logpdf model) (:pdf model) tmp-dir-name)
-          nil)
-         256))
-      (finally
-        (fsc/delete-dir tmp-dir-name)))))
+(defn gcn-stretch-1d-engine-factory
+  ([ctx cqueue model ^long WGS]
+   (let [tmp-dir-name (fsc/temp-dir "uncomplicate/")]
+     (try
+       (fsc/mkdirs (format "%s/%s" tmp-dir-name "Random123/features/"))
+       (doseq [res-name ["philox.h" "array.h" "features/compilerfeatures.h"
+                         "features/openclfeatures.h" "features/sse.h"]]
+         (copy-random123 res-name tmp-dir-name))
+       (let [neanderthal-engine (gcn-single ctx cqueue)]
+         (->GCNStretch1DEngineFactory
+          ctx cqueue neanderthal-engine
+          (build-program!
+           (program-with-source
+            ctx
+            [(slurp (io/resource "uncomplicate/clojurecl/kernels/reduction.cl"))
+             (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/uniform.h"))
+             (:functions model)
+             (:kernels model)
+             (slurp (io/resource "uncomplicate/bayadera/mcmc/opencl/amd_gcn/stretch-move.cl"))])
+           (format "-cl-std=CL2.0 -DLOGPDF=%s -DACCUMULATOR=float -DWGS=%d -I%s/"
+                   (:mcmc model) WGS tmp-dir-name)
+           nil)
+          WGS))
+       (finally
+         (fsc/delete-dir tmp-dir-name)))))
+  ([ctx cqueue model]
+   (gcn-stretch-1d-engine-factory ctx cqueue model 256)))

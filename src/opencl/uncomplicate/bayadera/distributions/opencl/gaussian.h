@@ -18,16 +18,12 @@ inline float4 box_muller(float4 uniform) {
                     * sqrt(-2.0f * native_log(uniform.w)));
 }
 
-inline float gaussian_logpdf(__constant float *params, float x) {
-    float mu = params[0];
-    float sigma = params[1];
+inline float gaussian_logpdf(float mu, float sigma, float x) {
     return (x - mu) * (x - mu) / (-2.0f * sigma * sigma)
         - native_log(sigma) - M_SQRT_2PI_F;
 }
 
-inline float gaussian_pdf(__constant float *params, float x) {
-    float mu = params[0];
-    float sigma = params[1];
+inline float gaussian_pdf(float mu, float sigma, float x) {
     return native_exp((x - mu) * (x - mu) / (-2.0f * sigma * sigma))
         / (sigma * M_SQRT_2PI_F);
 }

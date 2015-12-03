@@ -80,3 +80,15 @@
     (/ (* (- b a) (- b a)) 12.0))
   (sd [this]
     (sqrt (variance this))))
+
+(defrecord BetaMeasures [^double alpha ^double beta]
+  Location
+  (mean [_]
+    (/ alpha (+ alpha beta)))
+  Spread
+  (mean-variance [this]
+    (sv (mean this) (variance this)))
+  (variance [_]
+    (/ (* alpha beta) (* (+ alpha beta) (+ alpha beta) (+ alpha beta 1.0))))
+  (sd [this]
+    (sqrt (variance this))))

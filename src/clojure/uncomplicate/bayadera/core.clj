@@ -25,6 +25,22 @@
                             (->UniformMeasures a b)
                             (transfer! [a b] (create (np/factory factory) 2))))
 
+(defn build-model [factory model]
+  (let [engine (p/custom-engine factory model)
+        sampler (p/mcmc-sampler factory model)]
+    (fn [params]
+      (->UnivariateDistribution factory
+                                engine sampler nil
+                                (transfer! params (create (np/factory factory) (dim params)))))))
+
+#_(defn beta [factory ^double a ^double b]
+  (let [params (transfer! [a b] (create (np/factory factory) 2))]
+    (->UnivariateDistribution factory
+                              (p/beta-engine factory)
+                              (p/mcmc-engine (p/beta-sampler factory) params)
+                              (->BetaMeasures a b)
+                              params)))
+
 (defn mean-variance [x]
   (p/mean-variance (p/measures x)))
 
@@ -43,8 +59,14 @@
 (defn parameters [dist]
   (p/parameters dist))
 
+#_(defn mcmc-sampler [dist options]
+  (p/mcmc-engine (p/mcmc-factory dist) options))
+
 (defn sample! [dist result]
   (p/sample! (p/sampler dist) (rand-int Integer/MAX_VALUE) (p/parameters dist) (p/data result)))
+
+#_(defn sample! [sampler result]
+  (p/sample! sampler (p/data result)))
 
 (defn sample [dist n]
   (let [result (dataset (p/factory dist) n)]
