@@ -30,7 +30,7 @@
 
 (defprotocol RandomSampler
   (init! [this seed])
-  (sample! [this res] [this seed params res]))
+  (sample! [this n] [this seed params res]))
 
 (defprotocol MCMCEngineFactory
   (mcmc-engine [this walker-count cl-params low high]))

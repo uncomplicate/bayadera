@@ -20,15 +20,14 @@
          sigma 10.0]
      (with-release [engine-factory (gcn-engine-factory ctx cqueue)
                     dist (gaussian engine-factory mu sigma)
-                    cl-sample (sample dist sample-count)]
+                    cl-sample (time (sample dist sample-count))]
 
        (mean dist) => mu
        (sd dist) => sigma
        (mean cl-sample) => (roughly mu)
        (sd cl-sample) => (roughly sigma (/ sigma 100))
        (mean-variance cl-sample) => (sv (mean cl-sample) (variance cl-sample))
-       (mean-sd cl-sample) => (sv (mean cl-sample) (sd cl-sample))
-       )))
+       (mean-sd cl-sample) => (sv (mean cl-sample) (sd cl-sample)))))
 
 
   (facts
@@ -43,9 +42,18 @@
        (mean cl-sample) => (roughly (mean dist))
        (sd cl-sample) => (roughly (sd dist) (/ (sd dist) 100.0))
        (mean-variance cl-sample) => (sv (mean cl-sample) (variance cl-sample))
-       (mean-sd cl-sample) => (sv (mean cl-sample) (sd cl-sample))
-       ))
+       (mean-sd cl-sample) => (sv (mean cl-sample) (sd cl-sample)))))
 
-
-
-   ))
+  (facts
+   "Core functions for beta distribution."
+   (let [sample-count (* 256 44 94)
+         a 2
+         b 5]
+     (with-release [engine-factory (gcn-engine-factory ctx cqueue)
+                    dist (beta engine-factory a b)
+                    beta-sampler (time (mcmc-sampler dist))
+                    cl-sample (time (dataset engine-factory (mcmc-sample beta-sampler sample-count)))]
+       (mean cl-sample) => (roughly (mean dist))
+       (sd cl-sample) => (roughly (sd dist) (/ (sd dist) 100.0))
+       (mean-variance cl-sample) => (sv (mean cl-sample) (variance cl-sample))
+       (mean-sd cl-sample) => (sv (mean cl-sample) (sd cl-sample))))))

@@ -6,7 +6,7 @@
              [toolbox :refer [count-work-groups enq-reduce enq-read-long]]]
             [uncomplicate.neanderthal
              [math :refer [sqrt]]
-             [core :refer [asum sum dim vect? freduce entry iamax create]]
+             [core :refer [asum sum dim vect? freduce entry iamax create transfer!]]
              [block :refer [buffer]]
              [opencl :refer [gcn-single]]]
             [uncomplicate.bayadera.protocols :refer :all]))
@@ -20,7 +20,7 @@
 (defn ^:private inc! [^ints a]
   (doto a (aset 0 (inc (aget a 0)))))
 
-(deftype GCNStretch1D [ctx cqueue neanderthal-engine
+(deftype GCNStretch1D [ctx cqueue neanderthal-factory
                        ^long walker-count wsize ^long WGS
                        ^ints step-counter
                        cl-params cl-xs cl-s0 cl-s1
@@ -91,8 +91,8 @@
           autocov-count (count-work-groups WGS n)
           sample-mean (/ (float (sum sample)) n)]
       (if (<= (* lag min-fac) n)
-        (with-release [c0-vec (create neanderthal-engine autocov-count)
-                       d-vec (create neanderthal-engine autocov-count)]
+        (with-release [c0-vec (create neanderthal-factory autocov-count)
+                       d-vec (create neanderthal-factory autocov-count)]
           (set-args! subtract-mean-kernel 0 (buffer sample)
                      (float-array [sample-mean]))
           (enq-nd! cqueue subtract-mean-kernel (work-size [n]))
@@ -117,6 +117,19 @@
       (enq-fill! cqueue cl-accept (int-array 1))
       (aset step-counter 0 0)
       this))
+  (sample! [this n]
+    (let [res (create neanderthal-factory n)
+          res-buff (buffer res)
+          available (* Float/BYTES walker-count)]
+      (do
+        (loop [ofst 0 requested (* Float/BYTES (long n))]
+          (do (move-bare! this)
+              (if (<= requested available)
+                (enq-copy! cqueue cl-xs res-buff 0 ofst requested nil nil)
+                (do
+                  (enq-copy! cqueue cl-xs res-buff 0 ofst available nil nil)
+                  (recur (+ ofst available) (- requested available))))))
+        res)))
   MCMC
   (set-position! [this position]
     (do
@@ -146,7 +159,7 @@
           (acc-rate this)))))
   (run-sampler! [this n a]
     (let [means-count (long (count-work-groups WGS (/ walker-count 2)))]
-      (with-release [means-vec (create neanderthal-engine n)
+      (with-release [means-vec (create neanderthal-factory n)
                      cl-means (cl-buffer ctx (* Float/BYTES means-count (long n))
                                          :read-write)]
         (aset step-counter 0 0)
@@ -162,12 +175,12 @@
         (enq-nd! cqueue sum-means-kernel (work-size [n]))
         (assoc (acor this means-vec) :acc-rate  (acc-rate this))))))
 
-(deftype GCNStretch1DEngineFactory [ctx queue neanderthal-engine prog ^long WGS]
+(deftype GCNStretch1DEngineFactory [ctx queue neanderthal-factory prog ^long WGS]
   Releaseable
   (release [_]
     (and
      (release prog)
-     (release neanderthal-engine)))
+     (release neanderthal-factory)))
   MCMCEngineFactory
   (mcmc-engine [_ walker-count params low high]
     (let [walker-count (long walker-count)]
@@ -177,10 +190,8 @@
               accept-acc-count (count-work-groups WGS accept-count)
               bytecount (long (* Float/BYTES cnt))
               step-counter (int-array 1)
-              cl-params (let [par-buf (cl-buffer ctx (* Float/BYTES (dim params))
-                                                 :read-only)]
-                          (enq-write! queue par-buf (buffer params))
-                          par-buf)
+              cl-params (transfer! params (create neanderthal-factory (dim params)))
+              params-buffer (buffer cl-params)
               cl-xs (cl-buffer ctx (* 2 bytecount) :read-write)
               cl-s0 (cl-sub-buffer cl-xs 0 bytecount :read-write)
               cl-s1 (cl-sub-buffer cl-xs bytecount bytecount :read-write)
@@ -190,22 +201,22 @@
               cl-accept (cl-buffer ctx (* Integer/BYTES accept-count) :read-write)
               cl-accept-acc (cl-buffer ctx (* Long/BYTES accept-acc-count) :read-write)]
           (->GCNStretch1D
-           ctx queue neanderthal-engine
+           ctx queue neanderthal-factory
            walker-count (work-size [(/ walker-count 2)]) WGS step-counter
            cl-params cl-xs cl-s0 cl-s1 cl-logpdf-xs cl-logpdf-s0 cl-logpdf-s1
            cl-accept cl-accept-acc
            (doto (kernel prog "stretch_move1_accu")
-             (set-args! 1 cl-params cl-s1 cl-s0 cl-logpdf-s0 cl-accept))
+             (set-args! 1 params-buffer cl-s1 cl-s0 cl-logpdf-s0 cl-accept))
            (doto (kernel prog "stretch_move1_accu")
-             (set-args! 1 cl-params cl-s0 cl-s1 cl-logpdf-s1 cl-accept))
+             (set-args! 1 params-buffer cl-s0 cl-s1 cl-logpdf-s1 cl-accept))
            (doto (kernel prog "stretch_move1_bare")
-             (set-args! 1 cl-params cl-s1 cl-s0 cl-logpdf-s0))
+             (set-args! 1 params-buffer cl-s1 cl-s0 cl-logpdf-s0))
            (doto (kernel prog "stretch_move1_bare")
-             (set-args! 1 cl-params cl-s0 cl-s1 cl-logpdf-s1))
+             (set-args! 1 params-buffer cl-s0 cl-s1 cl-logpdf-s1))
            (doto (kernel prog "init_walkers")
              (set-args! 1 (float-array [low]) (float-array [high]) cl-xs))
            (doto (kernel prog "logpdf")
-             (set-args! 0 cl-params cl-xs cl-logpdf-xs))
+             (set-args! 0 params-buffer cl-xs cl-logpdf-xs))
            (doto (kernel prog "sum_accept_reduction")
              (set-arg! 0 cl-accept-acc))
            (doto (kernel prog "sum_accept_reduce")
@@ -232,9 +243,9 @@
        (doseq [res-name ["philox.h" "array.h" "features/compilerfeatures.h"
                          "features/openclfeatures.h" "features/sse.h"]]
          (copy-random123 res-name tmp-dir-name))
-       (let [neanderthal-engine (gcn-single ctx cqueue)]
+       (let [neanderthal-factory (gcn-single ctx cqueue)]
          (->GCNStretch1DEngineFactory
-          ctx cqueue neanderthal-engine
+          ctx cqueue neanderthal-factory
           (build-program!
            (program-with-source
             ctx

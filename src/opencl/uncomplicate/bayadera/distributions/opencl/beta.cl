@@ -24,6 +24,7 @@ __kernel void logpdf(__constant const float* params
 
     uint gid = get_global_id(0);
     res[gid] = beta_log(params[0], params[1], x[gid]) - params[2];
+
 }
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))

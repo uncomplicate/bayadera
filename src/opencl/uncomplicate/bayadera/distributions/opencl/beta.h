@@ -8,4 +8,5 @@ inline float beta (float a, float b) {
 
 inline float beta_log(float a, float b, float x) {
     return ((a - 1.0f) * native_log(x)) + ((b - 1.0f) * native_log(1 - x));
+    //- lbeta(a, b);
 }

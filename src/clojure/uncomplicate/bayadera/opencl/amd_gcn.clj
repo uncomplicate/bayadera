@@ -126,10 +126,10 @@
          (release gaussian-samp)
          (release uniform-eng)
          (release uniform-samp)
-         (release binomial-eng)
-         (release binomial-samp)
          (release beta-eng)
-         (release beta-samp)))
+         (release beta-samp)
+         (release binomial-eng)
+         (release binomial-samp)))
   DistributionEngineFactory
   (gaussian-engine [_]
     gaussian-eng)
@@ -192,11 +192,11 @@
         uniform-model
         (gcn-distribution-engine ctx cqueue uniform-model WGS)
         (gcn-direct-sampler ctx cqueue uniform-model WGS)
-        binomial-model
-        (gcn-distribution-engine ctx cqueue binomial-model WGS)
-        (gcn-stretch-1d-engine-factory ctx cqueue binomial-model WGS)
         beta-model
         (gcn-distribution-engine ctx cqueue beta-model WGS)
-        (gcn-stretch-1d-engine-factory ctx cqueue beta-model WGS))))
+        (gcn-stretch-1d-engine-factory ctx cqueue beta-model WGS)
+        binomial-model
+        (gcn-distribution-engine ctx cqueue binomial-model WGS)
+        (gcn-stretch-1d-engine-factory ctx cqueue binomial-model WGS))))
     ([ctx cqueue]
      (gcn-engine-factory ctx cqueue 256))))
