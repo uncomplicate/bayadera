@@ -18,11 +18,13 @@
                              (vect? src) src)))
 
 (defn gaussian [factory ^double mu ^double sigma]
-  (->UnivariateDistribution factory
+  (let [params (transfer! [mu sigma] (create (np/factory factory) 2))]
+    (->GaussianDistribution factory
                             (p/gaussian-engine factory)
-                            (p/gaussian-sampler factory)
-                            (->GaussianMeasures mu sigma)
-                            (transfer! [mu sigma] (create (np/factory factory) 2))))
+                            (->DirectSampler (np/factory factory) (p/gaussian-sampler factory)
+                                             (rand-int Integer/MAX_VALUE) params)
+                            params
+                            mu sigma)))
 
 (defn uniform [factory ^double a ^double b]
   (->UnivariateDistribution factory
@@ -65,9 +67,6 @@
 (defn parameters [dist]
   (p/parameters dist))
 
-#_(defn mcmc-sampler [dist options]
-  (p/mcmc-engine (p/mcmc-factory dist) options))
-
 (defn sample! [dist result]
   (p/sample! (p/sampler dist) (rand-int Integer/MAX_VALUE) (p/parameters dist) (p/data result)))
 
@@ -81,6 +80,9 @@
     (p/init! mcmc-sampler (wrap-int (rand-int Integer/MAX_VALUE)))
     (p/run-sampler! mcmc-sampler 256 (wrap-float 8.0))
     mcmc-sampler))
+
+(defn sampler [dist]
+  (p/sampler dist))
 
 (defn mcmc-sample [sampler n]
   (p/sample! sampler n))

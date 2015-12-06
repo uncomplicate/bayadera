@@ -57,6 +57,43 @@
   (measures [_]
     meas))
 
+(deftype DirectSampler [neand-factory samp seed params]
+  Releaseable
+  (release [_]
+    true)
+  RandomSampler
+  (sample! [_ n]
+    (let [res (create neand-factory n)]
+      (sample! samp seed params res)
+      res)))
+
+(deftype GaussianDistribution [bayadera-factory dist-eng samp params ^double mu ^double sigma]
+  Releaseable
+  (release [_]
+    (release params))
+  FactoryProvider
+  (factory [_]
+    bayadera-factory)
+  SamplerProvider
+  (sampler [_]
+    samp)
+  EngineProvider
+  (engine [_]
+    dist-eng)
+  MeasureProvider
+  (measures [this]
+    this)
+  Location
+  (mean [_]
+    mu)
+  Spread
+  (mean-variance [this]
+    (sv mu (variance this)))
+  (variance [_]
+    (* sigma sigma))
+  (sd [_]
+    sigma))
+
 (defrecord GaussianMeasures [^double mu ^double sigma]
   Location
   (mean [_]

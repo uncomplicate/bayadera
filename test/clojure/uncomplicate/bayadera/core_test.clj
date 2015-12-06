@@ -20,7 +20,8 @@
          sigma 10.0]
      (with-release [engine-factory (gcn-engine-factory ctx cqueue)
                     dist (gaussian engine-factory mu sigma)
-                    cl-sample (time (sample dist sample-count))]
+                    gaussian-sampler (sampler dist)
+                    cl-sample (dataset engine-factory (mcmc-sample gaussian-sampler sample-count))]
 
        (mean dist) => mu
        (sd dist) => sigma
