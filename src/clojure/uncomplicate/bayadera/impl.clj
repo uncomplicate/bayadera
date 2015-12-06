@@ -1,21 +1,25 @@
 (ns uncomplicate.bayadera.impl
   (:require [clojure.java.io :as io]
-            [uncomplicate.clojurecl.core :refer [Releaseable release]]
+            [uncomplicate.clojurecl
+             [core :refer [Releaseable release]]
+             [toolbox :refer [wrap-int wrap-float]]]
             [uncomplicate.neanderthal
              [protocols :refer [Container zero raw]]
              [math :refer [sqrt]]
              [core :refer [dim create]]
              [real :refer [entry sum]]
              [native :refer [sv]]]
-            [uncomplicate.bayadera.protocols :refer :all]))
+            [uncomplicate.bayadera
+             [protocols :refer :all]
+             [special :refer [lnbeta]]]))
 
 (declare univariate-dataset)
 
-(defrecord UnivariateDataSet [dataset-eng data-vect]
+(defrecord UnivariateDataSet [neanderthal-factory dataset-eng data-vect]
   Releaseable
   (release [_]
     (release data-vect))
-  Container
+  Container ;;TODO Probably not needed
   (zero [_]
     (univariate-dataset dataset-eng (zero data-vect)))
   (raw [_]
@@ -23,9 +27,10 @@
   DataSet
   (data [_]
     data-vect)
-  MeasureProvider
-  (measures [this]
-    this)
+  (raw-result [_]
+    (create neanderthal-factory (dim data-vect)))
+  (data-count [_]
+    (dim data-vect))
   Location
   (mean [_]
     (/ (sum data-vect) (dim data-vect)))
@@ -33,56 +38,33 @@
   (mean-variance [this]
     (mean-variance dataset-eng data-vect))
   (variance [this]
-    (entry (mean-variance this) 1))
-  (sd [this]
-    (sqrt (variance this))))
+    (entry (mean-variance this) 1)))
 
-(deftype UnivariateDistribution [bayadera-factory dist-eng samp meas params]
-  Releaseable
-  (release [_]
-    (release params))
-  Distribution
-  (parameters [_]
-    params)
-  FactoryProvider
-  (factory [_]
-    bayadera-factory)
-  SamplerProvider
-  (sampler [_]
-    samp)
-  EngineProvider
-  (engine [_]
-    dist-eng)
-  MeasureProvider
-  (measures [_]
-    meas))
-
-(deftype DirectSampler [neand-factory samp seed params]
+(deftype DirectSampler [neand-factory samp-engine seed params]
   Releaseable
   (release [_]
     true)
   RandomSampler
   (sample! [_ n]
     (let [res (create neand-factory n)]
-      (sample! samp seed params res)
+      (sample! samp-engine seed params res)
       res)))
 
-(deftype GaussianDistribution [bayadera-factory dist-eng samp params ^double mu ^double sigma]
+(deftype GaussianDistribution [bayadera-factory dist-eng params ^double mu ^double sigma]
   Releaseable
   (release [_]
     (release params))
-  FactoryProvider
-  (factory [_]
-    bayadera-factory)
   SamplerProvider
   (sampler [_]
-    samp)
+    (->DirectSampler (uncomplicate.neanderthal.protocols/factory bayadera-factory)
+                     (gaussian-sampler bayadera-factory)
+                     (rand-int Integer/MAX_VALUE) params))
+  Distribution
+  (parameters [_]
+    params)
   EngineProvider
   (engine [_]
     dist-eng)
-  MeasureProvider
-  (measures [this]
-    this)
   Location
   (mean [_]
     mu)
@@ -90,23 +72,23 @@
   (mean-variance [this]
     (sv mu (variance this)))
   (variance [_]
-    (* sigma sigma))
-  (sd [_]
-    sigma))
+    (* sigma sigma)))
 
-(defrecord GaussianMeasures [^double mu ^double sigma]
-  Location
-  (mean [_]
-    mu)
-  Spread
-  (mean-variance [this]
-    (sv mu (variance this)))
-  (variance [_]
-    (* sigma sigma))
-  (sd [_]
-    sigma))
-
-(defrecord UniformMeasures [^double a ^double b]
+(deftype UniformDistribution [bayadera-factory dist-eng params ^double a ^double b]
+  Releaseable
+  (release [_]
+    (release params))
+  SamplerProvider
+  (sampler [_]
+    (->DirectSampler (uncomplicate.neanderthal.protocols/factory bayadera-factory)
+                     (uniform-sampler bayadera-factory)
+                     (rand-int Integer/MAX_VALUE) params))
+  Distribution
+  (parameters [_]
+    params)
+  EngineProvider
+  (engine [_]
+    dist-eng)
   Location
   (mean [_]
     (/ (+ a b) 2.0))
@@ -114,18 +96,32 @@
   (mean-variance [this]
     (sv (mean this) (variance this)))
   (variance [_]
-    (/ (* (- b a) (- b a)) 12.0))
-  (sd [this]
-    (sqrt (variance this))))
+    (/ (* (- b a) (- b a)) 12.0)))
 
-(defrecord BetaMeasures [^double alpha ^double beta]
+(deftype BetaDistribution [bayadera-factory dist-eng params ^double a ^double b]
+  Releaseable
+  (release [_]
+    (release params))
+  SamplerProvider
+  (sampler [_]
+    (let [samp (mcmc-engine (beta-sampler bayadera-factory) (* 44 256 32) (sv a b (lnbeta a b)) 0 1)]
+      (set-position! samp (wrap-int (rand-int Integer/MAX_VALUE)))
+      (init! samp (wrap-int (rand-int Integer/MAX_VALUE)))
+      (burn-in! samp 512 (wrap-float 2.0))
+      (init! samp (wrap-int (rand-int Integer/MAX_VALUE)))
+      (run-sampler! samp 64 (wrap-float 2.0))
+      samp))
+  Distribution
+  (parameters [_]
+    params)
+  EngineProvider
+  (engine [_]
+    dist-eng)
   Location
   (mean [_]
-    (/ alpha (+ alpha beta)))
+    (/ a (+ a b)))
   Spread
   (mean-variance [this]
     (sv (mean this) (variance this)))
   (variance [_]
-    (/ (* alpha beta) (* (+ alpha beta) (+ alpha beta) (+ alpha beta 1.0))))
-  (sd [this]
-    (sqrt (variance this))))
+    (/ (* a b) (* (+ a b) (+ a b) (+ a b 1.0)))))

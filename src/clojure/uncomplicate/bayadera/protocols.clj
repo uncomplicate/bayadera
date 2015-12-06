@@ -11,18 +11,19 @@
   (total-range [x])
   (interquartile-range [x])
   (mean-variance [x] [eng data])
-  (variance [x])
-  (sd [x]))
+  (variance [x]))
 
 (defprotocol Association
   (cov [x y])
   (corr [x y]))
 
+(defprotocol DataSet
+  (data [_])
+  (raw-result [_])
+  (data-count [_]))
+
 (defprotocol Distribution
   (parameters [_]))
-
-(defprotocol DataSet
-  (data [_]))
 
 (defprotocol DistributionEngine
   (logpdf! [_ params x res])
@@ -41,17 +42,10 @@
   (run-sampler! [this n a]))
 
 (defprotocol SamplerProvider
-  (sampler [_])
-  (mcmc-sampler [_]))
+  (sampler [_]))
 
 (defprotocol EngineProvider
   (engine [_]))
-
-(defprotocol FactoryProvider
-  (factory [_]))
-
-(defprotocol MeasureProvider
-  (measures [this]))
 
 (defprotocol DistributionEngineFactory
   (gaussian-engine [this])
