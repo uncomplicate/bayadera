@@ -125,3 +125,23 @@
     (sv (mean this) (variance this)))
   (variance [_]
     (/ (* a b) (* (+ a b) (+ a b) (+ a b 1.0)))))
+
+(deftype UnivariateDistribution [bayadera-factory dist-eng params host-params model]
+  Releaseable
+  (release [_]
+    (release params))
+  SamplerProvider
+  (sampler [_];;TODO make low/high optional in MCMC-stretch, and also introduce training options in this method
+    (let [samp (mcmc-engine (mcmc-sampler bayadera-factory model) (* 44 256 32) host-params (:lower model) (:upper model))]
+      (set-position! samp (wrap-int (rand-int Integer/MAX_VALUE)))
+      (init! samp (wrap-int (rand-int Integer/MAX_VALUE)))
+      (burn-in! samp 512 (wrap-float 2.0))
+      (init! samp (wrap-int (rand-int Integer/MAX_VALUE)))
+      (run-sampler! samp 64 (wrap-float 2.0))
+      samp))
+  Distribution
+  (parameters [_]
+    params)
+  EngineProvider
+  (engine [_]
+    dist-eng))

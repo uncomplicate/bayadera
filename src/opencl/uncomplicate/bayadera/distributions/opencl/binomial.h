@@ -8,7 +8,7 @@ inline float binomial_logpdf(float n, float p, float k) {
         + lbinco(n, k);
 }
 
-inline float binomial_lik(float n, float k, float p) {
+inline float binomial_loglik(float n, float k, float p) {
     return (k * native_log(p))
         + ((n - k) * native_log(1 - p));
 }

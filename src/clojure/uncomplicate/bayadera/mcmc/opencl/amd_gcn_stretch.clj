@@ -254,8 +254,8 @@
              (:functions model)
              (:kernels model)
              (slurp (io/resource "uncomplicate/bayadera/mcmc/opencl/amd_gcn/stretch-move.cl"))])
-           (format "-cl-std=CL2.0 -DLOGPDF=%s -DACCUMULATOR=float -DWGS=%d -I%s/"
-                   (:mcmc model) WGS tmp-dir-name)
+           (format "-cl-std=CL2.0 -DLOGPDF=%s -DACCUMULATOR=float -DPARAMS_SIZE=%d -DWGS=%d -I%s/"
+                   (:mcmc model) (:params-size model) WGS tmp-dir-name)
            nil)
           WGS))
        (finally

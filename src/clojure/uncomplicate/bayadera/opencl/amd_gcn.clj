@@ -14,7 +14,24 @@
             [uncomplicate.bayadera.mcmc.opencl.amd-gcn-stretch :refer [gcn-stretch-1d-engine-factory]]
             [uncomplicate.bayadera.protocols :refer :all]))
 
-(defrecord CLDistributionModel [mcmc functions kernels])
+(defrecord CLDistributionModel [mcmc ^long params-size lower upper functions kernels])
+
+(defn posterior [^CLDistributionModel likelihood
+                 ^CLDistributionModel prior]
+  (uncomplicate.bayadera.opencl.amd-gcn/->CLDistributionModel
+   "posterior_mcmc"
+   (+ (.params-size likelihood) (.params-size prior))
+   (.lower prior)
+   (.upper prior)
+   (str (.functions prior) "\n" (.functions likelihood))
+   (str (.kernels prior)
+        "\n
+
+inline float posterior_mcmc(__constant float* params, float x) {
+  return binomial_loglik(params[0], params[1], x) + beta_log(params[2], params[3], x);
+}\n
+
+")))
 
 (deftype GCNDirectSampler [cqueue prog]
   Releaseable
@@ -160,21 +177,21 @@
     neanderthal-factory))
 
 (let [gaussian-model
-      (->CLDistributionModel "gaussian_mcmc"
+      (->CLDistributionModel "gaussian_mcmc" 2 nil nil
                              (str (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/uniform.h"))
                                   "\n"
                                   (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/gaussian.h")))
                              (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/gaussian.cl")))
       uniform-model
-      (->CLDistributionModel "uniform_mcmc"
+      (->CLDistributionModel "uniform_mcmc" 2 nil nil
                              (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/uniform.h"))
                              (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/uniform.cl")))
       beta-model
-      (->CLDistributionModel  "beta_mcmc"
+      (->CLDistributionModel  "beta_mcmc" 3 nil nil
                              (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/beta.h"))
                              (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/beta.cl")))
       binomial-model
-      (->CLDistributionModel "binomial_mcmc"
+      (->CLDistributionModel "binomial_mcmc" 2 nil nil
                              (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/binomial.h"))
                              (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/binomial.cl")))]
 

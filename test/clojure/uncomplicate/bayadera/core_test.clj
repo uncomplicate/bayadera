@@ -10,7 +10,8 @@
              [core :refer :all]
              [impl :refer :all]
              [special :refer [lnbeta]]]
-            [uncomplicate.bayadera.opencl.amd-gcn :refer [gcn-engine-factory]]))
+            [uncomplicate.bayadera.opencl.amd-gcn :refer [gcn-engine-factory ->CLDistributionModel posterior]]
+            [clojure.java.io :as io]))
 
 (with-release [dev (first (sort-by-cl-version (devices (first (platforms)))))
                ctx (context [dev])
@@ -32,7 +33,6 @@
        (mean-variance cl-sample) => (sv (mean cl-sample) (variance cl-sample))
        (mean-sd cl-sample) => (sv (mean cl-sample) (sd cl-sample)))))
 
-
   (facts
    "Core functions for uniform distribution."
    (let [sample-count (* 256 44 94)
@@ -49,7 +49,6 @@
        (mean-variance cl-sample) => (sv (mean cl-sample) (variance cl-sample))
        (mean-sd cl-sample) => (sv (mean cl-sample) (sd cl-sample))
        (/ (sum cl-pdf) (dim cl-pdf)) => (roughly (/ 1.0 (- b a))))))
-
 
   (let [sample-count (* 256 44 94)
         a 2.0
@@ -70,3 +69,35 @@
        (mean-variance cl-sample) => (sv (mean cl-sample) (variance cl-sample))
        (mean-sd cl-sample) => (sv (mean cl-sample) (sd cl-sample))
        (sum cl-pdf) => (roughly (sum (time (fmap! beta-pdf host))))))))
+
+(with-release [dev (first (sort-by-cl-version (devices (first (platforms)))))
+               ctx (context [dev])
+               cqueue (command-queue ctx dev)]
+
+  (let [sample-count (* 256 44 94)
+        a 2.0
+        b 5.0
+        z 3.0
+        N 5.0
+        a1 (+ z a)
+        b1 (+ (- N z) b)
+        beta-model
+        (->CLDistributionModel  "beta_mcmc" 3 0 1
+                                (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/beta.h"))
+                                (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/beta.cl")))
+        binomial-model
+        (->CLDistributionModel "binomial_mcmc" 2 nil nil
+                               (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/binomial.h"))
+                               (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/binomial.cl")))
+        posterior-model (posterior binomial-model beta-model)]
+    (with-release [engine-factory (gcn-engine-factory ctx cqueue)
+                   post (univariate engine-factory posterior-model (sv N z) (sv a b))
+                   post-sampler (time (sampler post))
+                   cl-sample (dataset engine-factory (sample post-sampler sample-count))
+                   real-post (beta engine-factory a1 b1)]
+      (facts
+       "Core functions for beta-bernoulli distribution."
+       (mean cl-sample) => (roughly (mean real-post) (/ (mean real-post) 100.0))
+       (sd cl-sample) => (roughly (sd real-post) (/ (sd real-post) 100.0))
+       1 => 1)
+      )))
