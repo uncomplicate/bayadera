@@ -10,7 +10,8 @@
              [core :refer :all]
              [impl :refer :all]
              [special :refer [lnbeta]]]
-            [uncomplicate.bayadera.opencl.amd-gcn :refer [gcn-engine-factory ->CLDistributionModel posterior]]
+            [uncomplicate.bayadera.opencl.amd-gcn :refer
+             [gcn-engine-factory posterior]]
             [clojure.java.io :as io]))
 
 (with-release [dev (first (sort-by-cl-version (devices (first (platforms)))))
@@ -82,17 +83,17 @@
         a1 (+ z a)
         b1 (+ (- N z) b)
         beta-model
-        (->CLDistributionModel  "beta_mcmc" 3 0 1
+        (p/->CLDistributionModel  "beta_logpdf" 3 0 1
                                 (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/beta.h"))
                                 (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/beta.cl")))
         binomial-model
-        (->CLDistributionModel "binomial_mcmc" 2 nil nil
-                               (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/binomial.h"))
-                               (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/binomial.cl")))
+        (p/->CLLikelihoodModel "binomial_loglik" 2
+                             (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/binomial.h")))
         posterior-model (posterior binomial-model beta-model)]
     (with-release [engine-factory (gcn-engine-factory ctx cqueue)
-                   post (univariate engine-factory posterior-model (sv N z) (sv a b))
-                   post-sampler (time (sampler post))
+                   post (udist engine-factory posterior-model)
+                   post-dist (post (sv N z) (sv a b))
+                   post-sampler (time (sampler post-dist))
                    cl-sample (dataset engine-factory (sample post-sampler sample-count))
                    real-post (beta engine-factory a1 b1)]
       (facts

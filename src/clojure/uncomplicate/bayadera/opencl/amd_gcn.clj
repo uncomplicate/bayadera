@@ -12,26 +12,31 @@
              [native :refer [sv]]
              [opencl :refer [gcn-single]]]
             [uncomplicate.bayadera.mcmc.opencl.amd-gcn-stretch :refer [gcn-stretch-1d-engine-factory]]
-            [uncomplicate.bayadera.protocols :refer :all]))
+            [uncomplicate.bayadera.protocols :refer :all])
+  (:import [uncomplicate.bayadera.protocols CLDistributionModel CLLikelihoodModel]))
 
-(defrecord CLDistributionModel [mcmc ^long params-size lower upper functions kernels])
+(def ^:private POSTERIOR_LOGPDF
+  "
+inline float %s(__constant float* params, float x) {
+  return %s(params, x) + %s(&params[%d], x);
+}
+")
 
-(defn posterior [^CLDistributionModel likelihood
-                 ^CLDistributionModel prior]
-  (uncomplicate.bayadera.opencl.amd-gcn/->CLDistributionModel
-   "posterior_mcmc"
-   (+ (.params-size likelihood) (.params-size prior))
-   (.lower prior)
-   (.upper prior)
-   (str (.functions prior) "\n" (.functions likelihood))
-   (str (.kernels prior)
-        "\n
-
-inline float posterior_mcmc(__constant float* params, float x) {
-  return binomial_loglik(params[0], params[1], x) + beta_log(params[2], params[3], x);
-}\n
-
-")))
+(let [posterior-kernels (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/posterior.cl"))]
+  (defn posterior [^CLLikelihoodModel likelihood
+                   ^CLDistributionModel prior]
+    (let [logpdf (str (gensym "logpdf"))
+          params-size (+ (.params-size likelihood) (.params-size prior))]
+      (->CLDistributionModel
+       logpdf
+       params-size
+       (.lower prior)
+       (.upper prior)
+       (str (.functions prior) "\n" (.functions likelihood) "\n"
+            (format POSTERIOR_LOGPDF
+                    logpdf (.name likelihood)
+                    (.name prior) (.params-size likelihood)))
+       posterior-kernels))))
 
 (deftype GCNDirectSampler [cqueue prog]
   Releaseable
@@ -107,22 +112,23 @@ inline float posterior_mcmc(__constant float* params, float x) {
       (fsc/delete-dir tmp-dir-name))))
 
 (defn gcn-distribution-engine
-  ([ctx cqueue model ^long WGS]
+  ([ctx cqueue ^CLDistributionModel model ^long WGS]
    (let [prog (build-program!
                (program-with-source
-                ctx [(:functions model) (:kernels model)])
-               (format "-cl-std=CL2.0 -DWGS=%s -I%s" WGS tmp-dir-name)
+                ctx [(.functions model) (.kernels model)])
+               (format "-cl-std=CL2.0 -DLOGPDF=%s -DPARAMS_SIZE=%d -DWGS=%s -I%s"
+                       (.name model) (.params-size model) WGS tmp-dir-name)
                nil)]
      (->GCNDistributionEngine cqueue prog)))
   ([ctx queue model]
    (gcn-distribution-engine ctx queue model 256)))
 
 (defn gcn-direct-sampler
-  ([ctx cqueue model ^long WGS]
+  ([ctx cqueue ^CLDistributionModel model ^long WGS]
    (->GCNDirectSampler
     cqueue
     (build-program!
-     (program-with-source ctx [(:functions model) (:kernels model)])
+     (program-with-source ctx [(.functions model) (.kernels model)])
      (format "-cl-std=CL2.0 -DWGS=%s -I%s/" WGS tmp-dir-name)
      nil)))
   ([ctx cqueue model]
@@ -177,21 +183,21 @@ inline float posterior_mcmc(__constant float* params, float x) {
     neanderthal-factory))
 
 (let [gaussian-model
-      (->CLDistributionModel "gaussian_mcmc" 2 nil nil
+      (->CLDistributionModel "gaussian_logpdf" 2 nil nil
                              (str (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/uniform.h"))
                                   "\n"
                                   (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/gaussian.h")))
                              (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/gaussian.cl")))
       uniform-model
-      (->CLDistributionModel "uniform_mcmc" 2 nil nil
+      (->CLDistributionModel "uniform_logpdf" 2 nil nil
                              (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/uniform.h"))
                              (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/uniform.cl")))
       beta-model
-      (->CLDistributionModel  "beta_mcmc" 3 nil nil
+      (->CLDistributionModel  "beta_logpdf" 3 nil nil
                              (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/beta.h"))
                              (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/beta.cl")))
       binomial-model
-      (->CLDistributionModel "binomial_mcmc" 2 nil nil
+      (->CLDistributionModel "binomial_logpdf" 3 nil nil
                              (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/binomial.h"))
                              (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/binomial.cl")))]
 

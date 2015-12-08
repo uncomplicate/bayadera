@@ -4,10 +4,6 @@
 #define WGS 256
 #endif
 
-inline float gaussian_mcmc(__constant float* params, float x) {
-    return gaussian_logpdf(params[0], params[1], x);
-}
-
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
 __kernel void pdf(__constant const float* params
                   __attribute__ ((max_constant_size(2))),
@@ -23,7 +19,7 @@ __kernel void logpdf(__constant const float* params
                      __global const float* x, __global float* res) {
 
     uint gid = get_global_id(0);
-    res[gid] = gaussian_logpdf(params[0], params[1], x[gid]);
+    res[gid] = gaussian_logpdf(params, x[gid]);
 }
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))

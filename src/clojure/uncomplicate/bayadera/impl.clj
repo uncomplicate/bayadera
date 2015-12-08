@@ -6,12 +6,13 @@
             [uncomplicate.neanderthal
              [protocols :refer [Container zero raw]]
              [math :refer [sqrt]]
-             [core :refer [dim create]]
+             [core :refer [dim create subvector copy!]]
              [real :refer [entry sum]]
              [native :refer [sv]]]
             [uncomplicate.bayadera
              [protocols :refer :all]
-             [special :refer [lnbeta]]]))
+             [special :refer [lnbeta]]])
+  (:import [clojure.lang IFn]))
 
 (declare univariate-dataset)
 
@@ -126,13 +127,13 @@
   (variance [_]
     (/ (* a b) (* (+ a b) (+ a b) (+ a b 1.0)))))
 
-(deftype UnivariateDistribution [bayadera-factory dist-eng params host-params model]
+(deftype UnivariateDistribution [dist-eng sampler-factory params host-params model]
   Releaseable
   (release [_]
     (release params))
   SamplerProvider
   (sampler [_];;TODO make low/high optional in MCMC-stretch, and also introduce training options in this method
-    (let [samp (mcmc-engine (mcmc-sampler bayadera-factory model) (* 44 256 32) host-params (:lower model) (:upper model))]
+    (let [samp (mcmc-engine sampler-factory (* 44 256 32) host-params (:lower model) (:upper model))]
       (set-position! samp (wrap-int (rand-int Integer/MAX_VALUE)))
       (init! samp (wrap-int (rand-int Integer/MAX_VALUE)))
       (burn-in! samp 512 (wrap-float 2.0))
@@ -145,3 +146,18 @@
   EngineProvider
   (engine [_]
     dist-eng))
+
+(deftype UnivariateDistributionType [factory dist-eng sampler-factory model]
+  Releaseable
+  (release [_]
+    (release dist-eng)
+    (release sampler-factory))
+  IFn
+  (invoke [_ params];;Use GPU params instead of host later
+    (->UnivariateDistribution dist-eng sampler-factory params params model))
+  (invoke [this data hyperparams]
+    (let [params (sv (+ (dim data) (dim hyperparams)))]
+      (do
+        (copy! data (subvector params 0 (dim data)))
+        (copy! hyperparams (subvector params (dim data) (dim hyperparams)))
+        (this params)))))

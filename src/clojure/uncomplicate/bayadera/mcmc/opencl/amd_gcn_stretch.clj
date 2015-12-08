@@ -9,7 +9,8 @@
              [core :refer [asum sum dim vect? freduce entry iamax create transfer!]]
              [block :refer [buffer]]
              [opencl :refer [gcn-single]]]
-            [uncomplicate.bayadera.protocols :refer :all]))
+            [uncomplicate.bayadera.protocols :refer :all])
+  (:import [uncomplicate.bayadera.protocols CLDistributionModel]))
 
 (defprotocol MCMCStretch
   (move! [this])
@@ -236,7 +237,7 @@
    (io/file (format "%s/Random123/%s" tmp-dir-name include-name))))
 
 (defn gcn-stretch-1d-engine-factory
-  ([ctx cqueue model ^long WGS]
+  ([ctx cqueue ^CLDistributionModel model ^long WGS]
    (let [tmp-dir-name (fsc/temp-dir "uncomplicate/")]
      (try
        (fsc/mkdirs (format "%s/%s" tmp-dir-name "Random123/features/"))
@@ -251,11 +252,11 @@
             ctx
             [(slurp (io/resource "uncomplicate/clojurecl/kernels/reduction.cl"))
              (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/uniform.h"))
-             (:functions model)
-             (:kernels model)
+             (.functions model)
+             (.kernels model)
              (slurp (io/resource "uncomplicate/bayadera/mcmc/opencl/amd_gcn/stretch-move.cl"))])
            (format "-cl-std=CL2.0 -DLOGPDF=%s -DACCUMULATOR=float -DPARAMS_SIZE=%d -DWGS=%d -I%s/"
-                   (:mcmc model) (:params-size model) WGS tmp-dir-name)
+                   (.name model) (.params-size model) WGS tmp-dir-name)
            nil)
           WGS))
        (finally

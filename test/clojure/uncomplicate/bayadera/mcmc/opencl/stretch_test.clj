@@ -11,7 +11,6 @@
              [block :refer [buffer]]]
             [uncomplicate.neanderthal.opencl :refer [gcn-single]]
             [uncomplicate.bayadera.protocols :refer :all]
-            [uncomplicate.bayadera.opencl.amd-gcn :refer [->CLDistributionModel]]
             [uncomplicate.bayadera.mcmc.opencl.amd-gcn-stretch :refer :all]))
 
 (with-release [dev (first (sort-by-cl-version (devices (first (platforms)))))
@@ -25,7 +24,7 @@
          xs (sv walker-count)
          run-cnt 140
          gaussian-model
-         (->CLDistributionModel "gaussian_mcmc" 2 nil nil
+         (->CLDistributionModel "gaussian_logpdf" 2 nil nil
                                 (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/gaussian.h"))
                                 (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/gaussian.cl")))]
      (with-release [mcmc-engine-factory (gcn-stretch-1d-engine-factory
