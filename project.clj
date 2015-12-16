@@ -11,7 +11,8 @@
     :dependencies [[org.clojure/clojure "1.8.0-RC3"]
                    [uncomplicate/clojurecl "0.4.0-SNAPSHOT"]
                    [uncomplicate/neanderthal "0.5.0-SNAPSHOT"]
-                   [me.raynes/fs "1.4.6"]]
+                   [me.raynes/fs "1.4.6"]
+                   [quil "2.3.0"]]
 
     :global-vars {*warn-on-reflection* true
                   *unchecked-math* :warn-on-boxed}
