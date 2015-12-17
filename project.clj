@@ -8,7 +8,7 @@
           :url "https://github.com/blueberry/bayadera"}
     :license {:name "Eclipse Public License"
               :url "http://www.eclipse.org/legal/epl-v10.html"}
-    :dependencies [[org.clojure/clojure "1.8.0-RC3"]
+    :dependencies [[org.clojure/clojure "1.8.0-RC4"]
                    [uncomplicate/clojurecl "0.4.0-SNAPSHOT"]
                    [uncomplicate/neanderthal "0.5.0-SNAPSHOT"]
                    [me.raynes/fs "1.4.6"]
