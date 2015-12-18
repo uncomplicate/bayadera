@@ -4,11 +4,11 @@
             [uncomplicate.bayadera.visual :refer :all]
             [uncomplicate.neanderthal
              [math :refer [log exp]]
-             [core :refer [dim sum copy fmap! entry]]
+             [core :refer [dim copy fmap!]]
              [native :refer [sv]]]
             [quil.core :as q]))
 
-(def rand-vect (fmap! (fn ^double [^double x] (rand 10.0)) (sv 1000)))
+(def rand-vect (fmap! (fn ^double [^double x] (rand 10.0)) (sv 2000)))
 (def pdf-vect (fmap! (fn ^double [^double x] (log (inc x))) (copy rand-vect)))
 
 (def grid-color (->HSBColor 60 30 10))
@@ -20,13 +20,13 @@
 (defn setup []
   (let [g (q/create-graphics 1010 550 :p2d)
         f (q/create-graphics 1050 590 :p2d)
-        p (q/create-graphics 1050 590 :opengl)]
+        p (q/create-graphics 1050 590 :p2d)]
     (style g grid-color)
     (grid g 5 20 20)
     (style f frame-color)
     (frame f 20)
     (ticks f 20 5 3 100 100)
-    (style p points-color 2)
+    (style p points-color 4)
     (points p rand-vect pdf-vect 0 10 0 3)
     (reset! graphics
             {:grid g

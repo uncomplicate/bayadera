@@ -1,8 +1,11 @@
 (ns uncomplicate.bayadera.visual
-  (:require [uncomplicate.clojurecl.core :refer :all]
-            [uncomplicate.neanderthal.core :refer [dim entry]]
+  (:require [uncomplicate.clojurecl.core :refer [with-release]]
+            [uncomplicate.neanderthal
+             [core :refer [dim]]
+             [real :refer [entry]]
+             [native :refer [dv]]]
             [quil.core :as q])
-  (:import [processing.core PGraphics PConstants PApplet]))
+  (:import [processing.core PGraphics PConstants]))
 
 (defrecord HSBColor [^float h ^float s ^float b])
 
@@ -62,33 +65,33 @@
       (.endDraw g)
       g)))
 
+(defn map-range ^double [^double value range-vector]
+  (let [start1 (entry range-vector 0)
+        start2 (entry range-vector 2)]
+    (+ start2
+       (* (- (entry range-vector 3) start2)
+          (/ (- value start1)
+             (- (entry range-vector 1) start1))))))
+
 (defn points [^PGraphics g xs ys x-lower x-upper y-lower y-upper]
-  (let [x-max (.width g)
-        y-max (.height g)
-        x-lower (float x-lower)
-        x-upper (float x-upper)
-        y-lower (float y-lower)
-        y-upper (float y-upper)]
+  (with-release [x-range (dv x-lower x-upper 0 (.width g))
+                 y-range (dv y-lower y-upper (.height g) 0)]
     (.beginDraw g)
     (.clear g)
     (dotimes [i (dim xs)]
-      (.point g
-              (PApplet/map (entry xs i) x-lower x-upper 0 x-max)
-              (PApplet/map (entry ys i) y-lower y-upper y-max 0)))
-    (.endDraw g)))
+      (.point g (map-range (entry xs i) x-range) (map-range (entry ys i) y-range)))
+    (.endDraw g)
+    g))
 
 (defn circles [^PGraphics g xs ys x-lower x-upper y-lower y-upper]
-  (let [x-max (.width g)
-        y-max (.height g)
-        x-lower (float x-lower)
-        x-upper (float x-upper)
-        y-lower (float y-lower)
-        y-upper (float y-upper)]
+  (with-release [x-range (dv x-lower x-upper 0 (.width g))
+                 y-range (dv y-lower y-upper (.height g) 0)]
     (.beginDraw g)
     (.clear g)
     (dotimes [i (dim xs)]
       (.ellipse g
-              (PApplet/map (entry xs i) x-lower x-upper 0 x-max)
-              (PApplet/map (entry ys i) y-lower y-upper y-max 0)
-              2 2))
-    (.endDraw g)))
+                (map-range (entry xs i) x-range)
+                (map-range (entry ys i) y-range)
+                2 2))
+    (.endDraw g)
+    g))
