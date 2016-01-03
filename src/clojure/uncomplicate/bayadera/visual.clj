@@ -7,15 +7,21 @@
             [quil.core :as q])
   (:import [processing.core PGraphics PConstants]))
 
-(defn map-range ^double [^double value range-vector]
-  (let [start1 (entry range-vector 0)
-        start2 (entry range-vector 2)]
-    (+ start2
-       (* (- (entry range-vector 3) start2)
-          (/ (- value start1)
-             (- (entry range-vector 1) start1))))))
-
 (defrecord HSBColor [^float h ^float s ^float b])
+
+(defn range-mapper
+  ([^double start1 ^double end1 ^double start2 ^double end2]
+   (fn ^double [^double value]
+     (+ start2 (* (- end2 start2) (/ (- value start1) (- end1 start1))))))
+  ([^double start1 ^double end1]
+   (fn ^double [^double value ^double start2 ^double end2]
+     (+ start2 (* (- end2 start2) (/ (- value start1) (- end1 start1)))))))
+
+(defrecord Frame2D [^long margin ^long padding
+                    ^long tick-length
+                    ^double x-lower ^double x-upper
+                    ^long x-offset ^long y-offset]
+  )
 
 (defn style
   ([^PGraphics g ^HSBColor color ^long weight]
@@ -82,38 +88,32 @@
         y-lower (float y-lower)
         y-upper (float y-upper)
         x-offset (float x-offset)
-        y-offset (float y-offset)]
-    (with-release [x-range (dv x-lower x-upper padding width)
-                   y-range (dv y-lower y-upper (- height) padding)]
-      (.beginDraw g)
-      (loop [x x-lower]
-        (when (<= x x-upper)
-          (do (.text g x (float (map-range x x-range)) (float (- height padding)))
-              (recur (+ x x-offset)))))
-      (.endDraw g)
-      g)))
-
-
+        y-offset (float y-offset)
+        map-x (range-mapper x-lower x-upper padding width)]
+    (.beginDraw g)
+    (loop [x x-lower]
+      (when (<= x x-upper)
+        (do (.text g x (float (map-x x)) (float (- height padding)))
+            (recur (+ x x-offset)))))
+    (.endDraw g)
+    g))
 
 (defn points [^PGraphics g xs ys x-lower x-upper y-lower y-upper]
-  (with-release [x-range (dv x-lower x-upper 0 (.width g))
-                 y-range (dv y-lower y-upper (.height g) 0)]
+  (let [map-x (range-mapper x-lower x-upper 0 (.width g))
+        map-y (range-mapper y-lower y-upper (.height g) 0)]
     (.beginDraw g)
     (.clear g)
     (dotimes [i (dim xs)]
-      (.point g (map-range (entry xs i) x-range) (map-range (entry ys i) y-range)))
+      (.point g (map-x (entry xs i)) (map-y (entry ys i))))
     (.endDraw g)
     g))
 
 (defn circles [^PGraphics g xs ys x-lower x-upper y-lower y-upper]
-  (with-release [x-range (dv x-lower x-upper 0 (.width g))
-                 y-range (dv y-lower y-upper (.height g) 0)]
+  (let [map-x (range-mapper x-lower x-upper 0 (.width g))
+        map-y (range-mapper y-lower y-upper (.height g) 0)]
     (.beginDraw g)
     (.clear g)
     (dotimes [i (dim xs)]
-      (.ellipse g
-                (map-range (entry xs i) x-range)
-                (map-range (entry ys i) y-range)
-                2 2))
+      (.ellipse g (map-range (entry xs i)) (map-range (entry ys i)) 2 2))
     (.endDraw g)
     g))
