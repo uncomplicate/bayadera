@@ -7,6 +7,14 @@
             [quil.core :as q])
   (:import [processing.core PGraphics PConstants]))
 
+(defn map-range ^double [^double value range-vector]
+  (let [start1 (entry range-vector 0)
+        start2 (entry range-vector 2)]
+    (+ start2
+       (* (- (entry range-vector 3) start2)
+          (/ (- value start1)
+             (- (entry range-vector 1) start1))))))
+
 (defrecord HSBColor [^float h ^float s ^float b])
 
 (defn style
@@ -65,13 +73,27 @@
       (.endDraw g)
       g)))
 
-(defn map-range ^double [^double value range-vector]
-  (let [start1 (entry range-vector 0)
-        start2 (entry range-vector 2)]
-    (+ start2
-       (* (- (entry range-vector 3) start2)
-          (/ (- value start1)
-             (- (entry range-vector 1) start1))))))
+(defn labels [^PGraphics g padding x-lower x-upper x-offset y-lower y-upper y-offset]
+  (let [padding (long padding)
+        width (- (.width g) padding)
+        height (- (.height g) padding)
+        x-lower (float x-lower)
+        x-upper (float x-upper)
+        y-lower (float y-lower)
+        y-upper (float y-upper)
+        x-offset (float x-offset)
+        y-offset (float y-offset)]
+    (with-release [x-range (dv x-lower x-upper padding width)
+                   y-range (dv y-lower y-upper (- height) padding)]
+      (.beginDraw g)
+      (loop [x x-lower]
+        (when (<= x x-upper)
+          (do (.text g x (float (map-range x x-range)) (float (- height padding)))
+              (recur (+ x x-offset)))))
+      (.endDraw g)
+      g)))
+
+
 
 (defn points [^PGraphics g xs ys x-lower x-upper y-lower y-upper]
   (with-release [x-range (dv x-lower x-upper 0 (.width g))

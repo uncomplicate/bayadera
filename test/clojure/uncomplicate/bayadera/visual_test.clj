@@ -8,7 +8,7 @@
              [native :refer [sv]]]
             [quil.core :as q]))
 
-(def rand-vect (fmap! (fn ^double [^double x] (rand 10.0)) (sv 2000)))
+(def rand-vect (fmap! (fn ^double [^double x] (rand 10.0)) (sv 300)))
 (def pdf-vect (fmap! (fn ^double [^double x] (log (inc x))) (copy rand-vect)))
 
 (def grid-color (->HSBColor 60 30 10))
@@ -18,14 +18,15 @@
 (def graphics (atom nil))
 
 (defn setup []
-  (let [g (q/create-graphics 1010 550 :p2d)
-        f (q/create-graphics 1050 590 :p2d)
-        p (q/create-graphics 1050 590 :p2d)]
+  (let [g (q/create-graphics 310 250 :p2d)
+        f (q/create-graphics 350 290 :p2d)
+        p (q/create-graphics 302 242 :p2d)]
     (style g grid-color)
     (grid g 5 20 20)
     (style f frame-color)
     (frame f 20)
     (ticks f 20 5 3 100 100)
+    (labels f 5 0 10 1 0 3 0.5)
     (style p points-color 4)
     (points p rand-vect pdf-vect 0 10 0 3)
     (reset! graphics
@@ -48,7 +49,7 @@
     ;;(ticks (:frame gr) 20 40 60)
     (q/image (:grid gr) 20 20)
     (q/image (:frame gr) 0 0)
-    (q/image (:points gr) 0 0)
+    (q/image (:points gr) 24 24)
     )
 
   )
