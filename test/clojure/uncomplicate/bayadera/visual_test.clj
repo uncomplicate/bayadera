@@ -8,11 +8,11 @@
              [native :refer [sv]]]
             [quil.core :as q]))
 
-(def rand-vect (fmap! (fn ^double [^double x] (rand 10.0)) (sv 100)))
+(def rand-vect (fmap! (fn ^double [^double x] (rand 10.0)) (sv 1000)))
 (def pdf-vect (fmap! (fn ^double [^double x] (log (inc x))) (copy rand-vect)))
 
-(def x-axis (axis 0 1000000000.0))
-(def y-axis (axis 0 6))
+(def x-axis (axis 0 10))
+(def y-axis (axis -3 3))
 
 (def grid-color (->HSBColor 60 30 10))
 (def frame-color (->HSBColor 200 50 60))
@@ -28,26 +28,27 @@
         g-lx (q/create-graphics 840 20 :p2d)
         g-ly (q/create-graphics 640 20 :p2d)
         f (q/create-graphics 840 640 :p2d)
-        p (q/create-graphics 302 242 :p2d)]
+        p (q/create-graphics 800 600 :p2d)]
     (style g-x grid-color)
     (style g-y grid-color)
     ;;(grid g 5 20 20)
 
-    (bars x-axis  100000000.0 g-x)
+    (bars x-axis  1.0 g-x)
 
     (bars y-axis  1.0 g-y)
 
     (style f frame-color)
     (frame f)
     (style g-tx frame-color)
-    (bars x-axis  200000000.0 g-tx)
+    (bars x-axis  2.0 g-tx)
     (style g-ty frame-color)
     (bars y-axis 2.0 g-ty)
 
-    (labels x-axis 200000000.0  g-lx)
-    ;;(labels f 5 0 10 1 0 3 0.5)
-    ;;(style p points-color 4)
-    ;;(points p rand-vect pdf-vect 0 10 0 3)
+    (labels x-axis 2.0  g-lx)
+    (labels y-axis 1.0  g-ly)
+    (style p points-color 2)
+    (points p x-axis y-axis rand-vect pdf-vect)
+
     (reset! graphics
             {:grid-x g-x
              :grid-y g-y
@@ -76,7 +77,7 @@
     (q/push-matrix)
     ;;Each graph will be inside its own graphics...
     (q/translate 860 20)
-    (q/rotate (/ q/PI 2))
+    (q/rotate (/ (double q/PI) 2.0))
     (q/image (:grid-y gr) 0 20)
     (q/pop-matrix)
 
@@ -87,7 +88,7 @@
 
     (q/push-matrix)
     (q/translate 20 20)
-    (q/rotate (/ q/PI 2))
+    (q/rotate (/ (double q/PI) 2.0))
     (q/image (:ticks-y gr) 0 20)
     (q/pop-matrix)
 
@@ -96,13 +97,14 @@
     ;;(.endDraw (:labels-y gr))
 
     (q/image (:labels-x gr) 0 640)
-    ;;(q/image (:points gr) 24 24)
 
+    (q/push-matrix)
+    (q/translate (- 30) 640)
+    (q/rotate (- (/ (double q/PI) 2.0)))
+    (q/image (:labels-y gr) 0 0)
+    (q/pop-matrix)
 
-
-    )
-
-  )
+    (q/image (:points gr) 20 20)))
 
 (q/defsketch diagrams
   :renderer :opengl
