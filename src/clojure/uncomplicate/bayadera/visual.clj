@@ -5,23 +5,74 @@
              [real :refer [entry]]
              [native :refer [dv]]]
             [quil.core :as q])
-  (:import [processing.core PGraphics PConstants]))
+  (:import [processing.core PGraphics PConstants PApplet]
+           [clojure.lang IFn$DDDD IFn$DD]))
 
 (defrecord HSBColor [^float h ^float s ^float b])
 
 (defn range-mapper
-  ([^double start1 ^double end1 ^double start2 ^double end2]
+  (^IFn$DD [^double start1 ^double end1 ^double start2 ^double end2]
    (fn ^double [^double value]
      (+ start2 (* (- end2 start2) (/ (- value start1) (- end1 start1))))))
-  ([^double start1 ^double end1]
+  (^IFn$DDDD [^double start1 ^double end1]
    (fn ^double [^double value ^double start2 ^double end2]
      (+ start2 (* (- end2 start2) (/ (- value start1) (- end1 start1)))))))
 
-(defrecord Frame2D [^long margin ^long padding
-                    ^long tick-length
-                    ^double x-lower ^double x-upper
-                    ^long x-offset ^long y-offset]
-  )
+(defrecord Axis [^double lower ^double upper])
+
+(defn axis
+  ([^double lower ^double upper]
+   (->Axis lower upper)))
+
+(defn axis-mapper
+  (^IFn$DD [^Axis axis ^double start ^double end]
+   (range-mapper (.lower axis) (.upper axis) start end))
+  (^IFn$DDDD [^Axis axis]
+   (range-mapper (.lower axis) (.upper axis))))
+
+(defn offset ^double [^Axis axis ^long partitions]
+  (/ (- (.upper axis) (.lower axis)) (double partitions)))
+
+(defn partitions ^long [^Axis axis ^double offset]
+  (inc (long (/ (- (.upper axis) (.lower axis)) offset))))
+
+(defrecord Style [^HSBColor color ^float weight])
+
+(defn frame [^PGraphics g]
+  (do
+    (.beginDraw g)
+    (.rectMode g PConstants/CORNER)
+    (.noFill g)
+    (.rect g 0 0 (dec (.width g)) (dec (.height g)))
+    (.endDraw g)
+    g))
+
+(defn bars [^Axis axis ^double offset ^PGraphics g]
+  (let [height (.height g)
+        map-range (axis-mapper axis 0 (dec (.width g)))
+        cnt (partitions axis offset)]
+    (.beginDraw g)
+    (dotimes [i cnt]
+      (let [x (Math/floor (map-range (* (double i) offset)))]
+        (.line g x 0 x height)))
+    (.endDraw g)
+    g))
+
+(defn labels
+  ([^Axis axis ^double ofst nf ^PGraphics g]
+   (let [height (.height g)
+         cnt (partitions axis ofst)
+         left-padding (/ (.textWidth g ^String (nf (.lower axis))) 2.0)
+         right-padding (/ (.textWidth g ^String (nf (.upper axis))) 2.0)
+         map-range ^IFn$DD (axis-mapper axis left-padding (- (.width g) right-padding))]
+     (.beginDraw g)
+     (.textAlign g PConstants/CENTER)
+     (dotimes [i cnt]
+       (.text g ^String (nf (* (double i) ofst)) (float (map-range (* (double i) ofst))) (float height)))
+     (.endDraw g)
+     g))
+  ([^Axis axis ^double ofst ^PGraphics g]
+   (labels axis ofst str g)))
 
 (defn style
   ([^PGraphics g ^HSBColor color ^long weight]
@@ -36,50 +87,8 @@
   ([g color]
    (style g color 1)))
 
-(defn grid [^PGraphics g ^long padding ^long x-offset ^long y-offset]
-  (let [x-max (dec (.width g))
-        y-max (dec (.height g))]
-    (do
-      (.beginDraw g)
-      (dotimes [i (inc (int (/ (- x-max padding) x-offset)))]
-        (.line g (+ padding (* i x-offset)) y-max
-               (+ padding (* i x-offset)) 0))
-      (dotimes [i (inc (int (/ (- y-max padding) y-offset)))]
-        (.line g 0 (- y-max padding (* i y-offset))
-               x-max (- y-max padding (* i y-offset))))
-      (.endDraw g)
-      g)))
 
-(defn frame [^PGraphics g ^long margin]
-  (do
-    (.beginDraw g)
-    (.rectMode g PConstants/CORNER)
-    (.noFill g)
-    (.rect g margin margin
-           (- (dec (.width g)) (* 2 margin)) (- (dec (.height g)) (* 2 margin)))
-    (.endDraw g)
-    g))
-
-(defn ticks [^PGraphics g margin padding tick-length x-offset y-offset]
-  (let [x-max (dec (.width g))
-        y-max (dec (.height g))
-        margin (int margin)
-        gap (+ margin (int padding))
-        tick-length (int tick-length)
-        x-offset (int x-offset)
-        y-offset (int y-offset)]
-    (do
-      (.beginDraw g)
-      (dotimes [i (inc (int (/ (- x-max gap margin) x-offset)))]
-        (.line g (+ gap (* i x-offset)) (- y-max margin)
-               (+ gap (* i x-offset)) (- y-max (- margin tick-length))))
-      (dotimes [i (inc (int (/ (- y-max gap margin) y-offset)))]
-        (.line g margin (- y-max gap (* i y-offset))
-               (- margin tick-length) (- y-max gap (* i y-offset))))
-      (.endDraw g)
-      g)))
-
-(defn labels [^PGraphics g padding x-lower x-upper x-offset y-lower y-upper y-offset]
+#_(defn labels [^PGraphics g padding x-lower x-upper x-offset y-lower y-upper y-offset]
   (let [padding (long padding)
         width (- (.width g) padding)
         height (- (.height g) padding)
@@ -108,7 +117,7 @@
     (.endDraw g)
     g))
 
-(defn circles [^PGraphics g xs ys x-lower x-upper y-lower y-upper]
+#_(defn circles [^PGraphics g xs ys x-lower x-upper y-lower y-upper]
   (let [map-x (range-mapper x-lower x-upper 0 (.width g))
         map-y (range-mapper y-lower y-upper (.height g) 0)]
     (.beginDraw g)
@@ -117,3 +126,42 @@
       (.ellipse g (map-range (entry xs i)) (map-range (entry ys i)) 2 2))
     (.endDraw g)
     g))
+
+#_(defrecord Chart2D [^Axis x-axis ^Axis y-axis
+                    ^long left-margin ^long right-margin
+                    ^long top-margin ^long bottom-margin
+                    ^long left-padding ^long right-padding
+                    ^long top-padding ^long bottom-padding]
+  Chart
+  (frame [this ^PGraphics g]
+    (do
+      (.beginDraw g)
+      (.rectMode g PConstants/CORNER)
+      (.noFill g)
+      (.rect g left-margin top-margin
+             (- (.width g) 1 right-margin)
+             (- (.height g) 1 bottom-margin))
+      (.endDraw g)
+      g))
+  (x-grid [this ^PGraphics g]
+    (let [x-max (- (.width g) 1 right-margin)
+          y-max (- (.height g) 1 bottom-margin)
+          map-x (axis-mapper x-axis (+ left-margin left-padding) (- x-max right-padding))]
+      (.beginDraw g)
+      (dotimes [i (.short-ticks x-axis)]
+        (let [x (map-x (* i (offset x-axis)))]
+          (.line g x top-margin x y-max)))
+      (.endDraw g)
+      g))
+  (y-grid [this ^PGraphics g]
+    (let [x-max (- (.width g) 1 right-margin)
+          y-max (- (.height g) 1 bottom-margin)
+          map-y (axis-mapper y-axis (- y-max bottom-padding) (+ top-margin top-padding))]
+      (.beginDraw g)
+      (dotimes [i (.short-ticks y-axis)]
+        (let [y (map-y (* i (offset y-axis)))]
+          (.line g left-margin y x-max y)))
+      (.endDraw g)
+      g))
+
+  )
