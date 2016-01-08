@@ -183,7 +183,6 @@
           padding (/ (- (.width g-frame) (.width x-ticks)) 2.0)]
       (.beginDraw main)
       (.clear main)
-      (.background main 0)
       (when vertical-grid
         (.image main x-grid (+ margin padding) margin))
       (when top-ticks
