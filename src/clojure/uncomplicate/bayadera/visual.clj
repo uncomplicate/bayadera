@@ -16,7 +16,7 @@
 (let [frame-style (->Style (->HSBColor 200 50 60) 1)
       data-style (->Style (->HSBColor 320 100 100) 4)
       grid-style (->Style (->HSBColor 60 30 10) 1)
-      label-style (->Style (->HSBColor 200 40 70) 10)]
+      label-style (->Style (->HSBColor 180 40 100) 10)]
   (def cyberpunk-theme
     (->Theme frame-style frame-style label-style grid-style data-style)))
 

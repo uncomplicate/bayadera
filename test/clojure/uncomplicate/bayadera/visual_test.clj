@@ -15,13 +15,11 @@
 (defn setup []
   (with-release [rand-vect (fmap! (fn ^double [^double x] (rand 10.0)) (sv 100))
                  pdf-vect (fmap! (fn ^double [^double x] (log (inc x))) (copy rand-vect))]
-    (let [plot (plot2d (qa/current-applet))]
-      (q/background 0)
-
-      (q/image (-> plot
-                   (render {:x-axis (axis 0 10) :y-axis (axis -3 3) :x rand-vect :y pdf-vect})
-                   show)
-               0 0))))
+    (q/background 0)
+    (q/image (-> (plot2d (qa/current-applet))
+                 (render {:x-axis (axis 0 10) :y-axis (axis -3 3) :x rand-vect :y pdf-vect})
+                 show)
+             0 0)))
 
 (defn draw [])
 
