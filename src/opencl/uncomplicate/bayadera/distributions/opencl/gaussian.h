@@ -1,5 +1,9 @@
+#ifndef M_LOG_SQRT_2PI_F
+#define M_LOG_SQRT_2PI_F 0.9189385332046727f
+#endif
+
 #ifndef M_SQRT_2PI_F
-#define M_SQRT_2PI_F 0.9189385332046727f
+#define M_SQRT_2PI_F 2.5066282746310002f
 #endif
 
 #ifndef M_2PI_F
@@ -20,7 +24,7 @@ inline float4 box_muller(float4 uniform) {
 
 inline float gaussian_log(float mu, float sigma, float x) {
     return (x - mu) * (x - mu) / (-2.0f * sigma * sigma)
-        - native_log(sigma) - M_SQRT_2PI_F;
+        - native_log(sigma) - M_LOG_SQRT_2PI_F;
 }
 
 inline float gaussian_pdf(float mu, float sigma, float x) {

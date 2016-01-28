@@ -8,9 +8,10 @@
           :url "https://github.com/blueberry/bayadera"}
     :license {:name "Eclipse Public License"
               :url "http://www.eclipse.org/legal/epl-v10.html"}
-    :dependencies [[org.clojure/clojure "1.8.0-RC4"]
+    :dependencies [[org.clojure/clojure "1.8.0"]
                    [uncomplicate/clojurecl "0.4.0-SNAPSHOT"]
                    [uncomplicate/neanderthal "0.5.0-SNAPSHOT"]
+                   [org.apache.commons/commons-math3 "3.6"]
                    [me.raynes/fs "1.4.6"]
                    [quil "2.3.0"]]
 
@@ -30,7 +31,7 @@
             :src-linenum-anchor-prefix "L"
             :output-dir "docs/codox"}
 
-    :profiles {:dev {:dependencies [[midje "1.8.2"]
+    :profiles {:dev {:dependencies [[midje "1.8.3"]
                                     [criterium "0.4.3"]
                                     [uncomplicate/neanderthal-atlas "0.1.0"
                                      :classifier ~nar-classifier]]

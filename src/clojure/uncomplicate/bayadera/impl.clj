@@ -11,7 +11,7 @@
              [native :refer [sv]]]
             [uncomplicate.bayadera
              [protocols :refer :all]
-             [special :refer [lnbeta]]])
+             [math :refer [log-beta]]])
   (:import [clojure.lang IFn]))
 
 (declare univariate-dataset)
@@ -105,7 +105,7 @@
     (release params))
   SamplerProvider
   (sampler [_]
-    (let [samp (mcmc-engine (beta-sampler bayadera-factory) (* 44 256 32) (sv a b (lnbeta a b)) 0 1)]
+    (let [samp (mcmc-engine (beta-sampler bayadera-factory) (* 44 256 32) (sv a b (log-beta a b)) 0 1)]
       (set-position! samp (wrap-int (rand-int Integer/MAX_VALUE)))
       (init! samp (wrap-int (rand-int Integer/MAX_VALUE)))
       (burn-in! samp 512 (wrap-float 2.0))

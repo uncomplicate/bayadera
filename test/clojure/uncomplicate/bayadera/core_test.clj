@@ -9,7 +9,7 @@
              [protocols :as p]
              [core :refer :all]
              [impl :refer :all]
-             [special :refer [lnbeta]]]
+             [math :refer [log-beta]]]
             [uncomplicate.bayadera.opencl.amd-gcn :refer
              [gcn-engine-factory posterior]]
             [clojure.java.io :as io]))
@@ -56,7 +56,7 @@
         b 5.0
         beta-pdf (fn ^double [^double x]
                    (double (exp (- (+ (* (dec a) (log x)) (* (dec b) (log (- 1.0 x))))
-                                   (lnbeta a b)))))]
+                                   (log-beta a b)))))]
     (facts
      "Core functions for beta distribution."
      (with-release [engine-factory (gcn-engine-factory ctx cqueue)

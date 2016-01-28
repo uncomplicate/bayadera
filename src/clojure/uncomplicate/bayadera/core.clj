@@ -9,7 +9,7 @@
             [uncomplicate.bayadera
              [protocols :as p]
              [impl :refer :all]
-             [special :refer [lnbeta]]]))
+             [math :refer [log-beta]]]))
 
 (defn dataset [factory src]
   (->UnivariateDataSet (np/factory factory)
@@ -27,7 +27,7 @@
     (->UniformDistribution factory (p/uniform-engine factory) params a b)))
 
 (defn beta [factory ^double a ^double b]
-  (let [params (transfer! [a b (lnbeta a b)] (create (np/factory factory) 3))]
+  (let [params (transfer! [a b (log-beta a b)] (create (np/factory factory) 3))]
     (->BetaDistribution factory (p/beta-engine factory) params a b)))
 
 (defn udist [factory model]
@@ -57,6 +57,7 @@
 (defn sample [sampler n]
   (p/sample! sampler n))
 
+;;TODO Rename this to density and pmf to mass, and use pdf and pmf to acquire the functions themselves
 (defn pdf! [dist xs result]
   (p/pdf! (p/engine dist) (p/parameters dist) (p/data xs) result))
 

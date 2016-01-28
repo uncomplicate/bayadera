@@ -1,64 +1,50 @@
-(ns uncomplicate.bayadera.special
+(ns uncomplicate.bayadera.math
   (:require [uncomplicate.neanderthal
              [core :refer [asum freduce]]
-             [math :refer :all]]))
+             [math :refer [exp round?]]])
+  (:import [org.apache.commons.math3.special Gamma Beta]))
 
-(let [magicn 5.2421875
-      cs (double-array [57.156235665862923517
-                        -59.597960355475491248
-                        14.136097974741747174
-                        -0.49191381609762019978
-                        0.33994649984811888699e-4
-                        0.46523628927048575665e-4
-                        -0.98374475304879564677e-4
-                        0.15808870322491248884e-3
-                        -0.21026444172410488319e-3
-                        0.21743961811521264320e-3
-                        -0.16431810653676389022e-3
-                        0.84418223983852743293e-4
-                        -0.26190838401581408670e-4
-                        0.36899182659531622704e-5])
-      comp-cs (fn ^double [^double d]
-                (loop [i (dec (alength cs)) acc 0.99999999999999709182]
-                  (if (< i 0)
-                    acc
-                    (recur (dec i) (+ acc (/ (aget cs i) (+ d (inc i))))))))]
-  (defn lngamma
-    "Computes the logarithm of the gammma function for a positive real number r.
-     See: http://en.wikipedia.org/wiki/Gamma_function
-
-     Uses the Lanczos approximation with g=4.7421875, n=15, the parameters
-     described in http://mrob.com/pub/ries/lanczos-gamma.html"
-    ^double [^double x]
-    (if (< x 0)
-      (throw (IllegalArgumentException.
-              (format "x have to be positive, but is %f." x)))
-      (+ (- (* (+ x 0.5)
-               (log (+ x magicn)))
-            (+ x magicn))
-         (log (/ (* 2.5066282746310005
-                    (double (comp-cs x)))
-                 x))))))
+(defn log-gamma
+  "Natural logarithm of the Gamma function:
+  http://en.wikipedia.org/wiki/Gamma_function#The_log-gamma_function"
+  ^double [^double x]
+  (Gamma/logGamma x))
 
 (defn gamma
   "Gamma function: http://en.wikipedia.org/wiki/Gamma_function"
   ^double [^double x]
-  (exp (lngamma x)))
+  (Gamma/gamma x))
+
+(defn regularized-gamma-q
+  ^double [^double a ^double x]
+  (Gamma/regularizedGammaQ a x))
+
+(defn regularized-gamma-p
+  ^double [^double a ^double x]
+  (Gamma/regularizedGammaP a x))
+
+(defn incomplete-gamma-l
+  ^double [^double s ^double x]
+  (* (gamma s) (regularized-gamma-p s x)))
+
+(defn incomplete-gamma-u
+  ^double [^double s ^double x]
+  (* (gamma s) (regularized-gamma-q s x)))
 
 (let [table-size (double 1000)
-      lnfactorial-table (double-array
-                         (map (fn [^double x]
-                                (lngamma (inc x)))
-                              (range 0 (inc table-size))))]
-  (defn lnfactorial
+      log-factorial-table (double-array
+                           (map (fn [^double x]
+                                  (log-gamma (inc x)))
+                                (range 0 (inc table-size))))]
+  (defn log-factorial
     "Natural logarithm of a factorial of a positive real x."
     ^double [^double x]
     (if (< x 0)
       (throw (IllegalArgumentException.
               (format "x have to be positive, but is %f." x)))
       (if (and (< x table-size) (round? x))
-        (aget lnfactorial-table x)
-        (lngamma (inc x))))))
+        (aget log-factorial-table x)
+        (log-gamma (inc x))))))
 
 (let [factorial-table (double-array
                        (reduce (fn [acc ^double x]
@@ -66,34 +52,52 @@
                                [1.0]
                                (range 1 171)))]
   (defn factorial
-  "Factorial function:
-  Computes a product of all natural numbers from 0 to x.
-  If x is a real number, computes the exponent of lnfactorial."
-  ^double [^double x]
-  (if (and (<= 0 x 170) (round? x))
-    (aget factorial-table x)
-    (exp (lnfactorial x)))))
+    "Factorial function:
+  Computes the product of all natural numbers from 0 to x.
+  If x is a real number, computes the exponent of log-factorial."
+    ^double [^double x]
+    (if (and (<= 0 x 170) (round? x))
+      (aget factorial-table x)
+      (exp (log-factorial x)))))
 
-(defn lnbeta
-  "Natural logarithm of beta function."
+(defn log-beta
+  "Natural logarithm of the beta function."
   ^double [^double a ^double b]
-  (- (+ (lngamma a) (lngamma b))
-       (lngamma (+ a b))))
+  (- (+ (log-gamma a) (log-gamma b)) (log-gamma (+ a b))))
 
 (defn beta
   "Beta function of a and b."
   ^double [^double a ^double b]
-  (exp (lnbeta a b)))
+  (exp (log-beta a b)))
+
+(defn regularized-beta
+  ^double [^double x ^double a ^double b]
+  (Beta/regularizedBeta x a b))
+
+(defn log-binco
+  "Natural logarithm of the binomial coefficient of n and k:
+  Computes the number of ways to choose k items out of n items."
+  ^double [^double n ^double k]
+  (- (log-factorial n) (log-factorial k) (log-factorial (- n k))))
 
 (defn binco
   "Binomial coefficient of n and k:
   Computes the number of ways to choose k items out of n items."
   ^double [^double n ^double k]
   (if (and (<= 0 n 170) (round? n))
-      (/ (factorial n)
-         (factorial k) (factorial (- n k)))
-      (exp (- (lnfactorial n)
-              (lnfactorial k) (lnfactorial (- n k))))))
+    (/ (factorial n) (factorial k) (factorial (- n k)))
+    (exp (log-binco n k))))
+
+(defn log-multico
+  "Natural logarithm of multinomial coefficient of a RealVector xks:
+  Computes the number of ways of partitioning N object
+  into k groups of size x1, x2, ... , xk;
+  where k = (dim xks) and N = (sum xks)"
+  ^double [xks]
+  (freduce (fn ^double [^double acc ^double xk]
+             (- acc (log-factorial xk)))
+           (log-factorial (asum xks))
+           xks))
 
 (defn multico
   "Multinomial coefficient of a RealVector xks:
@@ -101,10 +105,7 @@
   into k groups of size x1, x2, ... , xk;
   where k = (dim xks) and N = (sum xks)"
   ^double [xks]
-  (exp (freduce (fn ^double [^double acc ^double xk]
-                  (- acc (lnfactorial xk)))
-                (lnfactorial (asum xks))
-                xks)))
+  (exp (log-multico xks)))
 
 (let [cheb-coef (double-array [-1.3026537197817094
                                6.4196979235649026E-1
@@ -152,6 +153,6 @@
       (- 2.0 (double (erfc* (- x))))))
 
   (defn erf
-  "Error function: erf(x) = 2/√π 0∫x e-t2dt"
+    "Error function: erf(x) = 2/√π 0∫x e-t2dt"
     ^double [^double x]
     (- 1.0 (erfc x))))
