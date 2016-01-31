@@ -6,7 +6,8 @@
              :refer [enq-reduce enq-read-double count-work-groups
                      wrap-int wrap-float]]
             [uncomplicate.neanderthal
-             [core :refer [dim sum nrm2]]
+             [core :refer [dim nrm2]]
+             [real :refer [sum]]
              [protocols :as np]
              [block :refer [buffer]]
              [native :refer [sv]]
@@ -43,9 +44,9 @@ inline float %s(__constant float* params, float x) {
   (release [_]
     (release prog))
   RandomSampler
-  (sample! [this seed params res]
+  (sample! [this seed cl-params res]
     (with-release [sample-kernel (kernel prog "sample")]
-      (set-args! sample-kernel 0 (buffer params) (wrap-int seed) (buffer res))
+      (set-args! sample-kernel 0 (buffer cl-params) (wrap-int seed) (buffer res))
       (enq-nd! cqueue sample-kernel (work-size-1d (dim res)))
       this)))
 
@@ -54,14 +55,14 @@ inline float %s(__constant float* params, float x) {
   (release [_]
     (release prog))
   DistributionEngine
-  (logpdf! [this params x res]
+  (logpdf! [this cl-params x res]
     (with-release [logpdf-kernel (kernel prog "logpdf")]
-      (set-args! logpdf-kernel 0 (buffer params) (buffer x) (buffer res))
+      (set-args! logpdf-kernel 0 (buffer cl-params) (buffer x) (buffer res))
       (enq-nd! cqueue logpdf-kernel (work-size-1d (dim x)))
       this))
-  (pdf! [this params x res]
+  (pdf! [this cl-params x res]
     (with-release [pdf-kernel (kernel prog "pdf")]
-      (set-args! pdf-kernel 0 (buffer params) (buffer x) (buffer res))
+      (set-args! pdf-kernel 0 (buffer cl-params) (buffer x) (buffer res))
       (enq-nd! cqueue pdf-kernel (work-size-1d (dim x)))
       this)))
 

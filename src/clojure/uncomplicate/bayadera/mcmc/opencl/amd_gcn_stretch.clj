@@ -36,7 +36,6 @@
   Releaseable
   (release [_]
     (and
-     (release cl-params)
      (release cl-xs)
      (release cl-s0)
      (release cl-s1)
@@ -183,7 +182,7 @@
      (release prog)
      (release neanderthal-factory)))
   MCMCEngineFactory
-  (mcmc-engine [_ walker-count params low high]
+  (mcmc-engine [_ walker-count cl-params low high]
     (let [walker-count (long walker-count)]
       (if (and (<= (* 2 WGS) walker-count) (zero? (rem walker-count (* 2 WGS))))
         (let [cnt (long (/ walker-count 2))
@@ -191,7 +190,6 @@
               accept-acc-count (count-work-groups WGS accept-count)
               bytecount (long (* Float/BYTES cnt))
               step-counter (int-array 1)
-              cl-params (transfer! params (create neanderthal-factory (dim params)))
               params-buffer (buffer cl-params)
               cl-xs (cl-buffer ctx (* 2 bytecount) :read-write)
               cl-s0 (cl-sub-buffer cl-xs 0 bytecount :read-write)

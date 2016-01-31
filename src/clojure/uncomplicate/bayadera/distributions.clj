@@ -363,7 +363,7 @@
 
 (defn multinomial-pmf
   ^double [ps ks]
-  (exp (multinomial-log-pdf ps ks)))
+  (exp (multinomial-log-pmf ps ks)))
 
 (defn multinomial-mean
   (^double [ps ks result]

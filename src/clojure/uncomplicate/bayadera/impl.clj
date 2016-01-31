@@ -4,9 +4,10 @@
              [core :refer [Releaseable release]]
              [toolbox :refer [wrap-int wrap-float]]]
             [uncomplicate.neanderthal
-             [protocols :refer [Container zero raw]]
+             ;;       [protocols :refer [Container zero raw]]
+             [protocols :as np]
              [math :refer [sqrt]]
-             [core :refer [dim create subvector copy!]]
+             [core :refer [dim create subvector copy! transfer!]]
              [real :refer [entry sum]]
              [native :refer [sv]]]
             [uncomplicate.bayadera
@@ -20,11 +21,11 @@
   Releaseable
   (release [_]
     (release data-vect))
-  Container ;;TODO Probably not needed
-  (zero [_]
-    (univariate-dataset dataset-eng (zero data-vect)))
-  (raw [_]
-    (univariate-dataset dataset-eng (raw data-vect)))
+  ;;Container ;;TODO Probably not needed
+  ;;(zero [_]
+  ;;  (univariate-dataset dataset-eng (zero data-vect)))
+  ;;(raw [_]
+  ;;  (univariate-dataset dataset-eng (raw data-vect)))
   DataSet
   (data [_]
     data-vect)
@@ -105,7 +106,8 @@
     (release params))
   SamplerProvider
   (sampler [_]
-    (let [samp (mcmc-engine (beta-sampler bayadera-factory) (* 44 256 32) (sv a b (log-beta a b)) 0 1)]
+    (let [samp (mcmc-engine (beta-sampler bayadera-factory) (* 44 256 32)
+                            params 0 1)]
       (set-position! samp (wrap-int (rand-int Integer/MAX_VALUE)))
       (init! samp (wrap-int (rand-int Integer/MAX_VALUE)))
       (burn-in! samp 512 (wrap-float 2.0))
@@ -127,13 +129,16 @@
   (variance [_]
     (/ (* a b) (* (+ a b) (+ a b) (+ a b 1.0)))))
 
-(deftype UnivariateDistribution [dist-eng sampler-factory params host-params model]
+;;TODO Sort out whether params are on the host or on the GPU!
+;;MCMC engine should use all-gpu params, similarily to DirectSampler
+(deftype UnivariateDistribution [dist-eng sampler-factory params model]
   Releaseable
   (release [_]
     (release params))
   SamplerProvider
   (sampler [_];;TODO make low/high optional in MCMC-stretch, and also introduce training options in this method
-    (let [samp (mcmc-engine sampler-factory (* 44 256 32) host-params (:lower model) (:upper model))]
+    (let [samp (mcmc-engine sampler-factory (* 44 256 32)
+                            params (:lower model) (:upper model))]
       (set-position! samp (wrap-int (rand-int Integer/MAX_VALUE)))
       (init! samp (wrap-int (rand-int Integer/MAX_VALUE)))
       (burn-in! samp 512 (wrap-float 2.0))
@@ -154,7 +159,10 @@
     (release sampler-factory))
   IFn
   (invoke [_ params];;Use GPU params instead of host later
-    (->UnivariateDistribution dist-eng sampler-factory params params model))
+    (->UnivariateDistribution
+     dist-eng sampler-factory
+     (transfer! params (create (np/factory factory) (dim params)))
+     model))
   (invoke [this data hyperparams]
     (let [params (sv (+ (dim data) (dim hyperparams)))]
       (do

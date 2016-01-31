@@ -347,10 +347,12 @@
  (multinomial-pmf (dv 85/100 10/100 5/100) (dv 40 0 0)) => (roughly 0.001502)
  (multinomial-pmf (dv 85/100 15/100) (dv 40 0))
  => (multinomial-pmf (dv 85/100 10/100 5/100) (dv 40 0 0))
- (float (multinomial-pmf (dv 85/100 15/100) (dv 40 0))) => (float (binomial-pmf 40 15/100 0)))
+ (float (multinomial-pmf (dv 85/100 15/100) (dv 40 0)))
+ => (float (binomial-pmf 40 15/100 0)))
 
 (facts
  "Problem 5.27"
  (multinomial-pmf (dv 8/20 7/20 5/20) (dv 4 4 2)) => (roughly 0.0756)
  (multinomial-pmf (dv 8/20 12/20) (dv 5 5)) => (roughly 0.2006)
- (float (multinomial-pmf (dv 8/20 12/20) (dv 5 5))) => (float (binomial-pmf 10 8/20 5)))
+ (float (multinomial-pmf (dv 8/20 12/20) (dv 5 5)))
+ => (float (binomial-pmf 10 8/20 5)))
