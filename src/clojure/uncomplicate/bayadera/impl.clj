@@ -160,4 +160,4 @@
       (do
         (copy! data (subvector params 0 (dim data)))
         (copy! hyperparams (subvector params (dim data) (dim hyperparams)))
-        (this params)))))
+        (.invoke this params)))))

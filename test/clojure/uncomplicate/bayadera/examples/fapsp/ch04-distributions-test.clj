@@ -1,6 +1,9 @@
 (ns uncomplicate.bayadera.examples.fapsp.ch04-distributions-test
   (:require [midje.sweet :refer :all]
-            [uncomplicate.neanderthal.math :refer [exp]]
+            [uncomplicate.clojurecl.core :refer [with-release]]
+            [uncomplicate.neanderthal
+             [math :refer [exp sqrt]]
+             [native :refer [dv]]]
             [uncomplicate.bayadera.distributions :refer :all]))
 
 ;; Examples from the book by Oliver Ibe - Fundamentals of Applied Probability
@@ -55,7 +58,6 @@
 
 (facts
  "Problem 4.15"
- (exp (binomial-log 10 40/100 2)) => (roughly 0.002687)
  (binomial-pmf 10 40/100 2) => (roughly 0.1209))
 
 (facts
@@ -115,7 +117,7 @@
  (let [p (* 0.75 0.5)]
    (geometric-pmf p 3) => (roughly 0.1465)
    (pascal-pmf 2 p 5) => (roughly 0.1373)
-   (geometric-pdf p 3) => (roughly 0.1465)
+   (geometric-pmf p 3) => (roughly 0.1465)
    (/ (pascal-pmf 2 p 5) (- 1 (pascal-cdf 2 p 2))) => (roughly 0.1598)))
 
 (facts
@@ -298,10 +300,57 @@
  (gaussian-cdf 70 10 60) => (roughly 0.1587)
  (- (gaussian-cdf 70 10 90) (gaussian-cdf 70 10 60)) => (roughly 0.8186))
 
-(fact
+(facts
  "Problem 4.63"
  (- (binomial-cdf 12 0.5 8) (binomial-cdf 12 0.5 3)) => (roughly 0.8540))
 
-(fact
+(facts
  "Problem 4.66"
- (- (gaussian-cdf 40 (sqrt 16) 48) (gaussian-cdf 40 (sqrt 16) 30)) => (roughly 0.9710))
+ (- (gaussian-cdf 40 (sqrt 16) 48) (gaussian-cdf 40 (sqrt 16) 30))
+ => (roughly 0.9710))
+
+;; ==================== Multinomial Distribution ================
+
+(facts
+ "Example 5.15"
+ (multinomial-pmf (dv 1/6 1/6 4/6) (dv 2 1 4)) => (roughly 0.0960))
+
+(facts
+ "Example 5.16"
+ (multinomial-pmf (dv 50/100 20/100 30/100) (dv 6 2 2)) => (roughly 0.0709))
+
+(facts
+ "Problem 5.23"
+ (multinomial-pmf (dv 16/40 24/40) (dv 9 11)) => (roughly 0.1597))
+
+(facts
+ "Problem 5.24"
+ (multinomial-pmf (dv 10/40 16/40 14/40) (dv 5 9 6)) => (roughly 0.0365))
+
+(facts
+ "Problem 5.25"
+ (multinomial-pmf (dv 20/100 50/100 20/100 10/100) (dv 6 4 1 1))
+ => (roughly 0.0022176)
+ (multinomial-pmf (dv 20/100 50/100 20/100 10/100) (dv 6 4 2 0))
+ => (roughly 0.0022176)
+ (multinomial-pmf (dv 20/100 50/100 30/100) (dv 4 3 5)) => (roughly 0.01347)
+ (binomial-pmf 12 10/100 4) => (roughly 0.0213)
+ (multinomial-pmf (dv 10/100 90/100) (dv 4 8)) => (binomial-pmf 12 10/100 4)
+ (multinomial-pmf (dv 10/100 90/100) (dv 0 12)) => (roughly 0.2824))
+
+(facts
+ "Problem 5.26"
+ (multinomial-pmf (dv 50/100 35/100 10/100 5/100) (dv 30 5 3 2))
+ => (roughly 0.0000261217)
+ (multinomial-pmf (dv 50/100 35/100 15/100) (dv 30 4 6)) => (roughly 0.00002833)
+ (multinomial-pmf (dv 95/100 5/100) (dv 40 0)) => (roughly 0.1285)
+ (multinomial-pmf (dv 85/100 10/100 5/100) (dv 40 0 0)) => (roughly 0.001502)
+ (multinomial-pmf (dv 85/100 15/100) (dv 40 0))
+ => (multinomial-pmf (dv 85/100 10/100 5/100) (dv 40 0 0))
+ (float (multinomial-pmf (dv 85/100 15/100) (dv 40 0))) => (float (binomial-pmf 40 15/100 0)))
+
+(facts
+ "Problem 5.27"
+ (multinomial-pmf (dv 8/20 7/20 5/20) (dv 4 4 2)) => (roughly 0.0756)
+ (multinomial-pmf (dv 8/20 12/20) (dv 5 5)) => (roughly 0.2006)
+ (float (multinomial-pmf (dv 8/20 12/20) (dv 5 5))) => (float (binomial-pmf 10 8/20 5)))

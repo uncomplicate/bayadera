@@ -1,9 +1,12 @@
 (ns uncomplicate.bayadera.distributions
-  (:require [uncomplicate.neanderthal.math :refer [log exp pow floor sqrt]]
+  (:require [uncomplicate.neanderthal
+             [math :refer [log exp pow floor sqrt]]
+             [core :refer [scal! copy! copy freduce fmap!]]
+             [real :refer [asum]]]
             [uncomplicate.bayadera.math
-             :refer [log-factorial factorial log-binco
-                     regularized-beta regularized-gamma-q
-                     incomplete-gamma-l erf]]))
+             :refer [log-factorial factorial log-binco log-multico
+                     log-beta log-gamma gamma erf incomplete-gamma-l
+                     regularized-beta regularized-gamma-q]]))
 
 (defn probability? [^double p]
   (<= 0 p 1))
@@ -273,3 +276,107 @@
   (defn gaussian-cdf
     ^double [^double mu ^double sigma ^double x]
     (* 0.5 (+ 1.0 (erf (/ (- x mu) sigma sqrt2))))))
+
+;; ==================== Beta Distribution ================
+
+(defn beta-check-args
+  ([^double a ^double b]
+   (and (< 0.0 a) (< 0.0 b)))
+  ([^double x]
+   (< 0.0 x 1.0))
+  ([^double a ^double b ^double x]
+   (and (beta-check-args a b) (beta-check-args x))))
+
+(defn beta-log-unscaled
+  ^double [^double a ^double b ^double x]
+  (+ (* (dec a) (log x)) (* (dec b) (log (- 1.0 x)))))
+
+(defn beta-log-scale-factor
+  ^double [^double a ^double b]
+  (- (log-beta a b)))
+
+(defn beta-log-pdf
+  ^double [^double a ^double b ^double x]
+  (- (beta-log-unscaled a b x) (log-beta a b)))
+
+(defn beta-pdf
+  ^double [^double a ^double b ^double x]
+  (exp (beta-log-pdf a b x)))
+
+(defn beta-mean
+  ^double [^double a ^double b ^double x]
+  (/ a (+ a b)))
+
+(defn beta-variance
+  ^double [^double a ^double b ^double x]
+  (/ (* a b) (* (+ a b) (+ a b) (inc (+ a b)))))
+
+(defn beta-cdf
+  ^double [^double a ^double b ^double x]
+  (regularized-beta x a b))
+
+;; ==================== Gamma Distribution ================
+
+(defn gamma-log-unscaled
+  ^double [^double theta ^double k ^double x]
+  (- (* (dec k) (log x)) (/ x theta)))
+
+(defn gamma-log-scale-factor
+  ^double [^double theta ^double k]
+  (- (+ (log-gamma k) (* k (log theta)))))
+
+(defn gamma-log-pdf
+  ^double [^double theta ^double k ^double x]
+  (+ (gamma-log-unscaled theta k x) (gamma-log-scale-factor theta k)))
+
+(defn gamma-pdf
+  ^double [^double theta ^double k ^double x]
+  (exp (gamma-log-pdf theta k x)))
+
+(defn gamma-mean
+  ^double [^double theta ^double k ]
+  (* k theta))
+
+(defn gamma-variance
+  ^double [^double theta ^double k ^double x]
+  (* k theta theta))
+
+(defn gamma-cdf
+  ^double [^double theta ^double k ^double x]
+  (/ (incomplete-gamma-l k (/ x theta)) (gamma k)))
+
+;; ==================== Multinomial Distribution ================
+
+(defn multinomial-log-unscaled
+  ^double [ps ks]
+  (freduce (fn ^double [^double acc ^double p ^double k]
+             (+ acc (* k (log p))))
+           0.0
+           ps ks))
+
+(defn multinomial-log-pmf
+  ^double [ps ks]
+  (freduce (fn ^double [^double acc ^double p ^double k]
+             (+ acc (- (* k (log p)) (log-factorial k))))
+           (log-factorial (asum ks))
+           ps ks))
+
+(defn multinomial-pmf
+  ^double [ps ks]
+  (exp (multinomial-log-pdf ps ks)))
+
+(defn multinomial-mean
+  (^double [ps ks result]
+   (scal! (asum ks) (copy! ps result)))
+  (^double [ps ks]
+   (scal! (asum ks) (copy ps))))
+
+(defn multinomial-variance
+  ^double [ps ks]
+  (scal! (fmap! (fn ^double [^double p]
+                  (* p (- 1.0 p)))
+                (copy ps))))
+
+(defn multinomial-cdf
+  ^double [ps ks]
+  (throw (java.lang.UnsupportedOperationException. "TODO")))

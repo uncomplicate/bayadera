@@ -8,6 +8,7 @@
             [uncomplicate.bayadera
              [protocols :as p]
              [core :refer :all]
+             [distributions :refer [beta-pdf]]
              [impl :refer :all]
              [math :refer [log-beta]]]
             [uncomplicate.bayadera.opencl.amd-gcn :refer
@@ -54,9 +55,7 @@
   (let [sample-count (* 256 44 94)
         a 2.0
         b 5.0
-        beta-pdf (fn ^double [^double x]
-                   (double (exp (- (+ (* (dec a) (log x)) (* (dec b) (log (- 1.0 x))))
-                                   (log-beta a b)))))]
+        beta-pdf (fn ^double [^double x] (beta-pdf a b x))]
     (facts
      "Core functions for beta distribution."
      (with-release [engine-factory (gcn-engine-factory ctx cqueue)
