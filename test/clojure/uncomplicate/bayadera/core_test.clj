@@ -19,8 +19,8 @@
              [gcn-engine-factory posterior]]
             [clojure.java.io :as io]))
 
-(def x-atom (atom nil))
-(def y-atom (atom nil))
+;;(def x-atom (atom nil))
+;;(def y-atom (atom nil))
 
 (with-release [dev (first (sort-by-cl-version (devices (first (platforms)))))
                ctx (context [dev])
@@ -71,9 +71,9 @@
                     cl-sample (dataset engine-factory (sample beta-sampler sample-count))
                     cl-pdf (pdf dist cl-sample)
                     host (transfer! (p/data cl-sample) (sv sample-count))]
-       (reset! x-atom (transfer! (p/data cl-sample) (sv sample-count)))
-       (reset! y-atom (transfer! cl-pdf (sv sample-count)))
-       (mean cl-sample) => (roughly (mean dist))
+       ;;(reset! x-atom (transfer! (p/data cl-sample) (sv sample-count)))
+       ;;(reset! y-atom (transfer! cl-pdf (sv sample-count)))
+       (mean cl-sample) => (roughly (mean dist) (/ (mean dist) 1000.0))
        (sd cl-sample) => (roughly (sd dist) (/ (sd dist) 100.0))
        (mean-variance cl-sample) => (sv (mean cl-sample) (variance cl-sample))
        (mean-sd cl-sample) => (sv (mean cl-sample) (sd cl-sample))
@@ -83,7 +83,7 @@
                ctx (context [dev])
                cqueue (command-queue ctx dev)]
 
-  (let [sample-count (* 256 44 94)
+  (let [sample-count (* 256 44 94 8)
         a 2.0
         b 5.0
         z 3.0
@@ -105,29 +105,10 @@
                    cl-sample (dataset engine-factory (sample post-sampler sample-count))
                    cl-pdf (pdf post-dist cl-sample)
                    real-post (beta engine-factory a1 b1)]
-      (reset! x-atom (transfer! (p/data cl-sample) (sv sample-count)))
-      (reset! y-atom (transfer! cl-pdf (sv sample-count)))
+      ;;(reset! x-atom (transfer! (p/data cl-sample) (sv sample-count)))
+      ;;(reset! y-atom (transfer! cl-pdf (sv sample-count)))
       (facts
        "Core functions for beta-bernoulli distribution."
        (mean cl-sample) => (roughly (mean real-post) (/ (mean real-post) 100.0))
        (sd cl-sample) => (roughly (sd real-post) (/ (sd real-post) 100.0))
        1 => 1))))
-
-(defn setup []
-  (with-release [rand-vect (fmap! (fn ^double [^double x] (rand 10.0)) (sv 100))
-                 pdf-vect (fmap! (fn ^double [^double x] (log (inc x))) (copy rand-vect))]
-    (q/background 0)
-    (q/image (-> (plot2d (qa/current-applet))
-                 (render {:x-axis (axis 0 1) :y-axis (axis 0 0.002) :x @x-atom :y @y-atom})
-                 show)
-             0 0)))
-
-(defn draw [])
-
-(q/defsketch diagrams
-  :renderer :opengl
-  :size :fullscreen
-  :display 1
-  :setup setup
-  :draw draw
-  :middleware [pause-on-error])

@@ -4,7 +4,6 @@
              [core :refer [Releaseable release]]
              [toolbox :refer [wrap-int wrap-float]]]
             [uncomplicate.neanderthal
-             ;;       [protocols :refer [Container zero raw]]
              [protocols :as np]
              [math :refer [sqrt]]
              [core :refer [dim create subvector copy! transfer!]]
@@ -12,25 +11,19 @@
              [native :refer [sv]]]
             [uncomplicate.bayadera
              [protocols :refer :all]
-             [math :refer [log-beta]]])
+             [math :refer [log-beta]]
+             [distributions :refer :all]])
   (:import [clojure.lang IFn]))
 
 (declare univariate-dataset)
 
-(defrecord UnivariateDataSet [neanderthal-factory dataset-eng data-vect]
+(defrecord UnivariateDataSet [dataset-eng data-vect]
   Releaseable
   (release [_]
     (release data-vect))
-  ;;Container ;;TODO Probably not needed
-  ;;(zero [_]
-  ;;  (univariate-dataset dataset-eng (zero data-vect)))
-  ;;(raw [_]
-  ;;  (univariate-dataset dataset-eng (raw data-vect)))
   DataSet
   (data [_]
     data-vect)
-  (raw-result [_]
-    (create neanderthal-factory (dim data-vect)))
   (data-count [_]
     (dim data-vect))
   Location
@@ -42,14 +35,14 @@
   (variance [this]
     (entry (mean-variance this) 1)))
 
-(deftype DirectSampler [neand-factory samp-engine seed params]
+(deftype DirectSampler [neand-factory samp-engine params]
   Releaseable
   (release [_]
     true)
   RandomSampler
   (sample! [_ n]
     (let [res (create neand-factory n)]
-      (sample! samp-engine seed params res)
+      (sample! samp-engine (rand-int Integer/MAX_VALUE) params res)
       res)))
 
 (deftype GaussianDistribution [bayadera-factory dist-eng params ^double mu ^double sigma]
@@ -58,9 +51,9 @@
     (release params))
   SamplerProvider
   (sampler [_]
-    (->DirectSampler (uncomplicate.neanderthal.protocols/factory bayadera-factory)
+    (->DirectSampler (np/factory bayadera-factory)
                      (gaussian-sampler bayadera-factory)
-                     (rand-int Integer/MAX_VALUE) params))
+                     params))
   Distribution
   (parameters [_]
     params)
@@ -72,9 +65,9 @@
     mu)
   Spread
   (mean-variance [this]
-    (sv mu (variance this)))
+    (sv mu (gaussian-variance sigma)))
   (variance [_]
-    (* sigma sigma)))
+    (gaussian-variance sigma)))
 
 (deftype UniformDistribution [bayadera-factory dist-eng params ^double a ^double b]
   Releaseable
@@ -82,9 +75,9 @@
     (release params))
   SamplerProvider
   (sampler [_]
-    (->DirectSampler (uncomplicate.neanderthal.protocols/factory bayadera-factory)
+    (->DirectSampler (np/factory bayadera-factory)
                      (uniform-sampler bayadera-factory)
-                     (rand-int Integer/MAX_VALUE) params))
+                     params))
   Distribution
   (parameters [_]
     params)
@@ -93,12 +86,12 @@
     dist-eng)
   Location
   (mean [_]
-    (/ (+ a b) 2.0))
+    (uniform-mean a b))
   Spread
   (mean-variance [this]
-    (sv (mean this) (variance this)))
+    (sv (uniform-mean a b) (uniform-variance a b)))
   (variance [_]
-    (/ (* (- b a) (- b a)) 12.0)))
+    (uniform-variance a b)))
 
 (deftype BetaDistribution [bayadera-factory dist-eng params ^double a ^double b]
   Releaseable
@@ -122,12 +115,12 @@
     dist-eng)
   Location
   (mean [_]
-    (/ a (+ a b)))
+    (beta-mean a b))
   Spread
   (mean-variance [this]
-    (sv (mean this) (variance this)))
+    (sv (beta-mean a b) (beta-variance a b)))
   (variance [_]
-    (/ (* a b) (* (+ a b) (+ a b) (+ a b 1.0)))))
+    (beta-variance a b)))
 
 ;;TODO Sort out whether params are on the host or on the GPU!
 ;;MCMC engine should use all-gpu params, similarily to DirectSampler
@@ -152,7 +145,7 @@
   (engine [_]
     dist-eng))
 
-(deftype UnivariateDistributionType [factory dist-eng sampler-factory model]
+(deftype UnivariateDistributionCreator [factory dist-eng sampler-factory model]
   Releaseable
   (release [_]
     (release dist-eng)

@@ -3,7 +3,7 @@
             [uncomplicate.neanderthal
              [protocols :as np]
              [math :refer [sqrt]]
-             [core :refer [raw dim alter! create transfer! vect?]]
+             [core :refer [raw dim alter! create transfer! vect? raw]]
              [native :refer [sv]]
              [real :refer [entry]]]
             [uncomplicate.bayadera
@@ -12,8 +12,7 @@
              [math :refer [log-beta]]]))
 
 (defn dataset [factory src]
-  (->UnivariateDataSet (np/factory factory)
-                       (p/dataset-engine factory)
+  (->UnivariateDataSet (p/dataset-engine factory)
                        (cond (number? src)
                              (create (np/factory factory) src)
                              (vect? src) src)))
@@ -31,10 +30,10 @@
     (->BetaDistribution factory (p/beta-engine factory) params a b)))
 
 (defn udist [factory model]
-  (->UnivariateDistributionType factory
-                                (p/custom-engine factory model)
-                                (p/mcmc-sampler factory model)
-                                model))
+  (->UnivariateDistributionCreator factory
+                                   (p/custom-engine factory model)
+                                   (p/mcmc-sampler factory model)
+                                   model))
 
 (defn mean-variance [x]
   (p/mean-variance x))
@@ -62,6 +61,6 @@
   (p/pdf! (p/engine dist) (p/parameters dist) (p/data xs) result))
 
 (defn pdf [dist xs]
-  (let [result (p/raw-result xs)]
+  (let [result (raw (p/data xs))]
     (pdf! dist xs result)
     result))

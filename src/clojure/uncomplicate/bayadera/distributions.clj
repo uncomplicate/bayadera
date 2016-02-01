@@ -304,11 +304,11 @@
   (exp (beta-log-pdf a b x)))
 
 (defn beta-mean
-  ^double [^double a ^double b ^double x]
+  ^double [^double a ^double b]
   (/ a (+ a b)))
 
 (defn beta-variance
-  ^double [^double a ^double b ^double x]
+  ^double [^double a ^double b]
   (/ (* a b) (* (+ a b) (+ a b) (inc (+ a b)))))
 
 (defn beta-cdf
@@ -334,11 +334,11 @@
   (exp (gamma-log-pdf theta k x)))
 
 (defn gamma-mean
-  ^double [^double theta ^double k ]
+  ^double [^double theta ^double k]
   (* k theta))
 
 (defn gamma-variance
-  ^double [^double theta ^double k ^double x]
+  ^double [^double theta ^double k]
   (* k theta theta))
 
 (defn gamma-cdf

@@ -23,7 +23,6 @@
 
 (defprotocol DataSet
   (data [_])
-  (raw-result [_])
   (data-count [_]))
 
 (defprotocol Distribution

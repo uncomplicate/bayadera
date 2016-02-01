@@ -21,7 +21,7 @@
     :jvm-opts ^:replace ["-Dclojure.compiler.direct-linking=true"
                          "-XX:MaxDirectMemorySize=16g" "-XX:+UseLargePages"]
 
-    :aot [uncomplicate.bayadera.protocols
+    #_:aot #_[uncomplicate.bayadera.protocols
           uncomplicate.bayadera.impl
           uncomplicate.bayadera.core
           uncomplicate.bayadera.opencl.amd-gcn
