@@ -12,7 +12,8 @@
              [block :refer [buffer]]
              [native :refer [sv]]
              [opencl :refer [gcn-single]]]
-            [uncomplicate.bayadera.mcmc.opencl.amd-gcn-stretch :refer [gcn-stretch-1d-engine-factory]]
+            [uncomplicate.bayadera.opencl.amd-gcn-stretch
+             :refer [gcn-stretch-1d-sampler-factory]]
             [uncomplicate.bayadera.protocols :refer :all])
   (:import [uncomplicate.bayadera.protocols CLDistributionModel CLLikelihoodModel]))
 
@@ -23,13 +24,14 @@ inline float %s(__constant float* params, float x) {
 }
 ")
 
-(let [posterior-kernels (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/posterior.cl"))]
+(let [posterior-kernels (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/posterior.cl"))]
   (defn posterior [^CLLikelihoodModel likelihood
                    ^CLDistributionModel prior]
     (let [logpdf (str (gensym "logpdf"))
           params-size (+ (.params-size likelihood) (.params-size prior))]
       (->CLDistributionModel
        logpdf
+       (.dimension prior)
        params-size
        (.lower prior)
        (.upper prior)
@@ -83,7 +85,7 @@ inline float %s(__constant float* params, float x) {
         (sv m (/ (enq-read-double cqueue cl-acc) (dec (dim data-vect))))))))
 
 (let [src [(slurp (io/resource "uncomplicate/clojurecl/kernels/reduction.cl"))
-           (slurp (io/resource "uncomplicate/bayadera/dataset/opencl/amd-gcn.cl"))]]
+           (slurp (io/resource "uncomplicate/bayadera/opencl/dataset/amd-gcn.cl"))]]
   (defn gcn-dataset-engine
     ([ctx cqueue ^long WGS]
      (let [prog (build-program! (program-with-source ctx src)
@@ -96,7 +98,7 @@ inline float %s(__constant float* params, float x) {
 (defn ^:private copy-random123 [include-name tmp-dir-name]
   (io/copy
    (io/input-stream
-    (io/resource (format "uncomplicate/bayadera/rng/opencl/include/Random123/%s"
+    (io/resource (format "uncomplicate/bayadera/opencl/rng/include/Random123/%s"
                          include-name)))
    (io/file (format "%s/Random123/%s" tmp-dir-name include-name))))
 
@@ -174,9 +176,9 @@ inline float %s(__constant float* params, float x) {
     binomial-samp)
   (beta-sampler [_]
     beta-samp)
-  (mcmc-sampler [_ model]
-    (gcn-stretch-1d-engine-factory ctx cqueue model WGS))
-  DataSetFactory
+  (mcmc-factory [_ model]
+    (gcn-stretch-1d-sampler-factory ctx cqueue model WGS))
+   DataSetFactory
   (dataset-engine [_]
     dataset-eng)
   np/FactoryProvider
@@ -184,23 +186,23 @@ inline float %s(__constant float* params, float x) {
     neanderthal-factory))
 
 (let [gaussian-model
-      (->CLDistributionModel "gaussian_logpdf" 2 nil nil
-                             (str (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/uniform.h"))
+      (->CLDistributionModel "gaussian_logpdf" 1 2 nil nil
+                             (str (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/uniform.h"))
                                   "\n"
-                                  (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/gaussian.h")))
-                             (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/gaussian.cl")))
+                                  (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/gaussian.h")))
+                             (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/gaussian.cl")))
       uniform-model
-      (->CLDistributionModel "uniform_logpdf" 2 nil nil
-                             (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/uniform.h"))
-                             (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/uniform.cl")))
+      (->CLDistributionModel "uniform_logpdf" 1 2 nil nil
+                             (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/uniform.h"))
+                             (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/uniform.cl")))
       beta-model
-      (->CLDistributionModel  "beta_logpdf" 3 nil nil
-                             (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/beta.h"))
-                             (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/beta.cl")))
+      (->CLDistributionModel  "beta_logpdf" 1 3 nil nil
+                             (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/beta.h"))
+                             (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/beta.cl")))
       binomial-model
-      (->CLDistributionModel "binomial_logpdf" 3 nil nil
-                             (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/binomial.h"))
-                             (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/binomial.cl")))]
+      (->CLDistributionModel "binomial_logpdf" 1 3 nil nil
+                             (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/binomial.h"))
+                             (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/binomial.cl")))]
 
   (defn gcn-engine-factory
     ([ctx cqueue ^long WGS]
@@ -218,9 +220,9 @@ inline float %s(__constant float* params, float x) {
         (gcn-direct-sampler ctx cqueue uniform-model WGS)
         beta-model
         (gcn-distribution-engine ctx cqueue beta-model WGS)
-        (gcn-stretch-1d-engine-factory ctx cqueue beta-model WGS)
+        (gcn-stretch-1d-sampler-factory ctx cqueue beta-model WGS)
         binomial-model
         (gcn-distribution-engine ctx cqueue binomial-model WGS)
-        (gcn-stretch-1d-engine-factory ctx cqueue binomial-model WGS))))
+        (gcn-stretch-1d-sampler-factory ctx cqueue binomial-model WGS))))
     ([ctx cqueue]
      (gcn-engine-factory ctx cqueue 256))))

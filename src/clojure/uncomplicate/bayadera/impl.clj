@@ -2,7 +2,7 @@
   (:require [clojure.java.io :as io]
             [uncomplicate.clojurecl
              [core :refer [Releaseable release]]
-             [toolbox :refer [wrap-int wrap-float]]]
+             [toolbox :refer [wrap-float]]]
             [uncomplicate.neanderthal
              [protocols :as np]
              [math :refer [sqrt]]
@@ -14,8 +14,6 @@
              [math :refer [log-beta]]
              [distributions :refer :all]])
   (:import [clojure.lang IFn]))
-
-(declare univariate-dataset)
 
 (defrecord UnivariateDataSet [dataset-eng data-vect]
   Releaseable
@@ -99,12 +97,12 @@
     (release params))
   SamplerProvider
   (sampler [_]
-    (let [samp (mcmc-engine (beta-sampler bayadera-factory) (* 44 256 32)
+    (let [samp (mcmc-sampler (beta-sampler bayadera-factory) (* 44 256 32)
                             params 0 1)]
-      (set-position! samp (wrap-int (rand-int Integer/MAX_VALUE)))
-      (init! samp (wrap-int (rand-int Integer/MAX_VALUE)))
+      (set-position! samp (rand-int Integer/MAX_VALUE))
+      (init! samp (rand-int Integer/MAX_VALUE))
       (burn-in! samp 512 (wrap-float 2.0))
-      (init! samp (wrap-int (rand-int Integer/MAX_VALUE)))
+      (init! samp (rand-int Integer/MAX_VALUE))
       (run-sampler! samp 64 (wrap-float 2.0))
       samp))
   Distribution
@@ -130,12 +128,12 @@
     (release params))
   SamplerProvider
   (sampler [_];;TODO make low/high optional in MCMC-stretch, and also introduce training options in this method
-    (let [samp (mcmc-engine sampler-factory (* 44 256 32)
+    (let [samp (mcmc-sampler sampler-factory (* 44 256 32)
                             params (:lower model) (:upper model))]
-      (set-position! samp (wrap-int (rand-int Integer/MAX_VALUE)))
-      (init! samp (wrap-int (rand-int Integer/MAX_VALUE)))
+      (set-position! samp (rand-int Integer/MAX_VALUE))
+      (init! samp (rand-int Integer/MAX_VALUE))
       (burn-in! samp 512 (wrap-float 2.0))
-      (init! samp (wrap-int (rand-int Integer/MAX_VALUE)))
+      (init! samp (rand-int Integer/MAX_VALUE))
       (run-sampler! samp 64 (wrap-float 2.0))
       samp))
   Distribution

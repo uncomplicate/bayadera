@@ -1,4 +1,4 @@
-(ns uncomplicate.bayadera.core-test
+(ns uncomplicate.bayadera.opencl..core-test
   (:require [midje.sweet :refer :all]
             [quil.core :as q]
             [quil.applet :as qa]
@@ -91,15 +91,15 @@
         a1 (+ z a)
         b1 (+ (- N z) b)
         beta-model
-        (p/->CLDistributionModel  "beta_logpdf" 3 0 1
-                                (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/beta.h"))
-                                (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/beta.cl")))
+        (p/->CLDistributionModel  "beta_logpdf" 1 3 0 1
+                                (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/beta.h"))
+                                (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/beta.cl")))
         binomial-model
         (p/->CLLikelihoodModel "binomial_loglik" 2
-                             (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/binomial.h")))
+                             (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/binomial.h")))
         posterior-model (posterior binomial-model beta-model)]
     (with-release [engine-factory (gcn-engine-factory ctx cqueue)
-                   post (udist engine-factory posterior-model)
+                   post (distribution engine-factory posterior-model)
                    post-dist (post (sv N z) (sv a b))
                    post-sampler (time (sampler post-dist))
                    cl-sample (dataset engine-factory (sample post-sampler sample-count))

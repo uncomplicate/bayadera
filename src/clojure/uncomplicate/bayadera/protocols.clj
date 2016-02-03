@@ -3,7 +3,8 @@
 (defrecord Autocorrelation [^float tau ^float mean ^float sigma ^long size
                             ^long steps ^long walkers ^long lag ^float acc-rate])
 
-(defrecord CLDistributionModel [name ^long params-size lower upper functions kernels])
+(defrecord CLDistributionModel [name ^long dimension ^long params-size
+                                lower upper functions kernels])
 
 (defrecord CLLikelihoodModel [name ^long params-size functions])
 
@@ -34,10 +35,10 @@
 
 (defprotocol RandomSampler
   (init! [this seed])
-  (sample! [this n] [this seed params res]))
+  (sample! [this res] [this params res] [this seed params res]))
 
-(defprotocol MCMCEngineFactory
-  (mcmc-engine [this walker-count cl-params low high]))
+(defprotocol MCMCSamplerFactory
+  (mcmc-sampler [this walker-count cl-params low high]))
 
 (defprotocol MCMC
   (set-position! [this position])
@@ -62,7 +63,7 @@
   (uniform-sampler [this])
   (binomial-sampler [this])
   (beta-sampler [this])
-  (mcmc-sampler [this model]))
+  (mcmc-factory [this model]))
 
 (defprotocol DataSetFactory
   (dataset-engine [this]))

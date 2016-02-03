@@ -1,12 +1,14 @@
-(ns uncomplicate.bayadera.mcmc.opencl.amd-gcn-stretch
+(ns uncomplicate.bayadera.opencl.amd-gcn-stretch
   (:require [clojure.java.io :as io]
             [me.raynes.fs :as fsc]
             [uncomplicate.clojurecl
              [core :refer :all]
-             [toolbox :refer [count-work-groups enq-reduce enq-read-long]]]
+             [toolbox :refer [count-work-groups enq-reduce enq-read-long
+                              wrap-float wrap-int]]]
             [uncomplicate.neanderthal
              [math :refer [sqrt]]
-             [core :refer [asum sum dim vect? freduce entry iamax create transfer!]]
+             [core :refer [asum sum dim vect? freduce entry iamax create
+                           transfer!]]
              [block :refer [buffer]]
              [opencl :refer [gcn-single]]]
             [uncomplicate.bayadera.protocols :refer :all])
@@ -94,11 +96,11 @@
         (with-release [c0-vec (create neanderthal-factory autocov-count)
                        d-vec (create neanderthal-factory autocov-count)]
           (set-args! subtract-mean-kernel 0 (buffer sample)
-                     (float-array [sample-mean]))
-          (enq-nd! cqueue subtract-mean-kernel (work-size [n]))
-          (set-args! autocovariance-kernel 0 (int-array [lag]) (buffer c0-vec)
-                     (buffer d-vec) (buffer sample) (int-array [i-max]))
-          (enq-nd! cqueue autocovariance-kernel (work-size [n]))
+                     (wrap-float sample-mean))
+          (enq-nd! cqueue subtract-mean-kernel (work-size-1d n))
+          (set-args! autocovariance-kernel 0 (wrap-int lag) (buffer c0-vec)
+                     (buffer d-vec) (buffer sample) (wrap-int i-max))
+          (enq-nd! cqueue autocovariance-kernel (work-size-1d n))
           (let [d (float (sum d-vec))]
             (->Autocorrelation (/ d (float (sum c0-vec))) sample-mean
                                (sqrt (/ d i-max n))
@@ -109,7 +111,7 @@
                         n (* lag min-fac)))))))
   RandomSampler
   (init! [this seed]
-    (do
+    (let [seed (wrap-int seed)]
       (set-arg! stretch-move-odd-kernel 0 (inc! seed))
       (set-arg! stretch-move-even-kernel 0 (inc! seed))
       (set-arg! stretch-move-odd-bare-kernel 0 (inc! seed))
@@ -117,9 +119,10 @@
       (enq-fill! cqueue cl-accept (int-array 1))
       (aset step-counter 0 0)
       this))
-  (sample! [this n]
-    (let [res (create neanderthal-factory n)
+  (sample! [this res]
+    (let [res (if (number? res) (create neanderthal-factory res) res)
           res-buff (buffer res)
+          n (dim res)
           available (* Float/BYTES walker-count)]
       (do
         (loop [ofst 0 requested (* Float/BYTES (long n))]
@@ -135,10 +138,10 @@
     (do
       (if (cl-buffer? position)
         (enq-copy! cqueue position cl-xs)
-        (do
-          (set-arg! init-walkers-kernel 0 position)
-          (enq-nd! cqueue init-walkers-kernel (work-size [(/ walker-count 4)]))))
-      (enq-nd! cqueue logpdf-kernel (work-size [walker-count]))
+        (let [seed (wrap-int position)]
+          (set-arg! init-walkers-kernel 0 seed)
+          (enq-nd! cqueue init-walkers-kernel (work-size-1d (/ walker-count 4)))))
+      (enq-nd! cqueue logpdf-kernel (work-size-1d walker-count))
       this))
   (burn-in! [this n a]
     (do
@@ -171,18 +174,18 @@
         (dotimes [i n]
           (move! this))
         (set-args! sum-means-kernel 0 (buffer means-vec)
-                   cl-means (int-array [means-count]))
-        (enq-nd! cqueue sum-means-kernel (work-size [n]))
+                   cl-means (wrap-int means-count))
+        (enq-nd! cqueue sum-means-kernel (work-size-1d n))
         (assoc (acor this means-vec) :acc-rate  (acc-rate this))))))
 
-(deftype GCNStretch1DEngineFactory [ctx queue neanderthal-factory prog ^long WGS]
+(deftype GCNStretch1DSamplerFactory [ctx queue neanderthal-factory prog ^long WGS]
   Releaseable
   (release [_]
     (and
      (release prog)
      (release neanderthal-factory)))
-  MCMCEngineFactory
-  (mcmc-engine [_ walker-count cl-params low high]
+  MCMCSamplerFactory
+  (mcmc-sampler [_ walker-count cl-params low high]
     (let [walker-count (long walker-count)]
       (if (and (<= (* 2 WGS) walker-count) (zero? (rem walker-count (* 2 WGS))))
         (let [cnt (long (/ walker-count 2))
@@ -201,7 +204,7 @@
               cl-accept-acc (cl-buffer ctx (* Long/BYTES accept-acc-count) :read-write)]
           (->GCNStretch1D
            ctx queue neanderthal-factory
-           walker-count (work-size [(/ walker-count 2)]) WGS step-counter
+           walker-count (work-size-1d (/ walker-count 2)) WGS step-counter
            cl-params cl-xs cl-s0 cl-s1 cl-logpdf-xs cl-logpdf-s0 cl-logpdf-s1
            cl-accept cl-accept-acc
            (doto (kernel prog "stretch_move1_accu")
@@ -213,7 +216,7 @@
            (doto (kernel prog "stretch_move1_bare")
              (set-args! 1 params-buffer cl-s0 cl-s1 cl-logpdf-s1))
            (doto (kernel prog "init_walkers")
-             (set-args! 1 (float-array [low]) (float-array [high]) cl-xs))
+             (set-args! 1 (wrap-float low) (wrap-float high) cl-xs))
            (doto (kernel prog "logpdf")
              (set-args! 0 params-buffer cl-xs cl-logpdf-xs))
            (doto (kernel prog "sum_accept_reduction")
@@ -230,11 +233,11 @@
 (defn ^:private copy-random123 [include-name tmp-dir-name]
   (io/copy
    (io/input-stream
-    (io/resource (format "uncomplicate/bayadera/rng/opencl/include/Random123/%s"
+    (io/resource (format "uncomplicate/bayadera/opencl/rng/include/Random123/%s"
                          include-name)))
    (io/file (format "%s/Random123/%s" tmp-dir-name include-name))))
 
-(defn gcn-stretch-1d-engine-factory
+(defn gcn-stretch-1d-sampler-factory
   ([ctx cqueue ^CLDistributionModel model ^long WGS]
    (let [tmp-dir-name (fsc/temp-dir "uncomplicate/")]
      (try
@@ -243,16 +246,16 @@
                          "features/openclfeatures.h" "features/sse.h"]]
          (copy-random123 res-name tmp-dir-name))
        (let [neanderthal-factory (gcn-single ctx cqueue)]
-         (->GCNStretch1DEngineFactory
+         (->GCNStretch1DSamplerFactory
           ctx cqueue neanderthal-factory
           (build-program!
            (program-with-source
             ctx
             [(slurp (io/resource "uncomplicate/clojurecl/kernels/reduction.cl"))
-             (slurp (io/resource "uncomplicate/bayadera/distributions/opencl/uniform.h"))
+             (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/uniform.h"))
              (.functions model)
              (.kernels model)
-             (slurp (io/resource "uncomplicate/bayadera/mcmc/opencl/amd_gcn/stretch-move.cl"))])
+             (slurp (io/resource "uncomplicate/bayadera/opencl/mcmc/amd-gcn-stretch-move.cl"))])
            (format "-cl-std=CL2.0 -DLOGPDF=%s -DACCUMULATOR=float -DPARAMS_SIZE=%d -DWGS=%d -I%s/"
                    (.name model) (.params-size model) WGS tmp-dir-name)
            nil)
@@ -260,4 +263,4 @@
        (finally
          (fsc/delete-dir tmp-dir-name)))))
   ([ctx cqueue model]
-   (gcn-stretch-1d-engine-factory ctx cqueue model 256)))
+   (gcn-stretch-1d-sampler-factory ctx cqueue model 256)))

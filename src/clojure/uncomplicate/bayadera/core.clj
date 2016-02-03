@@ -9,7 +9,8 @@
             [uncomplicate.bayadera
              [protocols :as p]
              [impl :refer :all]
-             [math :refer [log-beta]]]))
+             [math :refer [log-beta]]])
+  (:import [uncomplicate.bayadera.protocols CLDistributionModel]))
 
 (defn dataset [factory src]
   (->UnivariateDataSet (p/dataset-engine factory)
@@ -29,11 +30,13 @@
   (let [params (transfer! [a b (log-beta a b)] (create (np/factory factory) 3))]
     (->BetaDistribution factory (p/beta-engine factory) params a b)))
 
-(defn udist [factory model]
-  (->UnivariateDistributionCreator factory
-                                   (p/custom-engine factory model)
-                                   (p/mcmc-sampler factory model)
-                                   model))
+(defn distribution [factory ^CLDistributionModel model]
+  (if (= 1 (.dimension model))
+    (->UnivariateDistributionCreator factory
+                                     (p/custom-engine factory model)
+                                     (p/mcmc-factory factory model)
+                                     model)
+    (throw (UnsupportedOperationException. "TODO"))))
 
 (defn mean-variance [x]
   (p/mean-variance x))
