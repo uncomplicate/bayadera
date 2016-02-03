@@ -6,15 +6,16 @@
              :refer [enq-reduce enq-read-double count-work-groups
                      wrap-int wrap-float]]
             [uncomplicate.neanderthal
-             [core :refer [dim nrm2]]
+             [core :refer [dim]]
              [real :refer [sum]]
              [protocols :as np]
              [block :refer [buffer]]
              [native :refer [sv]]
              [opencl :refer [gcn-single]]]
-            [uncomplicate.bayadera.opencl.amd-gcn-stretch
-             :refer [gcn-stretch-1d-sampler-factory]]
-            [uncomplicate.bayadera.protocols :refer :all])
+            [uncomplicate.bayadera.protocols :refer :all]
+            [uncomplicate.bayadera.opencl
+             [utils :refer [with-philox get-tmp-dir-name]]
+             [amd-gcn-stretch :refer [gcn-stretch-1d-sampler-factory]]])
   (:import [uncomplicate.bayadera.protocols CLDistributionModel CLLikelihoodModel]))
 
 (def ^:private POSTERIOR_LOGPDF
@@ -95,27 +96,8 @@ inline float %s(__constant float* params, float x) {
     ([ctx queue]
      (gcn-dataset-engine ctx queue 256))))
 
-(defn ^:private copy-random123 [include-name tmp-dir-name]
-  (io/copy
-   (io/input-stream
-    (io/resource (format "uncomplicate/bayadera/opencl/rng/include/Random123/%s"
-                         include-name)))
-   (io/file (format "%s/Random123/%s" tmp-dir-name include-name))))
-
-(def tmp-dir-name (fsc/temp-dir "uncomplicate/"))
-
-(defmacro with-philox [& body]
-  `(try
-    (fsc/mkdirs (format "%s/%s" tmp-dir-name "Random123/features/"))
-    (doseq [res-name# ["philox.h" "array.h" "features/compilerfeatures.h"
-                       "features/openclfeatures.h" "features/sse.h"]]
-      (copy-random123 res-name# tmp-dir-name))
-    (do ~@body)
-    (finally
-      (fsc/delete-dir tmp-dir-name))))
-
 (defn gcn-distribution-engine
-  ([ctx cqueue ^CLDistributionModel model ^long WGS]
+  ([ctx cqueue tmp-dir-name ^CLDistributionModel model WGS]
    (let [prog (build-program!
                (program-with-source
                 ctx [(.functions model) (.kernels model)])
@@ -127,7 +109,7 @@ inline float %s(__constant float* params, float x) {
    (gcn-distribution-engine ctx queue model 256)))
 
 (defn gcn-direct-sampler
-  ([ctx cqueue ^CLDistributionModel model ^long WGS]
+  ([ctx cqueue tmp-dir-name ^CLDistributionModel model WGS]
    (->GCNDirectSampler
     cqueue
     (build-program!
@@ -139,7 +121,8 @@ inline float %s(__constant float* params, float x) {
 
 ;; =========================== Distribution creators ===========================
 
-(defrecord GCNEngineFactory [ctx cqueue ^long WGS dataset-eng neanderthal-factory
+(defrecord GCNEngineFactory [ctx cqueue tmp-dir-name ^long WGS
+                             dataset-eng neanderthal-factory
                              gaussial-model gaussian-eng gaussian-samp
                              uniform-model uniform-eng uniform-samp
                              beta-model beta-eng beta-samp
@@ -166,7 +149,8 @@ inline float %s(__constant float* params, float x) {
   (beta-engine [_]
     beta-eng)
   (custom-engine [_ model]
-    (gcn-distribution-engine ctx cqueue model WGS))
+    (with-philox tmp-dir-name
+      (gcn-distribution-engine ctx cqueue tmp-dir-name model WGS)))
   SamplerFactory
   (gaussian-sampler [_]
     gaussian-samp)
@@ -177,7 +161,8 @@ inline float %s(__constant float* params, float x) {
   (beta-sampler [_]
     beta-samp)
   (mcmc-factory [_ model]
-    (gcn-stretch-1d-sampler-factory ctx cqueue model WGS))
+    (with-philox tmp-dir-name
+      (gcn-stretch-1d-sampler-factory ctx cqueue tmp-dir-name model WGS)))
    DataSetFactory
   (dataset-engine [_]
     dataset-eng)
@@ -206,23 +191,24 @@ inline float %s(__constant float* params, float x) {
 
   (defn gcn-engine-factory
     ([ctx cqueue ^long WGS]
-     (with-philox
-       (->GCNEngineFactory
-        ctx cqueue
-        WGS
-        (gcn-dataset-engine ctx cqueue WGS)
-        (gcn-single ctx cqueue)
-        gaussian-model
-        (gcn-distribution-engine ctx cqueue gaussian-model WGS)
-        (gcn-direct-sampler ctx cqueue gaussian-model WGS)
-        uniform-model
-        (gcn-distribution-engine ctx cqueue uniform-model WGS)
-        (gcn-direct-sampler ctx cqueue uniform-model WGS)
-        beta-model
-        (gcn-distribution-engine ctx cqueue beta-model WGS)
-        (gcn-stretch-1d-sampler-factory ctx cqueue beta-model WGS)
-        binomial-model
-        (gcn-distribution-engine ctx cqueue binomial-model WGS)
-        (gcn-stretch-1d-sampler-factory ctx cqueue binomial-model WGS))))
+     (let [tmp-dir-name (get-tmp-dir-name)]
+       (with-philox tmp-dir-name
+         (->GCNEngineFactory
+          ctx cqueue tmp-dir-name
+          WGS
+          (gcn-dataset-engine ctx cqueue WGS)
+          (gcn-single ctx cqueue)
+          gaussian-model
+          (gcn-distribution-engine ctx cqueue tmp-dir-name gaussian-model WGS)
+          (gcn-direct-sampler ctx cqueue tmp-dir-name gaussian-model WGS)
+          uniform-model
+          (gcn-distribution-engine ctx cqueue tmp-dir-name  uniform-model WGS)
+          (gcn-direct-sampler ctx cqueue tmp-dir-name uniform-model WGS)
+          beta-model
+          (gcn-distribution-engine ctx cqueue tmp-dir-name beta-model WGS)
+          (gcn-stretch-1d-sampler-factory ctx cqueue tmp-dir-name beta-model WGS)
+          binomial-model
+          (gcn-distribution-engine ctx cqueue tmp-dir-name binomial-model WGS)
+          (gcn-stretch-1d-sampler-factory ctx cqueue tmp-dir-name binomial-model WGS)))))
     ([ctx cqueue]
      (gcn-engine-factory ctx cqueue 256))))

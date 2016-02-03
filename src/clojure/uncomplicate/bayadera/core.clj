@@ -30,6 +30,7 @@
   (let [params (transfer! [a b (log-beta a b)] (create (np/factory factory) 3))]
     (->BetaDistribution factory (p/beta-engine factory) params a b)))
 
+;;TODO This should probably go to opencl.clj, similarly to neanderthal
 (defn distribution [factory ^CLDistributionModel model]
   (if (= 1 (.dimension model))
     (->UnivariateDistributionCreator factory
@@ -56,10 +57,9 @@
 (defn sampler [dist]
   (p/sampler dist))
 
-(defn sample [sampler n]
-  (p/sample! sampler n))
+(defn sample [sampler n-or-result]
+  (p/sample! sampler n-or-result))
 
-;;TODO Rename this to density and pmf to mass, and use pdf and pmf to acquire the functions themselves
 (defn pdf! [dist xs result]
   (p/pdf! (p/engine dist) (p/parameters dist) (p/data xs) result))
 

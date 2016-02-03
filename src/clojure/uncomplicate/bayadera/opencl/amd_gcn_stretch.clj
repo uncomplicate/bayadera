@@ -1,17 +1,18 @@
 (ns uncomplicate.bayadera.opencl.amd-gcn-stretch
   (:require [clojure.java.io :as io]
-            [me.raynes.fs :as fsc]
             [uncomplicate.clojurecl
              [core :refer :all]
              [toolbox :refer [count-work-groups enq-reduce enq-read-long
                               wrap-float wrap-int]]]
             [uncomplicate.neanderthal
              [math :refer [sqrt]]
-             [core :refer [asum sum dim vect? freduce entry iamax create
-                           transfer!]]
+             [core :refer [dim create]]
+             [real :refer [sum]]
              [block :refer [buffer]]
              [opencl :refer [gcn-single]]]
-            [uncomplicate.bayadera.protocols :refer :all])
+            [uncomplicate.bayadera.protocols :refer :all]
+            [uncomplicate.bayadera.opencl.utils
+             :refer [with-philox get-tmp-dir-name]])
   (:import [uncomplicate.bayadera.protocols CLDistributionModel]))
 
 (defprotocol MCMCStretch
@@ -230,37 +231,28 @@
                 (format "Number of walkers (%d) must be a multiple of %d."
                         walker-count (* 2 WGS))))))))
 
-(defn ^:private copy-random123 [include-name tmp-dir-name]
-  (io/copy
-   (io/input-stream
-    (io/resource (format "uncomplicate/bayadera/opencl/rng/include/Random123/%s"
-                         include-name)))
-   (io/file (format "%s/Random123/%s" tmp-dir-name include-name))))
+(let [reduction-src (slurp (io/resource "uncomplicate/clojurecl/kernels/reduction.cl"))
+      uniform-src (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/uniform.h"))
+      stretch-move-src (slurp (io/resource "uncomplicate/bayadera/opencl/mcmc/amd-gcn-stretch-move.cl"))]
 
-(defn gcn-stretch-1d-sampler-factory
-  ([ctx cqueue ^CLDistributionModel model ^long WGS]
-   (let [tmp-dir-name (fsc/temp-dir "uncomplicate/")]
-     (try
-       (fsc/mkdirs (format "%s/%s" tmp-dir-name "Random123/features/"))
-       (doseq [res-name ["philox.h" "array.h" "features/compilerfeatures.h"
-                         "features/openclfeatures.h" "features/sse.h"]]
-         (copy-random123 res-name tmp-dir-name))
-       (let [neanderthal-factory (gcn-single ctx cqueue)]
-         (->GCNStretch1DSamplerFactory
-          ctx cqueue neanderthal-factory
-          (build-program!
-           (program-with-source
-            ctx
-            [(slurp (io/resource "uncomplicate/clojurecl/kernels/reduction.cl"))
-             (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/uniform.h"))
-             (.functions model)
-             (.kernels model)
-             (slurp (io/resource "uncomplicate/bayadera/opencl/mcmc/amd-gcn-stretch-move.cl"))])
-           (format "-cl-std=CL2.0 -DLOGPDF=%s -DACCUMULATOR=float -DPARAMS_SIZE=%d -DWGS=%d -I%s/"
-                   (.name model) (.params-size model) WGS tmp-dir-name)
-           nil)
-          WGS))
-       (finally
-         (fsc/delete-dir tmp-dir-name)))))
-  ([ctx cqueue model]
-   (gcn-stretch-1d-sampler-factory ctx cqueue model 256)))
+  (defn gcn-stretch-1d-sampler-factory
+    ([ctx cqueue tmp-dir-name ^CLDistributionModel model WGS]
+     (let [neanderthal-factory (gcn-single ctx cqueue)]
+       (->GCNStretch1DSamplerFactory
+        ctx cqueue neanderthal-factory
+        (build-program!
+         (program-with-source
+          ctx
+          [reduction-src
+           uniform-src
+           (.functions model)
+           (.kernels model)
+           stretch-move-src])
+         (format "-cl-std=CL2.0 -DLOGPDF=%s -DACCUMULATOR=float -DPARAMS_SIZE=%d -DWGS=%d -I%s/"
+                 (.name model) (.params-size model) WGS tmp-dir-name)
+         nil)
+        WGS)))
+    ([ctx cqueue model]
+     (let [tmp-dir-name (get-tmp-dir-name)]
+       (with-philox tmp-dir-name
+         (gcn-stretch-1d-sampler-factory ctx cqueue tmp-dir-name model 256))))))
