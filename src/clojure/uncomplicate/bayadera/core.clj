@@ -9,8 +9,7 @@
             [uncomplicate.bayadera
              [protocols :as p]
              [impl :refer :all]
-             [math :refer [log-beta]]])
-  (:import [uncomplicate.bayadera.protocols CLDistributionModel]))
+             [math :refer [log-beta]]]))
 
 (defn dataset [factory src]
   (->UnivariateDataSet (p/dataset-engine factory)
@@ -31,13 +30,16 @@
     (->BetaDistribution factory (p/beta-engine factory) params a b)))
 
 ;;TODO This should probably go to opencl.clj, similarly to neanderthal
-(defn distribution [factory ^CLDistributionModel model]
-  (if (= 1 (.dimension model))
+(defn distribution [factory model]
+  (if (= 1 (:dimension model))
     (->UnivariateDistributionCreator factory
                                      (p/custom-engine factory model)
                                      (p/mcmc-factory factory model)
                                      model)
     (throw (UnsupportedOperationException. "TODO"))))
+
+(defn posterior [likelihood prior]
+  (p/posterior prior likelihood))
 
 (defn mean-variance [x]
   (p/mean-variance x))

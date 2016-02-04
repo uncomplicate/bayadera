@@ -11,9 +11,10 @@
              [block :refer [buffer]]
              [opencl :refer [gcn-single]]]
             [uncomplicate.bayadera.protocols :refer :all]
-            [uncomplicate.bayadera.opencl.utils
-             :refer [with-philox get-tmp-dir-name]])
-  (:import [uncomplicate.bayadera.protocols CLDistributionModel]))
+            [uncomplicate.bayadera.opencl
+             [utils :refer [with-philox get-tmp-dir-name]]
+             [generic :refer [->CLDistributionModel]]])
+  (:import [uncomplicate.bayadera.opencl.generic CLDistributionModel]))
 
 (defn ^:private inc! [^ints a]
   (doto a (aset 0 (inc (aget a 0)))))

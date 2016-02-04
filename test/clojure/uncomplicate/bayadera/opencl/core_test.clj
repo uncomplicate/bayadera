@@ -1,4 +1,4 @@
-(ns uncomplicate.bayadera.opencl..core-test
+(ns uncomplicate.bayadera.opencl.core-test
   (:require [midje.sweet :refer :all]
             [quil.core :as q]
             [quil.applet :as qa]
@@ -15,8 +15,9 @@
              [impl :refer :all]
              [math :refer [log-beta]]
              [visual :refer :all]]
-            [uncomplicate.bayadera.opencl.amd-gcn :refer
-             [gcn-engine-factory posterior]]
+            [uncomplicate.bayadera.opencl
+             [generic :refer [->CLLikelihoodModel beta-model]]
+             [amd-gcn :refer [gcn-engine-factory]]]
             [clojure.java.io :as io]))
 
 ;;(def x-atom (atom nil))
@@ -90,12 +91,9 @@
         N 5.0
         a1 (+ z a)
         b1 (+ (- N z) b)
-        beta-model
-        (p/->CLDistributionModel  "beta_logpdf" 1 3 0 1
-                                (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/beta.h"))
-                                (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/beta.cl")))
+
         binomial-model
-        (p/->CLLikelihoodModel "binomial_loglik" 2
+        (->CLLikelihoodModel "binomial_loglik" 2
                              (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/binomial.h")))
         posterior-model (posterior binomial-model beta-model)]
     (with-release [engine-factory (gcn-engine-factory ctx cqueue)

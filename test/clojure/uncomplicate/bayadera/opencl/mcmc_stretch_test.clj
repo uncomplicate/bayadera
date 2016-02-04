@@ -13,7 +13,9 @@
              [opencl :refer [gcn-single]]]
             [uncomplicate.neanderthal.opencl :refer [with-gcn-engine sv-cl]]
             [uncomplicate.bayadera.protocols :refer :all]
-            [uncomplicate.bayadera.opencl.amd-gcn-stretch :refer :all]))
+            [uncomplicate.bayadera.opencl
+             [generic :refer [gaussian-model ->CLDistributionModel]]
+             [amd-gcn-stretch :refer :all]]))
 
 (with-release [dev (first (sort-by-cl-version (devices (first (platforms)))))
                ctx (context [dev])

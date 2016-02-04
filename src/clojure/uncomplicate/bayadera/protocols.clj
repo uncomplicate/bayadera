@@ -3,10 +3,6 @@
 (defrecord Autocorrelation [^float tau ^float mean ^float sigma ^long size
                             ^long steps ^long walkers ^long lag ^float acc-rate])
 
-(defrecord CLDistributionModel [name ^long dimension ^long params-size
-                                lower upper functions kernels])
-
-(defrecord CLLikelihoodModel [name ^long params-size functions])
 
 (defprotocol Location
   (mean [this])
@@ -29,9 +25,15 @@
 (defprotocol Distribution
   (parameters [_]))
 
+;; ==================== Models ====================
+
+(defprotocol Bayes
+  (posterior [prior likelihood]))
+
 ;; ==================== Engines ====================
 
 (defprotocol DistributionEngine
+  (model [_])
   (logpdf! [_ params x res])
   (pdf! [_ params x res]))
 
