@@ -15,7 +15,7 @@
             [uncomplicate.bayadera.protocols :refer :all]
             [uncomplicate.bayadera.opencl
              [utils :refer [with-philox get-tmp-dir-name]]
-             [amd-gcn-stretch :refer [gcn-stretch-1d-sampler-factory]]])
+             [amd-gcn-stretch :refer [gcn-stretch-1d-factory]]])
   (:import [uncomplicate.bayadera.protocols CLDistributionModel CLLikelihoodModel]))
 
 (def ^:private POSTERIOR_LOGPDF
@@ -71,7 +71,7 @@ inline float %s(__constant float* params, float x) {
 
 (deftype GCNDataSetEngine [ctx cqueue prog ^long WGS]
   Releaseable
-  (release [_]
+ (release [_]
     (release prog))
   Spread
   (mean-variance [this data-vect]
@@ -162,7 +162,7 @@ inline float %s(__constant float* params, float x) {
     beta-samp)
   (mcmc-factory [_ model]
     (with-philox tmp-dir-name
-      (gcn-stretch-1d-sampler-factory ctx cqueue tmp-dir-name model WGS)))
+      (gcn-stretch-1d-factory ctx cqueue tmp-dir-name model WGS)))
    DataSetFactory
   (dataset-engine [_]
     dataset-eng)
@@ -206,9 +206,9 @@ inline float %s(__constant float* params, float x) {
           (gcn-direct-sampler ctx cqueue tmp-dir-name uniform-model WGS)
           beta-model
           (gcn-distribution-engine ctx cqueue tmp-dir-name beta-model WGS)
-          (gcn-stretch-1d-sampler-factory ctx cqueue tmp-dir-name beta-model WGS)
+          (gcn-stretch-1d-factory ctx cqueue tmp-dir-name beta-model WGS)
           binomial-model
           (gcn-distribution-engine ctx cqueue tmp-dir-name binomial-model WGS)
-          (gcn-stretch-1d-sampler-factory ctx cqueue tmp-dir-name binomial-model WGS)))))
+          (gcn-stretch-1d-factory ctx cqueue tmp-dir-name binomial-model WGS)))))
     ([ctx cqueue]
      (gcn-engine-factory ctx cqueue 256))))

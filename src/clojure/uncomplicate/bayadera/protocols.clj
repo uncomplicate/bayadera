@@ -37,13 +37,19 @@
   (init! [this seed])
   (sample! [this res] [this params res] [this seed params res]))
 
-(defprotocol MCMCSamplerFactory
-  (mcmc-sampler [this walker-count cl-params low high]))
-
 (defprotocol MCMC
   (set-position! [this position])
   (burn-in! [this n a])
   (run-sampler! [this n a]))
+
+(defprotocol MCMCStretch
+  (move! [this])
+  (move-bare! [this])
+  (acc-rate [this])
+  (acor [this sample]))
+
+(defprotocol MCMCFactory
+  (mcmc-sampler [this walker-count cl-params low high]))
 
 (defprotocol SamplerProvider
   (sampler [_]))

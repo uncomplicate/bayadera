@@ -15,12 +15,6 @@
              :refer [with-philox get-tmp-dir-name]])
   (:import [uncomplicate.bayadera.protocols CLDistributionModel]))
 
-(defprotocol MCMCStretch
-  (move! [this])
-  (move-bare! [this])
-  (acc-rate [this])
-  (acor [this sample]))
-
 (defn ^:private inc! [^ints a]
   (doto a (aset 0 (inc (aget a 0)))))
 
@@ -179,13 +173,13 @@
         (enq-nd! cqueue sum-means-kernel (work-size-1d n))
         (assoc (acor this means-vec) :acc-rate  (acc-rate this))))))
 
-(deftype GCNStretch1DSamplerFactory [ctx queue neanderthal-factory prog ^long WGS]
+(deftype GCNStretch1DFactory [ctx queue neanderthal-factory prog ^long WGS]
   Releaseable
   (release [_]
     (and
      (release prog)
      (release neanderthal-factory)))
-  MCMCSamplerFactory
+  MCMCFactory
   (mcmc-sampler [_ walker-count cl-params low high]
     (let [walker-count (long walker-count)]
       (if (and (<= (* 2 WGS) walker-count) (zero? (rem walker-count (* 2 WGS))))
@@ -235,10 +229,10 @@
       uniform-src (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/uniform.h"))
       stretch-move-src (slurp (io/resource "uncomplicate/bayadera/opencl/mcmc/amd-gcn-stretch-move.cl"))]
 
-  (defn gcn-stretch-1d-sampler-factory
+  (defn gcn-stretch-1d-factory
     ([ctx cqueue tmp-dir-name ^CLDistributionModel model WGS]
      (let [neanderthal-factory (gcn-single ctx cqueue)]
-       (->GCNStretch1DSamplerFactory
+       (->GCNStretch1DFactory
         ctx cqueue neanderthal-factory
         (build-program!
          (program-with-source
@@ -255,4 +249,4 @@
     ([ctx cqueue model]
      (let [tmp-dir-name (get-tmp-dir-name)]
        (with-philox tmp-dir-name
-         (gcn-stretch-1d-sampler-factory ctx cqueue tmp-dir-name model 256))))))
+         (gcn-stretch-1d-factory ctx cqueue tmp-dir-name model 256))))))

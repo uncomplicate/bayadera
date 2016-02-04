@@ -29,7 +29,7 @@
            (->CLDistributionModel "gaussian_logpdf" 1 2 nil nil
                                   (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/gaussian.h"))
                                   (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/gaussian.cl")))]
-       (with-release [mcmc-engine-factory (gcn-stretch-1d-sampler-factory
+       (with-release [mcmc-engine-factory (gcn-stretch-1d-factory
                                            ctx cqueue gaussian-model)
                       cl-params (sv-cl [200 1])
                       engine (mcmc-sampler mcmc-engine-factory walker-count
