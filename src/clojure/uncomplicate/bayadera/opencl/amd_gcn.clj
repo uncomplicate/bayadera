@@ -18,14 +18,8 @@
              [amd-gcn-stretch :refer [gcn-stretch-1d-factory]]])
   (:import [uncomplicate.bayadera.protocols CLDistributionModel CLLikelihoodModel]))
 
-(def ^:private POSTERIOR_LOGPDF
-  "
-inline float %s(__constant float* params, float x) {
-  return %s(params, x) + %s(&params[%d], x);
-}
-")
-
-(let [posterior-kernels (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/posterior.cl"))]
+(let [posterior-kernels (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/posterior.cl"))
+      posterior-logpdf (slurp (io/resource "uncomplicate/bayadera/opencl/templates/posterior.clt"))]
   (defn posterior [^CLLikelihoodModel likelihood
                    ^CLDistributionModel prior]
     (let [logpdf (str (gensym "logpdf"))
@@ -37,7 +31,7 @@ inline float %s(__constant float* params, float x) {
        (.lower prior)
        (.upper prior)
        (str (.functions prior) "\n" (.functions likelihood) "\n"
-            (format POSTERIOR_LOGPDF
+            (format posterior-logpdf
                     logpdf (.name likelihood)
                     (.name prior) (.params-size likelihood)))
        posterior-kernels))))

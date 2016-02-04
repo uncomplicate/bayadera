@@ -29,9 +29,13 @@
 (defprotocol Distribution
   (parameters [_]))
 
+;; ==================== Engines ====================
+
 (defprotocol DistributionEngine
   (logpdf! [_ params x res])
   (pdf! [_ params x res]))
+
+;; ==================== Samplers ====================
 
 (defprotocol RandomSampler
   (init! [this seed])
@@ -50,6 +54,8 @@
 
 (defprotocol MCMCFactory
   (mcmc-sampler [this walker-count cl-params low high]))
+
+;; ==================== Factories and Providers  ====================
 
 (defprotocol SamplerProvider
   (sampler [_]))
