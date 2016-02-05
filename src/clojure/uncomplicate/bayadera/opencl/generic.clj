@@ -22,27 +22,30 @@
                                           name (.params-size likelihood)))
                              posterior-kernels))))
 
-(def gaussian-model
-  (->CLDistributionModel "gaussian_logpdf" 1 2 nil nil
-                         (str (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/uniform.h"))
-                              "\n"
-                              (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/gaussian.h")))
-                         (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/gaussian.cl"))))
-(def uniform-model
-  (->CLDistributionModel "uniform_logpdf" 1 2 nil nil
-                         (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/uniform.h"))
-                         (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/uniform.cl"))))
-(def beta-model
-  (->CLDistributionModel  "beta_logpdf" 1 3 0 1
-                          (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/beta.h"))
-                          (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/beta.cl"))))
+(let [uniform-src (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/uniform.h"))]
 
-;; TODO support is from 0 to infinity
-(def binomial-model
-  (->CLDistributionModel "binomial_logpdf" 1 3 nil nil
-                         (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/binomial.h"))
-                         (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/binomial.cl"))))
+  (def gaussian-model
+    (->CLDistributionModel "gaussian_logpdf" 1 2 nil nil
+                           (str uniform-src "\n"
+                                (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/gaussian.h")))
+                           (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/gaussian.cl"))))
+  (def uniform-model
+    (->CLDistributionModel "uniform_logpdf" 1 2 nil nil
+                           uniform-src
+                           (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/uniform.cl"))))
+  (def beta-model
+    (->CLDistributionModel  "beta_logpdf" 1 3 0 1
+                            (str uniform-src "\n"
+                                 (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/beta.h")))
+                            (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/beta.cl"))))
 
-(def binomial-likelihood
-  (->CLLikelihoodModel "binomial_loglik" 2
-                       (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/binomial.h"))))
+  ;; TODO support is from 0 to infinity
+  (def binomial-model
+    (->CLDistributionModel "binomial_logpdf" 1 3 nil nil
+                           (str uniform-src "\n"
+                                (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/binomial.h")))
+                           (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/binomial.cl"))))
+
+  (def binomial-likelihood
+    (->CLLikelihoodModel "binomial_loglik" 2
+                         (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/binomial.h")))))

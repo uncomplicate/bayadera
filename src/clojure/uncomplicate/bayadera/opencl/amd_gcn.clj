@@ -92,7 +92,8 @@
    (->GCNDirectSampler
     cqueue
     (build-program!
-     (program-with-source ctx [(.functions model) (.kernels model)])
+     (program-with-source ctx [(.functions model)
+                               (.kernels model)])
      (format "-cl-std=CL2.0 -DWGS=%s -I%s/" WGS tmp-dir-name)
      nil)))
   ([ctx cqueue model]

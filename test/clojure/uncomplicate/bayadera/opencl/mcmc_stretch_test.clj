@@ -14,7 +14,7 @@
             [uncomplicate.neanderthal.opencl :refer [with-gcn-engine sv-cl]]
             [uncomplicate.bayadera.protocols :refer :all]
             [uncomplicate.bayadera.opencl
-             [generic :refer [gaussian-model ->CLDistributionModel]]
+             [generic :refer [gaussian-model]]
              [amd-gcn-stretch :refer :all]]))
 
 (with-release [dev (first (sort-by-cl-version (devices (first (platforms)))))
@@ -26,11 +26,7 @@
      (let [walker-count (* 2 256 44)
            a (wrap-float 8.0)
            xs (sv walker-count)
-           run-cnt 140
-           gaussian-model
-           (->CLDistributionModel "gaussian_logpdf" 1 2 nil nil
-                                  (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/gaussian.h"))
-                                  (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/gaussian.cl")))]
+           run-cnt 140]
        (with-release [mcmc-engine-factory (gcn-stretch-1d-factory
                                            ctx cqueue gaussian-model)
                       cl-params (sv-cl [200 1])

@@ -227,7 +227,6 @@
                         walker-count (* 2 WGS))))))))
 
 (let [reduction-src (slurp (io/resource "uncomplicate/clojurecl/kernels/reduction.cl"))
-      uniform-src (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/uniform.h"))
       stretch-move-src (slurp (io/resource "uncomplicate/bayadera/opencl/mcmc/amd-gcn-stretch-move.cl"))]
 
   (defn gcn-stretch-1d-factory
@@ -239,7 +238,6 @@
          (program-with-source
           ctx
           [reduction-src
-           uniform-src
            (.functions model)
            (.kernels model)
            stretch-move-src])

@@ -14,7 +14,6 @@ inline float4 u01fpt_oo_4x32_24(uint4 i) {
                     (0.5f + (i.w >> 9)) * R123_0x1p_23f);
 }
 
-
 inline float uniform_pdf(float lower, float upper, float x) {
     bool in_range = (lower <= x) && (x <= upper);
     return in_range? (1 / (upper - lower)) : 0.0f;
