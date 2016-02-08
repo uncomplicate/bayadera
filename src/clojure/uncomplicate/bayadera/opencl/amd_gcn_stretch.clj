@@ -177,9 +177,7 @@
 (deftype GCNStretch1DFactory [ctx queue neanderthal-factory prog ^long WGS]
   Releaseable
   (release [_]
-    (and
-     (release prog)
-     (release neanderthal-factory)))
+    (release prog))
   MCMCFactory
   (mcmc-sampler [_ walker-count cl-params low high]
     (let [walker-count (long walker-count)]
@@ -230,22 +228,21 @@
       stretch-move-src (slurp (io/resource "uncomplicate/bayadera/opencl/mcmc/amd-gcn-stretch-move.cl"))]
 
   (defn gcn-stretch-1d-factory
-    ([ctx cqueue tmp-dir-name ^CLDistributionModel model WGS]
-     (let [neanderthal-factory (gcn-single ctx cqueue)]
-       (->GCNStretch1DFactory
-        ctx cqueue neanderthal-factory
-        (build-program!
-         (program-with-source
-          ctx
-          [reduction-src
-           (.functions model)
-           (.kernels model)
-           stretch-move-src])
-         (format "-cl-std=CL2.0 -DLOGPDF=%s -DACCUMULATOR=float -DPARAMS_SIZE=%d -DWGS=%d -I%s/"
-                 (.name model) (.params-size model) WGS tmp-dir-name)
-         nil)
-        WGS)))
-    ([ctx cqueue model]
+    ([ctx cqueue tmp-dir-name neanderthal-factory ^CLDistributionModel model WGS]
+     (->GCNStretch1DFactory
+      ctx cqueue neanderthal-factory
+      (build-program!
+       (program-with-source
+        ctx
+        [reduction-src
+         (.functions model)
+         (.kernels model)
+         stretch-move-src])
+       (format "-cl-std=CL2.0 -DLOGPDF=%s -DACCUMULATOR=float -DPARAMS_SIZE=%d -DWGS=%d -I%s/"
+               (.name model) (.params-size model) WGS tmp-dir-name)
+       nil)
+      WGS))
+    ([ctx cqueue neanderthal-factory model]
      (let [tmp-dir-name (get-tmp-dir-name)]
        (with-philox tmp-dir-name
-         (gcn-stretch-1d-factory ctx cqueue tmp-dir-name model 256))))))
+         (gcn-stretch-1d-factory ctx cqueue tmp-dir-name neanderthal-factory model 256))))))

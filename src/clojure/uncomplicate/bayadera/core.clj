@@ -66,6 +66,9 @@
   (p/pdf! (p/engine dist) (p/parameters dist) (p/data xs) result))
 
 (defn pdf [dist xs]
-  (let [result (raw (p/data xs))]
+  (let [result (raw (p/data xs))];;TODO This works only for univariate xs
     (pdf! dist xs result)
     result))
+
+;;(defn pdf* ^double [dist ^double x]
+;;  (p/pdf* dist x))

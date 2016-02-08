@@ -27,8 +27,10 @@
            a (wrap-float 8.0)
            xs (sv walker-count)
            run-cnt 140]
-       (with-release [mcmc-engine-factory (gcn-stretch-1d-factory
-                                           ctx cqueue gaussian-model)
+       (with-release [neanderthal-factory (gcn-single ctx cqueue)
+                      mcmc-engine-factory (gcn-stretch-1d-factory
+                                           ctx cqueue neanderthal-factory
+                                           gaussian-model)
                       cl-params (sv-cl [200 1])
                       engine (mcmc-sampler mcmc-engine-factory walker-count
                                           cl-params 190 210)]

@@ -13,7 +13,8 @@
                                 lower upper functions kernels]
   Bayes
   (posterior [prior likelihood]
-    (let [logpdf (str (gensym "logpdf"))
+    (let [likelihood ^CLLikelihoodModel likelihood
+          logpdf (str (gensym "logpdf"))
           params-size (+ (.params-size likelihood) (.params-size prior))]
       (->CLDistributionModel logpdf dimension params-size lower upper
                              (str functions "\n" (.functions likelihood) "\n"

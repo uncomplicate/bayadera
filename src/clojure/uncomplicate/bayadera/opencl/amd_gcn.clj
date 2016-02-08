@@ -5,7 +5,7 @@
              :refer [enq-reduce enq-read-double count-work-groups
                      wrap-int wrap-float]]
             [uncomplicate.neanderthal
-             [core :refer [dim]]
+             [core :refer [dim create]]
              [real :refer [sum]]
              [protocols :as np]
              [block :refer [buffer]]
@@ -18,16 +18,18 @@
              [amd-gcn-stretch :refer [gcn-stretch-1d-factory]]])
   (:import [uncomplicate.bayadera.opencl.generic CLDistributionModel]))
 
-(deftype GCNDirectSampler [cqueue prog]
+(deftype GCNDirectSampler [cqueue prog neanderthal-factory]
   Releaseable
   (release [_]
     (release prog))
   RandomSampler
   (sample! [this seed cl-params res]
-    (with-release [sample-kernel (kernel prog "sample")]
-      (set-args! sample-kernel 0 (buffer cl-params) (wrap-int seed) (buffer res))
-      (enq-nd! cqueue sample-kernel (work-size-1d (dim res)))
-      this)))
+    (let [res (if (number? res) (create neanderthal-factory res) res)]
+      (with-release [sample-kernel (kernel prog "sample")]
+        (set-args! sample-kernel 0 (buffer cl-params) (wrap-int seed) (buffer res))
+        (enq-nd! cqueue sample-kernel (work-size-1d (dim res)))
+        this)
+      res)))
 
 (deftype GCNDistributionEngine [cqueue prog model-record]
   Releaseable
@@ -88,14 +90,15 @@
    (gcn-distribution-engine ctx queue model 256)))
 
 (defn gcn-direct-sampler
-  ([ctx cqueue tmp-dir-name ^CLDistributionModel model WGS]
+  ([ctx cqueue tmp-dir-name neanderthal-factory ^CLDistributionModel model WGS]
    (->GCNDirectSampler
     cqueue
     (build-program!
      (program-with-source ctx [(.functions model)
                                (.kernels model)])
      (format "-cl-std=CL2.0 -DWGS=%s -I%s/" WGS tmp-dir-name)
-     nil)))
+     nil)
+    neanderthal-factory))
   ([ctx cqueue model]
    (gcn-direct-sampler ctx cqueue model 256)))
 
@@ -142,7 +145,8 @@
     beta-samp)
   (mcmc-factory [_ model]
     (with-philox tmp-dir-name
-      (gcn-stretch-1d-factory ctx cqueue tmp-dir-name model WGS)))
+      (gcn-stretch-1d-factory ctx cqueue tmp-dir-name
+                              neanderthal-factory model WGS)))
   DataSetFactory
   (dataset-engine [_]
     dataset-eng)
@@ -152,24 +156,29 @@
 
 (defn gcn-engine-factory
   ([ctx cqueue ^long WGS]
-   (let [tmp-dir-name (get-tmp-dir-name)]
+   (let [tmp-dir-name (get-tmp-dir-name)
+         neanderthal-factory (gcn-single ctx cqueue)]
      (with-philox tmp-dir-name
        (->GCNEngineFactory
         ctx cqueue tmp-dir-name
         WGS
         (gcn-dataset-engine ctx cqueue WGS)
-        (gcn-single ctx cqueue)
+        neanderthal-factory
         gaussian-model
         (gcn-distribution-engine ctx cqueue tmp-dir-name gaussian-model WGS)
-        (gcn-direct-sampler ctx cqueue tmp-dir-name gaussian-model WGS)
+        (gcn-direct-sampler ctx cqueue tmp-dir-name neanderthal-factory
+                            gaussian-model WGS)
         uniform-model
         (gcn-distribution-engine ctx cqueue tmp-dir-name  uniform-model WGS)
-        (gcn-direct-sampler ctx cqueue tmp-dir-name uniform-model WGS)
+        (gcn-direct-sampler ctx cqueue tmp-dir-name neanderthal-factory
+                            uniform-model WGS)
         beta-model
         (gcn-distribution-engine ctx cqueue tmp-dir-name beta-model WGS)
-        (gcn-stretch-1d-factory ctx cqueue tmp-dir-name beta-model WGS)
+        (gcn-stretch-1d-factory ctx cqueue tmp-dir-name neanderthal-factory
+                                beta-model WGS)
         binomial-model
         (gcn-distribution-engine ctx cqueue tmp-dir-name binomial-model WGS)
-        (gcn-stretch-1d-factory ctx cqueue tmp-dir-name binomial-model WGS)))))
+        (gcn-stretch-1d-factory ctx cqueue tmp-dir-name neanderthal-factory
+                                binomial-model WGS)))))
   ([ctx cqueue]
    (gcn-engine-factory ctx cqueue 256)))

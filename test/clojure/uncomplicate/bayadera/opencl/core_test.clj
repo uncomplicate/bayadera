@@ -1,8 +1,5 @@
 (ns uncomplicate.bayadera.opencl.core-test
   (:require [midje.sweet :refer :all]
-            [quil.core :as q]
-            [quil.applet :as qa]
-            [quil.middlewares.pause-on-error :refer [pause-on-error]]
             [uncomplicate.clojurecl.core :refer :all]
             [uncomplicate.neanderthal
              [math :refer [log exp]]
@@ -16,12 +13,8 @@
              [math :refer [log-beta]]
              [visual :refer :all]]
             [uncomplicate.bayadera.opencl
-             [generic :refer [->CLLikelihoodModel beta-model]]
-             [amd-gcn :refer [gcn-engine-factory]]]
-            [clojure.java.io :as io]))
-
-;;(def x-atom (atom nil))
-;;(def y-atom (atom nil))
+             [generic :refer [binomial-likelihood beta-model]]
+             [amd-gcn :refer [gcn-engine-factory]]]))
 
 (with-release [dev (first (sort-by-cl-version (devices (first (platforms)))))
                ctx (context [dev])
@@ -72,8 +65,6 @@
                     cl-sample (dataset engine-factory (sample beta-sampler sample-count))
                     cl-pdf (pdf dist cl-sample)
                     host (transfer! (p/data cl-sample) (sv sample-count))]
-       ;;(reset! x-atom (transfer! (p/data cl-sample) (sv sample-count)))
-       ;;(reset! y-atom (transfer! cl-pdf (sv sample-count)))
        (mean cl-sample) => (roughly (mean dist) (/ (mean dist) 1000.0))
        (sd cl-sample) => (roughly (sd dist) (/ (sd dist) 100.0))
        (mean-variance cl-sample) => (sv (mean cl-sample) (variance cl-sample))
@@ -84,18 +75,14 @@
                ctx (context [dev])
                cqueue (command-queue ctx dev)]
 
-  (let [sample-count (* 256 44 94 8)
+  (let [sample-count (* 256 44 94)
         a 2.0
         b 5.0
         z 3.0
         N 5.0
         a1 (+ z a)
         b1 (+ (- N z) b)
-
-        binomial-model
-        (->CLLikelihoodModel "binomial_loglik" 2
-                             (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/binomial.h")))
-        posterior-model (posterior binomial-model beta-model)]
+        posterior-model (posterior binomial-likelihood beta-model)]
     (with-release [engine-factory (gcn-engine-factory ctx cqueue)
                    post (distribution engine-factory posterior-model)
                    post-dist (post (sv N z) (sv a b))
@@ -103,8 +90,6 @@
                    cl-sample (dataset engine-factory (sample post-sampler sample-count))
                    cl-pdf (pdf post-dist cl-sample)
                    real-post (beta engine-factory a1 b1)]
-      ;;(reset! x-atom (transfer! (p/data cl-sample) (sv sample-count)))
-      ;;(reset! y-atom (transfer! cl-pdf (sv sample-count)))
       (facts
        "Core functions for beta-bernoulli distribution."
        (mean cl-sample) => (roughly (mean real-post) (/ (mean real-post) 100.0))

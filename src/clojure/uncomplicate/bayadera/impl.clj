@@ -33,25 +33,23 @@
   (variance [this]
     (entry (mean-variance this) 1)))
 
-(deftype DirectSampler [neand-factory samp-engine params]
+(deftype DirectSampler [samp-engine params]
   Releaseable
   (release [_]
     true)
   RandomSampler
-  (sample! [_ n]
-    (let [res (create neand-factory n)]
-      (sample! samp-engine (rand-int Integer/MAX_VALUE) params res)
-      res)))
+  (sample! [_ res]
+    (sample! samp-engine (rand-int Integer/MAX_VALUE) params res)))
 
-(deftype GaussianDistribution [bayadera-factory dist-eng params ^double mu ^double sigma]
+;; ==================== Distributions ====================
+(deftype GaussianDistribution [bayadera-factory dist-eng params
+                               ^double mu ^double sigma]
   Releaseable
   (release [_]
     (release params))
   SamplerProvider
   (sampler [_]
-    (->DirectSampler (np/factory bayadera-factory)
-                     (gaussian-sampler bayadera-factory)
-                     params))
+    (->DirectSampler (gaussian-sampler bayadera-factory) params))
   Distribution
   (parameters [_]
     params)
@@ -73,9 +71,7 @@
     (release params))
   SamplerProvider
   (sampler [_]
-    (->DirectSampler (np/factory bayadera-factory)
-                     (uniform-sampler bayadera-factory)
-                     params))
+    (->DirectSampler (uniform-sampler bayadera-factory) params))
   Distribution
   (parameters [_]
     params)
