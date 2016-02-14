@@ -54,10 +54,10 @@
         (with-release [evidence-kernel (kernel prog "evidence_reduce")
                        sum-reduction-kernel (kernel prog "sum_reduction")
                        cl-acc (cl-buffer ctx acc-size :read-write)]
-          (set-args! evidence-kernel 0 cl-acc cl-params (buffer x))
+          (set-args! evidence-kernel 0 cl-acc (buffer cl-params) (buffer x))
           (set-arg! sum-reduction-kernel 0 cl-acc)
           (enq-reduce cqueue evidence-kernel sum-reduction-kernel WGS n)
-          (/ n (enq-read-double cqueue cl-acc))))
+          (/ (enq-read-double cqueue cl-acc) n)))
       1.0)))
 
 (deftype GCNDataSetEngine [ctx cqueue prog ^long WGS]

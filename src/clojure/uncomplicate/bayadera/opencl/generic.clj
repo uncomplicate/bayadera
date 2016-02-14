@@ -57,14 +57,18 @@
   (posterior [prior likelihood]
     (let [likelihood ^CLLikelihoodModel likelihood
           post-name (str (gensym "posterior"))
+          post-mcmc-name (str post-name "_mcmc")
           post-params-size (+ (long (params-size likelihood)) dist-params-size)]
-      (CLDistributionModel. post-name post-name post-name
+      (CLDistributionModel. post-name post-name post-mcmc-name
                             dist-dimension post-params-size lower-limit upper-limit
-                            (conj (into [] (dedupe)
+                            (into (into [] (dedupe)
                                         (into model-source (source likelihood)))
-                                  (format posterior-logpdf post-name
-                                          (loglik likelihood) (mcmc-logpdf prior)
-                                          (params-size likelihood)))
+                                  [(format posterior-logpdf post-name
+                                           (loglik likelihood) (logpdf prior)
+                                           (params-size likelihood))
+                                   (format posterior-logpdf post-mcmc-name
+                                           (loglik likelihood) (mcmc-logpdf prior)
+                                           (params-size likelihood))])
                             nil likelihood))))
 
 (defn cl-distribution-model

@@ -3,7 +3,8 @@
             [uncomplicate.clojurecl.core :refer :all]
             [uncomplicate.neanderthal
              [math :refer [log exp]]
-             [core :refer [dim sum nrm2 fmap! copy transfer! dot]]
+             [core :refer [dim sum nrm2 fmap! copy dot scal! transfer!]]
+             [real :refer [entry]]
              [native :refer [sv]]]
             [uncomplicate.bayadera
              [protocols :as p]
@@ -65,7 +66,7 @@
                     cl-sample (dataset engine-factory (sample beta-sampler sample-count))
                     cl-pdf (pdf dist cl-sample)
                     host (transfer! (p/data cl-sample) (sv sample-count))]
-       (mean cl-sample) => (roughly (mean dist) (/ (mean dist) 1000.0))
+       (mean cl-sample) => (roughly (mean dist) (/ (mean dist) 100.0))
        (sd cl-sample) => (roughly (sd dist) (/ (sd dist) 100.0))
        (mean-variance cl-sample) => (sv (mean cl-sample) (variance cl-sample))
        (mean-sd cl-sample) => (sv (mean cl-sample) (sd cl-sample))
@@ -84,14 +85,26 @@
         b1 (+ (- N z) b)
         posterior-model (posterior binomial-likelihood beta-model)]
     (with-release [engine-factory (gcn-engine-factory ctx cqueue)
+                   prior-dist (beta engine-factory a b)
+                   prior-sampler (sampler prior-dist)
+                   prior-sample (dataset engine-factory (sample prior-sampler sample-count))
                    post (distribution engine-factory posterior-model)
-                   post-dist (post (sv N z) (sv a b))
+                   post-dist (post (sv N z) (sv a b (log-beta a b)))
                    post-sampler (time (sampler post-dist))
-                   cl-sample (dataset engine-factory (sample post-sampler sample-count))
-                   cl-pdf (pdf post-dist cl-sample)
-                   real-post (beta engine-factory a1 b1)]
-      (facts
-       "Core functions for beta-bernoulli distribution."
-       (mean cl-sample) => (roughly (mean real-post) (/ (mean real-post) 100.0))
-       (sd cl-sample) => (roughly (sd real-post) (/ (sd real-post) 100.0))
-       1 => 1))))
+                   post-sample (dataset engine-factory (sample post-sampler sample-count))
+                   post-pdf (pdf post-dist post-sample)
+                   host-sample (transfer! (p/data post-sample) (sv sample-count))
+                   host-pdf (transfer! post-pdf (sv sample-count))
+                   real-post (beta engine-factory a1 b1)
+                   real-sampler (sampler real-post)
+                   real-sample (dataset engine-factory (sample real-sampler sample-count))
+                   real-pdf (pdf real-post real-sample)]
+      (let [prior-evidence (evidence post-dist prior-sample)]
+        (facts
+         "Core functions for beta-bernoulli distribution."
+
+         prior-evidence => (roughly (exp (- (log-beta a1 b1) (log-beta a b))))
+         (/ (entry host-pdf 0) prior-evidence) => (roughly (beta-pdf a1 b1 (entry host-sample 0)))
+         (sum (scal! (/ 1.0 prior-evidence) post-pdf)) => (roughly (sum real-pdf))
+         (mean post-sample) => (roughly (mean real-post) (/ (mean real-post) 100.0))
+         (sd post-sample) => (roughly (sd real-post) (/ (sd real-post) 100.0)))))))

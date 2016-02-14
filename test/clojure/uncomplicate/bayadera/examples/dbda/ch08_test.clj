@@ -8,7 +8,7 @@
             [uncomplicate.clojurecl.core :refer :all]
             [uncomplicate.neanderthal
              [math :refer [log exp]]
-             [core :refer [dim sum nrm2 fmap! copy transfer! dot entry imax imin]]
+             [core :refer [dim sum nrm2 fmap! copy transfer! dot entry imax imin scal!]]
              [native :refer [sv]]]
             [uncomplicate.bayadera
              [protocols :as p]
@@ -51,8 +51,8 @@
     (let [sample-count (* 256 44)
           a 15
           b 50
-          z 0.0
-          N 0.0
+          z 8.0
+          N 21.0
           posterior-model (posterior binomial-likelihood beta-model)]
       (with-release [engine-factory (gcn-engine-factory *context* *command-queue*)
                      prior-distribution (beta engine-factory a b)
@@ -60,12 +60,12 @@
                      prior-sample (dataset engine-factory (sample prior-sampler sample-count))
                      prior-pdf (pdf prior-distribution prior-sample)
                      create-posterior (distribution engine-factory posterior-model)
-                     posterior-distribution (create-posterior (sv N z) (sv a b))
+                     posterior-distribution (create-posterior (sv N z) (sv a b (log-beta a b)))
                      posterior-sampler (sampler posterior-distribution)
                      posterior-sample (dataset engine-factory (sample posterior-sampler sample-count))
-                     posterior-pdf (pdf posterior-distribution posterior-sample)]
-        (q/text (str (sum prior-pdf)) 200 1530)
-        ;;(q/text (str (evidence posterior-distribution posterior-sample)) 200 1550)
+                     posterior-pdf (scal! (/ 1.0 (evidence posterior-distribution prior-sample))
+                                          (pdf posterior-distribution posterior-sample))]
+
         (plot-distribution prior-plot prior-sample prior-pdf {})
         (plot-distribution posterior-plot posterior-sample posterior-pdf {})))))
 

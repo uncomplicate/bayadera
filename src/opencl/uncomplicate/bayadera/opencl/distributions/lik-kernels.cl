@@ -34,12 +34,13 @@ __kernel void sum_reduction (__global double* acc) {
 
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
-__kernel void evidence_reduce(__constant const float* params
+__kernel void evidence_reduce(__global double* x_acc,
+                              __constant const float* params
                               __attribute__ ((max_constant_size(PARAMS_SIZE))),
-                              __global double* x_acc, __global const float* x) {
+                              __global const float* x) {
 
     float xi = x[get_global_id(0)];
-    double sum = work_group_reduction_sum(1.0f / native_exp(LOGLIK(params, xi)));
+    double sum = work_group_reduction_sum(native_exp(LOGLIK(params, xi)));
     if (get_local_id(0) == 0) {
         x_acc[get_group_id(0)] = sum;
     }
