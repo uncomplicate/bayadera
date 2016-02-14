@@ -15,8 +15,7 @@
             [uncomplicate.bayadera.opencl
              [utils :refer [with-philox get-tmp-dir-name]]
              [generic :refer :all]
-             [amd-gcn-stretch :refer [gcn-stretch-1d-factory]]])
-  (:import [uncomplicate.bayadera.opencl.generic CLDistributionModel]))
+             [amd-gcn-stretch :refer [gcn-stretch-1d-factory]]]))
 
 (deftype GCNDirectSampler [cqueue prog neanderthal-factory]
   Releaseable
@@ -31,7 +30,7 @@
         this)
       res)))
 
-(deftype GCNDistributionEngine [cqueue prog model-record]
+(deftype GCNDistributionEngine [ctx cqueue prog ^long WGS model-record]
   Releaseable
   (release [_]
     (release prog))
@@ -47,7 +46,19 @@
     (with-release [pdf-kernel (kernel prog "pdf")]
       (set-args! pdf-kernel 0 (buffer cl-params) (buffer x) (buffer res))
       (enq-nd! cqueue pdf-kernel (work-size-1d (dim x)))
-      this)))
+      this))
+  (evidence [this cl-params x] ;;TODO
+    (if (loglik model-record)
+      (let [n (dim x)
+            acc-size (* Double/BYTES (count-work-groups WGS n))]
+        (with-release [evidence-kernel (kernel prog "evidence_reduce")
+                       sum-reduction-kernel (kernel prog "sum_reduction")
+                       cl-acc (cl-buffer ctx acc-size :read-write)]
+          (set-args! evidence-kernel 0 cl-acc cl-params (buffer x))
+          (set-arg! sum-reduction-kernel 0 cl-acc)
+          (enq-reduce cqueue evidence-kernel sum-reduction-kernel WGS n)
+          (/ n (enq-read-double cqueue cl-acc))))
+      1.0)))
 
 (deftype GCNDataSetEngine [ctx cqueue prog ^long WGS]
   Releaseable
@@ -65,37 +76,46 @@
         (enq-reduce cqueue variance-kernel sum-reduction-kernel WGS (dim data-vect))
         (sv m (/ (enq-read-double cqueue cl-acc) (dec (dim data-vect))))))))
 
-(let [src [(slurp (io/resource "uncomplicate/clojurecl/kernels/reduction.cl"))
-           (slurp (io/resource "uncomplicate/bayadera/opencl/dataset/amd-gcn.cl"))]]
+(let [dataset-src [(slurp (io/resource "uncomplicate/clojurecl/kernels/reduction.cl"))
+                   (slurp (io/resource "uncomplicate/bayadera/opencl/dataset/amd-gcn.cl"))]]
 
   (defn gcn-dataset-engine
     ([ctx cqueue ^long WGS]
-     (let [prog (build-program! (program-with-source ctx src)
+     (let [prog (build-program! (program-with-source ctx dataset-src)
                                 (format "-cl-std=CL2.0 -DWGS=%s" WGS)
                                 nil)]
        (->GCNDataSetEngine ctx cqueue prog WGS)))
     ([ctx queue]
      (gcn-dataset-engine ctx queue 256))))
 
-(defn gcn-distribution-engine
-  ([ctx cqueue tmp-dir-name ^CLDistributionModel model WGS]
-   (let [prog (build-program!
-               (program-with-source
-                ctx [(.functions model) (.kernels model)])
-               (format "-cl-std=CL2.0 -DLOGPDF=%s -DPARAMS_SIZE=%d -DWGS=%s -I%s"
-                       (.name model) (.params-size model) WGS tmp-dir-name)
-               nil)]
-     (->GCNDistributionEngine cqueue prog model)))
-  ([ctx queue model]
-   (gcn-distribution-engine ctx queue model 256)))
+(let [dist-kernels-src (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/dist-kernels.cl"))
+      lik-kernels-src [(slurp (io/resource "uncomplicate/clojurecl/kernels/reduction.cl"))
+                       (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/lik-kernels.cl"))]]
+
+  ;; TODO handle likelihood kernels
+  (defn gcn-distribution-engine
+    ([ctx cqueue tmp-dir-name model WGS]
+     (let [prog (if (loglik model)
+                  (build-program!
+                   (program-with-source ctx (into (source model) (conj lik-kernels-src dist-kernels-src)))
+                   (format "-cl-std=CL2.0 -DLOGPDF=%s -DLOGLIK=%s -DPARAMS_SIZE=%d -DWGS=%s -I%s"
+                           (logpdf model) (loglik model) (params-size model) WGS tmp-dir-name)
+                   nil)
+                  (build-program!
+                   (program-with-source ctx (conj (source model) dist-kernels-src))
+                   (format "-cl-std=CL2.0 -DLOGPDF=%s -DPARAMS_SIZE=%d -DWGS=%s -I%s"
+                           (logpdf model) (params-size model) WGS tmp-dir-name)
+                   nil))]
+       (->GCNDistributionEngine ctx cqueue prog WGS model)))
+    ([ctx queue model]
+     (gcn-distribution-engine ctx queue model 256))))
 
 (defn gcn-direct-sampler
-  ([ctx cqueue tmp-dir-name neanderthal-factory ^CLDistributionModel model WGS]
+  ([ctx cqueue tmp-dir-name neanderthal-factory model WGS]
    (->GCNDirectSampler
     cqueue
     (build-program!
-     (program-with-source ctx [(.functions model)
-                               (.kernels model)])
+     (program-with-source ctx (into (source model) (sampler-source model)))
      (format "-cl-std=CL2.0 -DWGS=%s -I%s/" WGS tmp-dir-name)
      nil)
     neanderthal-factory))
@@ -169,7 +189,7 @@
         (gcn-direct-sampler ctx cqueue tmp-dir-name neanderthal-factory
                             gaussian-model WGS)
         uniform-model
-        (gcn-distribution-engine ctx cqueue tmp-dir-name  uniform-model WGS)
+        (gcn-distribution-engine ctx cqueue tmp-dir-name uniform-model WGS)
         (gcn-direct-sampler ctx cqueue tmp-dir-name neanderthal-factory
                             uniform-model WGS)
         beta-model

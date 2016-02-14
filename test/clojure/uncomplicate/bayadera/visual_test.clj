@@ -23,10 +23,11 @@
 
 (defn draw [])
 
-(q/defsketch diagrams
-  :renderer :opengl
-  :size :fullscreen
-  :display 3
-  :setup setup
-  :draw draw
-  :middleware [pause-on-error])
+(defn display-sketch []
+  (q/defsketch diagrams
+    :renderer :opengl
+    :size :fullscreen
+    :display 3
+    :setup setup
+    :draw draw
+    :middleware [pause-on-error]))

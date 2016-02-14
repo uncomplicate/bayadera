@@ -26,8 +26,10 @@
 
 (defn render-sample
   ([plot xs ps x-min x-max]
-   (render plot {:x-axis (axis x-min x-max) :x xs
-                 :y-axis (axis 0 (entry ps (imax ps))) :y ps})))
+   (let [imax-p (imax ps)]
+     (render plot {:x-axis (axis x-min x-max) :x xs
+                   :y-axis (axis 0 10) :y ps
+                   :vertical-lines [[(entry xs imax-p) (entry ps imax-p)]]}))))
 
 (defmulti plot-distribution
   (fn [plot xs ps options]
@@ -38,19 +40,19 @@
   (let [xs (p/data sample-xs)]
     (with-release [host-xs (transfer! xs (sv (dim xs)))
                    host-ps (transfer! ps (sv (dim ps)))]
-      (render-sample plot host-xs host-ps
-                     (entry host-xs (imin xs))
-                     (entry host-xs (imax xs))))))
+      (render-sample plot host-xs host-ps 0 1
+                     #_(entry host-xs (imin xs))
+                     #_(entry host-xs (imax xs))))))
 
 (def plots (atom nil))
 
 (defn analysis [prior-plot posterior-plot]
   (with-default
     (let [sample-count (* 256 44)
-          a 1
-          b 1
-          z 15.0
-          N 50.0
+          a 15
+          b 50
+          z 0.0
+          N 0.0
           posterior-model (posterior binomial-likelihood beta-model)]
       (with-release [engine-factory (gcn-engine-factory *context* *command-queue*)
                      prior-distribution (beta engine-factory a b)
@@ -62,7 +64,8 @@
                      posterior-sampler (sampler posterior-distribution)
                      posterior-sample (dataset engine-factory (sample posterior-sampler sample-count))
                      posterior-pdf (pdf posterior-distribution posterior-sample)]
-
+        (q/text (str (sum prior-pdf)) 200 1530)
+        ;;(q/text (str (evidence posterior-distribution posterior-sample)) 200 1550)
         (plot-distribution prior-plot prior-sample prior-pdf {})
         (plot-distribution posterior-plot posterior-sample posterior-pdf {})))))
 
@@ -80,10 +83,11 @@
       (q/image  (-> (:posterior @plots) (show)) 0 720)
       (reset! plots (assoc @plots :changed false)))))
 
-(q/defsketch diagrams
-  :renderer :p2d
-  :size :fullscreen
-  :display 2
-  :setup setup
-  :draw draw
-  :middleware [pause-on-error])
+(defn display-sketch []
+  (q/defsketch diagrams
+    :renderer :p2d
+    :size :fullscreen
+    :display 2
+    :setup setup
+    :draw draw
+    :middleware [pause-on-error]))

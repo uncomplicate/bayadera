@@ -94,7 +94,7 @@
   SamplerProvider
   (sampler [_]
     (let [samp (mcmc-sampler (beta-sampler bayadera-factory) (* 44 256 32)
-                            params 0 1)]
+                            params 0 1)] ;; TODO don't hardcode this
       (set-position! samp (rand-int Integer/MAX_VALUE))
       (init! samp (rand-int Integer/MAX_VALUE))
       (burn-in! samp 512 (wrap-float 2.0))
@@ -124,7 +124,7 @@
   SamplerProvider
   (sampler [_];;TODO make low/high optional in MCMC-stretch, and also introduce training options in this method
     (let [samp (mcmc-sampler sampler-factory (* 44 256 32)
-                             params (:lower model) (:upper model))]
+                             params (lower model) (upper model))]
       (set-position! samp (rand-int Integer/MAX_VALUE))
       (init! samp (rand-int Integer/MAX_VALUE))
       (burn-in! samp 512 (wrap-float 2.0))

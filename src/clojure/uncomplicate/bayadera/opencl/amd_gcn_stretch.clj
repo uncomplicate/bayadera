@@ -12,9 +12,7 @@
              [opencl :refer [gcn-single]]]
             [uncomplicate.bayadera.protocols :refer :all]
             [uncomplicate.bayadera.opencl
-             [utils :refer [with-philox get-tmp-dir-name]]
-             [generic :refer [->CLDistributionModel]]])
-  (:import [uncomplicate.bayadera.opencl.generic CLDistributionModel]))
+             [utils :refer [with-philox get-tmp-dir-name]]]))
 
 (defn ^:private inc! [^ints a]
   (doto a (aset 0 (inc (aget a 0)))))
@@ -225,21 +223,22 @@
                         walker-count (* 2 WGS))))))))
 
 (let [reduction-src (slurp (io/resource "uncomplicate/clojurecl/kernels/reduction.cl"))
+      kernels-src (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/dist-kernels.cl"))
+      uniform-sample-src (slurp (io/resource "uncomplicate/bayadera/opencl/rng/uniform-sampler.cl"))
       stretch-move-src (slurp (io/resource "uncomplicate/bayadera/opencl/mcmc/amd-gcn-stretch-move.cl"))]
 
   (defn gcn-stretch-1d-factory
-    ([ctx cqueue tmp-dir-name neanderthal-factory ^CLDistributionModel model WGS]
+    ([ctx cqueue tmp-dir-name neanderthal-factory model WGS]
      (->GCNStretch1DFactory
       ctx cqueue neanderthal-factory
       (build-program!
        (program-with-source
         ctx
-        [reduction-src
-         (.functions model)
-         (.kernels model)
-         stretch-move-src])
+        (into [uniform-sample-src
+               reduction-src]
+              (into (source model) [kernels-src stretch-move-src])))
        (format "-cl-std=CL2.0 -DLOGPDF=%s -DACCUMULATOR=float -DPARAMS_SIZE=%d -DWGS=%d -I%s/"
-               (.name model) (.params-size model) WGS tmp-dir-name)
+               (mcmc-logpdf model) (params-size model) WGS tmp-dir-name)
        nil)
       WGS))
     ([ctx cqueue neanderthal-factory model]

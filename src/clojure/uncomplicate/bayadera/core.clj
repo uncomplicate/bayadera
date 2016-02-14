@@ -3,9 +3,9 @@
             [uncomplicate.neanderthal
              [protocols :as np]
              [math :refer [sqrt]]
-             [core :refer [raw dim alter! create transfer! vect? raw]]
+             [core :refer [raw dim alter! create transfer! vect? raw scal!]]
              [native :refer [sv]]
-             [real :refer [entry]]]
+             [real :refer [entry sum]]]
             [uncomplicate.bayadera
              [protocols :as p]
              [impl :refer :all]
@@ -31,7 +31,7 @@
 
 ;;TODO This should probably go to opencl.clj, similarly to neanderthal
 (defn distribution [factory model]
-  (if (= 1 (:dimension model))
+  (if (= 1 (p/dimension model))
     (->UnivariateDistributionCreator factory
                                      (p/custom-engine factory model)
                                      (p/mcmc-factory factory model)
@@ -69,6 +69,9 @@
   (let [result (raw (p/data xs))];;TODO This works only for univariate xs
     (pdf! dist xs result)
     result))
+
+(defn evidence [dist xs]
+  (p/evidence (p/engine dist) (p/parameters dist) (p/data xs)))
 
 ;;(defn pdf* ^double [dist ^double x]
 ;;  (p/pdf* dist x))

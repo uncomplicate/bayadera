@@ -27,6 +27,21 @@
 
 ;; ==================== Models ====================
 
+(defprotocol DistributionModel
+  (mcmc-logpdf [this])
+  (logpdf [this])
+  (dimension [this])
+  (lower [this])
+  (upper [this]))
+
+(defprotocol LikelihoodModel
+  (loglik [this]))
+
+(defprotocol CLModel
+  (params-size [this])
+  (source [this])
+  (sampler-source [this]))
+
 (defprotocol Bayes
   (posterior [prior likelihood]))
 
@@ -35,7 +50,8 @@
 (defprotocol DistributionEngine
   (model [_])
   (logpdf! [_ params x res])
-  (pdf! [_ params x res]))
+  (pdf! [_ params x res])
+  (evidence [_ params x]))
 
 ;; ==================== Samplers ====================
 

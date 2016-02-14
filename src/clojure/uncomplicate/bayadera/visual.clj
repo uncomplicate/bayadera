@@ -117,6 +117,16 @@
     (.endDraw g)
     g))
 
+(defn vertical-lines! [^PGraphics g ^Axis x-axis ^Axis y-axis marks]
+  (let [map-x (axis-mapper x-axis 0 (dec (.width g)))
+        map-y (axis-mapper y-axis (dec (.height g)) 0)
+        y-0 (map-y 0)]
+    (.beginDraw g)
+    (doseq [[x y] marks]
+      (.line g (map-x x) y-0 (map-x x) (map-y y)))
+    (.endDraw g)
+    g))
+
 (defprotocol Plot
   (render-frame [this options])
   (render-data [this options])
@@ -160,13 +170,16 @@
       (bars! y-grid y-axis (* y-density grid-density))
       this))
   (render-data [this options]
-    (let [{:keys [x y x-axis y-axis style]
+    (let [{:keys [x y x-axis y-axis style vertical-lines]
            :or {x-axis (axis -1.0 1.0)
                 y-axis (axis -1.0 1.0)
-                style (.data theme)}} options]
+                style (.data theme)
+                vertical-lines []}} options]
       (clear! g-data)
       (style! g-data style)
       (points! g-data x-axis y-axis x y)
+      (style! g-data (.ticks theme))
+      (vertical-lines! g-data x-axis y-axis vertical-lines)
       this))
   (show [this]
     (show this {}))
