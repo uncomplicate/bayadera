@@ -95,7 +95,7 @@
   ;; TODO handle likelihood kernels
   (defn gcn-distribution-engine
     ([ctx cqueue tmp-dir-name model WGS]
-     (let [prog (if (loglik model)
+     (let [prog (if (satisfies? LikelihoodModel model)
                   (build-program!
                    (program-with-source ctx (into (source model) (conj lik-kernels-src dist-kernels-src)))
                    (format "-cl-std=CL2.0 -DLOGPDF=%s -DLOGLIK=%s -DPARAMS_SIZE=%d -DWGS=%s -I%s"

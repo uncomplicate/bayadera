@@ -4,7 +4,6 @@
             [uncomplicate.neanderthal
              [math :refer [log exp]]
              [core :refer [dim sum nrm2 fmap! copy dot scal! transfer!]]
-             [real :refer [entry]]
              [native :refer [sv]]]
             [uncomplicate.bayadera
              [protocols :as p]
@@ -93,8 +92,6 @@
                    post-sampler (time (sampler post-dist))
                    post-sample (dataset engine-factory (sample post-sampler sample-count))
                    post-pdf (pdf post-dist post-sample)
-                   host-sample (transfer! (p/data post-sample) (sv sample-count))
-                   host-pdf (transfer! post-pdf (sv sample-count))
                    real-post (beta engine-factory a1 b1)
                    real-sampler (sampler real-post)
                    real-sample (dataset engine-factory (sample real-sampler sample-count))
@@ -102,9 +99,9 @@
       (let [prior-evidence (evidence post-dist prior-sample)]
         (facts
          "Core functions for beta-bernoulli distribution."
-
-         prior-evidence => (roughly (exp (- (log-beta a1 b1) (log-beta a b))))
-         (/ (entry host-pdf 0) prior-evidence) => (roughly (beta-pdf a1 b1 (entry host-sample 0)))
-         (sum (scal! (/ 1.0 prior-evidence) post-pdf)) => (roughly (sum real-pdf))
+         prior-evidence => (roughly (exp (- (log-beta a1 b1) (log-beta a b)))
+                                    (/ prior-evidence 100.0))
+         (sum (scal! (/ prior-evidence) post-pdf))
+         => (roughly (sum real-pdf) (/ (sum real-pdf) 100.0))
          (mean post-sample) => (roughly (mean real-post) (/ (mean real-post) 100.0))
          (sd post-sample) => (roughly (sd real-post) (/ (sd real-post) 100.0)))))))

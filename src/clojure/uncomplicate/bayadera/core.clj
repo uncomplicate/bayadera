@@ -38,8 +38,11 @@
                                      model)
     (throw (UnsupportedOperationException. "TODO"))))
 
-(defn posterior [likelihood prior]
-  (p/posterior prior likelihood))
+(defn posterior
+  ([likelihood prior]
+   (p/posterior prior likelihood "posterior"))
+  ([likelihood prior ^String name]
+   (p/posterior prior likelihood name)))
 
 (defn mean-variance [x]
   (p/mean-variance x))

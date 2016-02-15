@@ -42,8 +42,8 @@
   (source [this])
   (sampler-source [this]))
 
-(defprotocol Bayes
-  (posterior [prior likelihood]))
+(defprotocol PriorModel
+  (posterior [prior likelihood model-name]))
 
 ;; ==================== Engines ====================
 
