@@ -49,10 +49,10 @@
 (defn analysis [prior-plot posterior-plot]
   (with-default
     (let [sample-count (* 256 44)
-          a 15
-          b 50
-          z 8.0
-          N 21.0
+          a 1
+          b 1
+          z 15
+          N 50
           posterior-model (posterior binomial-likelihood beta-model)]
       (with-release [engine-factory (gcn-engine-factory *context* *command-queue*)
                      prior-distribution (beta engine-factory a b)
