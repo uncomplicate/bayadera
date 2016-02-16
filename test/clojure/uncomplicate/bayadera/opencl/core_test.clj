@@ -12,22 +12,19 @@
              [impl :refer :all]
              [math :refer [log-beta]]
              [visual :refer :all]]
-            [uncomplicate.bayadera.opencl
-             [generic :refer [binomial-likelihood beta-model]]
-             [amd-gcn :refer [gcn-engine-factory]]]))
+            [uncomplicate.bayadera.opencl :refer [with-default-bayadera]]
+            [uncomplicate.bayadera.opencl.generic
+             :refer [binomial-likelihood beta-model]]))
 
-(with-release [dev (first (sort-by-cl-version (devices (first (platforms)))))
-               ctx (context [dev])
-               cqueue (command-queue ctx dev)]
+(with-default-bayadera
   (facts
    "Core functions for gaussian distribution."
    (let [sample-count (* 256 44 94)
          mu 200.0
          sigma 10.0]
-     (with-release [engine-factory (gcn-engine-factory ctx cqueue)
-                    dist (gaussian engine-factory mu sigma)
+     (with-release [dist (gaussian mu sigma)
                     gaussian-sampler (sampler dist)
-                    cl-sample (dataset engine-factory (sample gaussian-sampler sample-count))]
+                    cl-sample (dataset (sample gaussian-sampler sample-count))]
 
        (mean dist) => mu
        (sd dist) => sigma
@@ -41,10 +38,9 @@
    (let [sample-count (* 256 44 94)
          a 100.0
          b 133.4]
-     (with-release [engine-factory (gcn-engine-factory ctx cqueue)
-                    dist (uniform engine-factory a b)
+     (with-release [dist (uniform a b)
                     uniform-sampler (sampler dist)
-                    cl-sample (dataset engine-factory (sample uniform-sampler sample-count))
+                    cl-sample (dataset (sample uniform-sampler sample-count))
                     cl-pdf (pdf dist cl-sample)]
 
        (mean cl-sample) => (roughly (mean dist))
@@ -59,42 +55,35 @@
         beta-pdf (fn ^double [^double x] (beta-pdf a b x))]
     (facts
      "Core functions for beta distribution."
-     (with-release [engine-factory (gcn-engine-factory ctx cqueue)
-                    dist (beta engine-factory a b)
+     (with-release [dist (beta a b)
                     beta-sampler (time (sampler dist))
-                    cl-sample (dataset engine-factory (sample beta-sampler sample-count))
+                    cl-sample (dataset (sample beta-sampler sample-count))
                     cl-pdf (pdf dist cl-sample)
                     host (transfer! (p/data cl-sample) (sv sample-count))]
        (mean cl-sample) => (roughly (mean dist) (/ (mean dist) 100.0))
        (sd cl-sample) => (roughly (sd dist) (/ (sd dist) 100.0))
        (mean-variance cl-sample) => (sv (mean cl-sample) (variance cl-sample))
        (mean-sd cl-sample) => (sv (mean cl-sample) (sd cl-sample))
-       (sum cl-pdf) => (roughly (sum (time (fmap! beta-pdf host))))))))
+       (sum cl-pdf) => (roughly (sum (fmap! beta-pdf host)))))))
 
-(with-release [dev (first (sort-by-cl-version (devices (first (platforms)))))
-               ctx (context [dev])
-               cqueue (command-queue ctx dev)]
-
+(with-default-bayadera
   (let [sample-count (* 256 44 94)
         a 2.0
         b 5.0
         z 3.0
         N 5.0
         a1 (+ z a)
-        b1 (+ (- N z) b)
-        posterior-model (posterior binomial-likelihood beta-model)]
-    (with-release [engine-factory (gcn-engine-factory ctx cqueue)
-                   prior-dist (beta engine-factory a b)
-                   prior-sampler (sampler prior-dist)
-                   prior-sample (dataset engine-factory (sample prior-sampler sample-count))
-                   post (distribution engine-factory posterior-model)
+        b1 (+ (- N z) b)]
+    (with-release [prior-dist (beta a b)
+                   prior-sample (dataset (sample (sampler prior-dist) sample-count))
+                   post (posterior binomial-likelihood prior-dist "post")
                    post-dist (post (sv N z) (sv a b (log-beta a b)))
                    post-sampler (time (sampler post-dist))
-                   post-sample (dataset engine-factory (sample post-sampler sample-count))
+                   post-sample (dataset (sample post-sampler sample-count))
                    post-pdf (pdf post-dist post-sample)
-                   real-post (beta engine-factory a1 b1)
+                   real-post (beta a1 b1)
                    real-sampler (sampler real-post)
-                   real-sample (dataset engine-factory (sample real-sampler sample-count))
+                   real-sample (dataset (sample real-sampler sample-count))
                    real-pdf (pdf real-post real-sample)]
       (let [prior-evidence (evidence post-dist prior-sample)]
         (facts

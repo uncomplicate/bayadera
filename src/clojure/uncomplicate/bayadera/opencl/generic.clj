@@ -1,8 +1,12 @@
 (ns uncomplicate.bayadera.opencl.generic
   (:require [clojure.java.io :as io]
+            [uncomplicate.clojurecl.core :refer [Releaseable release]]
             [uncomplicate.bayadera.protocols :refer :all]))
 
 (deftype CLLikelihoodModel [name loglik-name ^long lik-params-size model-source]
+  Releaseable
+  (release [_]
+    true)
   CLModel
   (params-size [_]
     lik-params-size)
@@ -50,6 +54,12 @@
                            ^long dist-dimension ^long dist-params-size
                            lower-limit upper-limit
                            model-source likelihood-model]
+  Releaseable
+  (release [_]
+    (release likelihood-model))
+  ModelProvider
+  (model [this]
+    this)
   DistributionModel
   (logpdf [_]
     logpdf-name)
@@ -79,6 +89,12 @@
                               ^long dist-dimension ^long dist-params-size
                               lower-limit upper-limit
                               model-source sampler-kernels]
+  Releaseable
+  (release [_]
+    true)
+  ModelProvider
+  (model [this]
+    this)
   DistributionModel
   (logpdf [_]
     logpdf-name)
@@ -114,8 +130,6 @@
                          (if (sequential? sampler-source)
                            sampler-source
                            [sampler-source])))
-
-;; TODO kernels (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/kernels.cl"));;TODO move to engine
 
 (def gaussian-model
   (cl-distribution-model (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/gaussian.h"))

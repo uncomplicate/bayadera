@@ -45,10 +45,12 @@
 (defprotocol PriorModel
   (posterior [prior likelihood model-name]))
 
+(defprotocol ModelProvider
+  (model [this]))
+
 ;; ==================== Engines ====================
 
 (defprotocol DistributionEngine
-  (model [_])
   (logpdf! [_ params x res])
   (pdf! [_ params x res])
   (evidence [_ params x]))
@@ -86,7 +88,8 @@
   (uniform-engine [this])
   (binomial-engine [this])
   (beta-engine [this])
-  (custom-engine [this model]))
+  (distribution-engine [this model])
+  (posterior-engine [this model]))
 
 (defprotocol SamplerFactory
   (gaussian-sampler [this])

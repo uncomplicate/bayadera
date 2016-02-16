@@ -1,48 +1,86 @@
 (ns uncomplicate.bayadera.core
-  (:require [uncomplicate.clojurecl.toolbox :refer [wrap-int wrap-float]]
+  (:require [uncomplicate.clojurecl.core :refer [release]]
             [uncomplicate.neanderthal
              [protocols :as np]
              [math :refer [sqrt]]
-             [core :refer [raw dim alter! create transfer! vect? raw scal!]]
-             [native :refer [sv]]
-             [real :refer [entry sum]]]
+             [core :refer [raw dim alter! create transfer! vect? raw scal!]]]
             [uncomplicate.bayadera
              [protocols :as p]
              [impl :refer :all]
              [math :refer [log-beta]]]))
 
-(defn dataset [factory src]
-  (->UnivariateDataSet (p/dataset-engine factory)
-                       (cond (number? src)
-                             (create (np/factory factory) src)
-                             (vect? src) src)))
+(def ^:dynamic *bayadera-factory*)
 
-(defn gaussian [factory ^double mu ^double sigma]
-  (let [params (transfer! [mu sigma] (create (np/factory factory) 2))]
-    (->GaussianDistribution factory (p/gaussian-engine factory) params mu sigma)))
+(defmacro with-bayadera
+  [factory-fn params & body]
+  `(binding [*bayadera-factory*
+             (~factory-fn ~@params)]
+     (try ~@body
+          (finally (release *bayadera-factory*)))))
 
-(defn uniform [factory ^double a ^double b]
-  (let [params (transfer! [a b] (create (np/factory factory) 2))]
-    (->UniformDistribution factory (p/uniform-engine factory) params a b)))
+(defn dataset
+  ([src]
+   (dataset *bayadera-factory* src))
+  ([factory src]
+   (->UnivariateDataSet (p/dataset-engine factory)
+                        (cond (number? src)
+                              (create (np/factory factory) src)
+                              (vect? src) src))))
 
-(defn beta [factory ^double a ^double b]
-  (let [params (transfer! [a b (log-beta a b)] (create (np/factory factory) 3))]
-    (->BetaDistribution factory (p/beta-engine factory) params a b)))
+(defn gaussian
+  ([^double mu ^double sigma]
+   (gaussian *bayadera-factory* mu sigma))
+  ([factory ^double mu ^double sigma]
+   (let [params (transfer! [mu sigma] (create (np/factory factory) 2))]
+     (->GaussianDistribution factory (p/gaussian-engine factory) params mu sigma))))
+
+(defn uniform
+  ([^double a ^double b]
+   (uniform *bayadera-factory* a b))
+  ([factory ^double a ^double b]
+   (let [params (transfer! [a b] (create (np/factory factory) 2))]
+     (->UniformDistribution factory (p/uniform-engine factory) params a b))))
+
+(defn beta
+  ([^double a ^double b]
+   (beta *bayadera-factory* a b))
+  ([factory ^double a ^double b]
+   (let [params (transfer! [a b (log-beta a b)] (create (np/factory factory) 3))]
+     (->BetaDistribution factory (p/beta-engine factory) params a b))))
 
 ;;TODO This should probably go to opencl.clj, similarly to neanderthal
-(defn distribution [factory model]
-  (if (= 1 (p/dimension model))
-    (->UnivariateDistributionCreator factory
-                                     (p/custom-engine factory model)
-                                     (p/mcmc-factory factory model)
-                                     model)
-    (throw (UnsupportedOperationException. "TODO"))))
+(defn distribution
+  ([model]
+   (distribution *bayadera-factory* model))
+  ([factory model]
+   (if (= 1 (p/dimension model))
+     (->UnivariateDistributionCreator factory
+                                      (p/distribution-engine factory model)
+                                      (p/mcmc-factory factory model)
+                                      model)
+     (throw (UnsupportedOperationException. "TODO")))))
+
+(defn posterior-model
+  ([likelihood prior name]
+   (p/posterior prior likelihood name))
+  ([likelihood prior]
+   (posterior-model likelihood prior "posterior")))
 
 (defn posterior
-  ([likelihood prior]
-   (p/posterior prior likelihood "posterior"))
-  ([likelihood prior ^String name]
-   (p/posterior prior likelihood name)))
+  ([model]
+   (posterior *bayadera-factory* model))
+  ([factory model]
+   (if (= 1 (p/dimension model))
+     (->UnivariateDistributionCreator factory
+                                      (p/posterior-engine factory model)
+                                      (p/mcmc-factory factory model)
+                                      model)
+     (throw (UnsupportedOperationException. "TODO"))))
+  ([likelihood prior name]
+   (posterior *bayadera-factory* likelihood prior name))
+  ([factory likelihood prior ^String name]
+   (let [post-model (p/posterior (p/model prior) likelihood name)]
+     (posterior factory post-model))))
 
 (defn mean-variance [x]
   (p/mean-variance x))

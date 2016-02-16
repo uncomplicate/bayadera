@@ -56,6 +56,9 @@
   EngineProvider
   (engine [_]
     dist-eng)
+  ModelProvider
+  (model [_]
+    (model dist-eng))
   Location
   (mean [_]
     mu)
@@ -78,6 +81,9 @@
   EngineProvider
   (engine [_]
     dist-eng)
+  ModelProvider
+  (model [_]
+    (model dist-eng))
   Location
   (mean [_]
     (uniform-mean a b))
@@ -107,6 +113,9 @@
   EngineProvider
   (engine [_]
     dist-eng)
+  ModelProvider
+  (model [_]
+    (model dist-eng))
   Location
   (mean [_]
     (beta-mean a b))
@@ -117,14 +126,14 @@
     (beta-variance a b)))
 
 ;;TODO Sort out whether params are on the host or on the GPU!
-(deftype UnivariateDistribution [dist-eng sampler-factory params model]
+(deftype UnivariateDistribution [dist-eng sampler-factory params dist-model]
   Releaseable
   (release [_]
     (release params))
   SamplerProvider
   (sampler [_];;TODO make low/high optional in MCMC-stretch, and also introduce training options in this method
     (let [samp (mcmc-sampler sampler-factory (* 44 256 32)
-                             params (lower model) (upper model))]
+                             params (lower dist-model) (upper dist-model))]
       (set-position! samp (rand-int Integer/MAX_VALUE))
       (init! samp (rand-int Integer/MAX_VALUE))
       (burn-in! samp 512 (wrap-float 2.0))
@@ -136,9 +145,12 @@
     params)
   EngineProvider
   (engine [_]
-    dist-eng))
+    dist-eng)
+  ModelProvider
+  (model [_]
+    dist-model))
 
-(deftype UnivariateDistributionCreator [factory dist-eng sampler-factory model]
+(deftype UnivariateDistributionCreator [factory dist-eng sampler-factory dist-model]
   Releaseable
   (release [_]
     (release dist-eng)
@@ -148,10 +160,13 @@
     (->UnivariateDistribution
      dist-eng sampler-factory
      (transfer! params (create (np/factory factory) (dim params)))
-     model))
+     dist-model))
   (invoke [this data hyperparams]
     (let [params (sv (+ (dim data) (dim hyperparams)))]
       (do
         (copy! data (subvector params 0 (dim data)))
         (copy! hyperparams (subvector params (dim data) (dim hyperparams)))
-        (.invoke this params)))))
+        (.invoke this params))))
+  ModelProvider
+  (model [_]
+    dist-model))
