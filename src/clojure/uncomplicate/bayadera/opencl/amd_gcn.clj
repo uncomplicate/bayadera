@@ -1,6 +1,8 @@
 (ns uncomplicate.bayadera.opencl.amd-gcn
   (:require [clojure.java.io :as io]
-            [uncomplicate.clojurecl.core :refer :all]
+            [uncomplicate.clojurecl
+             [core :refer :all]
+             [info :refer [max-compute-units max-work-group-size queue-device]]]
             [uncomplicate.clojurecl.toolbox
              :refer [enq-reduce enq-read-double count-work-groups
                      wrap-int wrap-float]]
@@ -63,7 +65,7 @@
 
 (deftype GCNDataSetEngine [ctx cqueue prog ^long WGS]
   Releaseable
- (release [_]
+  (release [_]
     (release prog))
   Spread
   (mean-variance [this data-vect]
@@ -103,9 +105,9 @@
      (gcn-distribution-engine ctx queue model 256))))
 
 (let [kernels-src (format "%s\n%s\n%s"
-                              (slurp (io/resource "uncomplicate/clojurecl/kernels/reduction.cl"))
-                              (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/lik-kernels.cl"))
-                              (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/dist-kernels.cl")))]
+                          (slurp (io/resource "uncomplicate/clojurecl/kernels/reduction.cl"))
+                          (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/lik-kernels.cl"))
+                          (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/dist-kernels.cl")))]
 
   (defn gcn-posterior-engine
     ([ctx cqueue tmp-dir-name model WGS]
@@ -133,12 +135,13 @@
 
 ;; =========================== Distribution creators ===========================
 
-(defrecord GCNEngineFactory [ctx cqueue tmp-dir-name ^long WGS
-                             dataset-eng neanderthal-factory
-                             gaussial-model gaussian-eng gaussian-samp
-                             uniform-model uniform-eng uniform-samp
-                             beta-model beta-eng beta-samp
-                             binomial-model binomial-eng binomial-samp]
+(defrecord GCNBayaderaFactory [ctx cqueue tmp-dir-name
+                               ^long compute-units ^long WGS
+                               dataset-eng neanderthal-factory
+                               gaussial-model gaussian-eng gaussian-samp
+                               uniform-model uniform-eng uniform-samp
+                               beta-model beta-eng beta-samp
+                               binomial-model binomial-eng binomial-samp]
   Releaseable
   (release [_]
     (and (release dataset-eng)
@@ -179,6 +182,8 @@
     (with-philox tmp-dir-name
       (gcn-stretch-1d-factory ctx cqueue tmp-dir-name
                               neanderthal-factory model WGS)))
+  (processing-elements [_]
+    (* compute-units WGS))
   DataSetFactory
   (dataset-engine [_]
     dataset-eng)
@@ -186,14 +191,14 @@
   (factory [_]
     neanderthal-factory))
 
-(defn gcn-engine-factory
-  ([ctx cqueue ^long WGS]
+(defn gcn-bayadera-factory
+  ([ctx cqueue ^long compute-units ^long WGS]
    (let [tmp-dir-name (get-tmp-dir-name)
          neanderthal-factory (gcn-single ctx cqueue)]
      (with-philox tmp-dir-name
-       (->GCNEngineFactory
+       (->GCNBayaderaFactory
         ctx cqueue tmp-dir-name
-        WGS
+        compute-units WGS
         (gcn-dataset-engine ctx cqueue WGS)
         neanderthal-factory
         gaussian-model
@@ -213,4 +218,7 @@
         (gcn-stretch-1d-factory ctx cqueue tmp-dir-name neanderthal-factory
                                 binomial-model WGS)))))
   ([ctx cqueue]
-   (gcn-engine-factory ctx cqueue 256)))
+   (let [dev (queue-device cqueue)]
+     (gcn-bayadera-factory ctx cqueue
+                           (max-compute-units dev)
+                           (max-work-group-size dev)))))

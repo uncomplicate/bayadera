@@ -73,12 +73,12 @@
   (acor [this sample]))
 
 (defprotocol MCMCFactory
-  (mcmc-sampler [this walker-count cl-params low high]))
+  (mcmc-sampler [this walkers params low high]))
 
 ;; ==================== Factories and Providers  ====================
 
 (defprotocol SamplerProvider
-  (sampler [_]))
+  (sampler [_] [_ options]))
 
 (defprotocol EngineProvider
   (engine [_]))
@@ -96,7 +96,8 @@
   (uniform-sampler [this])
   (binomial-sampler [this])
   (beta-sampler [this])
-  (mcmc-factory [this model]))
+  (mcmc-factory [this model])
+  (processing-elements [this]))
 
 (defprotocol DataSetFactory
   (dataset-engine [this]))

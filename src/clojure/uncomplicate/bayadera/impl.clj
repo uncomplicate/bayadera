@@ -93,20 +93,33 @@
   (variance [_]
     (uniform-variance a b)))
 
+(defn ^:private prepare-mcmc-sampler
+  [sampler-factory walkers params lower-limit upper-limit
+   & {:keys [warm-up iterations a]
+      :or {warm-up 512
+           iterations 64
+           a 2.0}}]
+  (let [a (wrap-float a)
+        samp (mcmc-sampler sampler-factory walkers params lower-limit upper-limit)];;TODO make low/high optional in MCMC-stretch
+    (set-position! samp (rand-int Integer/MAX_VALUE))
+    (init! samp (rand-int Integer/MAX_VALUE))
+    (burn-in! samp warm-up a)
+    (init! samp (rand-int Integer/MAX_VALUE))
+    (run-sampler! samp iterations a)
+    samp))
+
 (deftype BetaDistribution [bayadera-factory dist-eng params ^double a ^double b]
   Releaseable
   (release [_]
     (release params))
   SamplerProvider
-  (sampler [_]
-    (let [samp (mcmc-sampler (beta-sampler bayadera-factory) (* 44 256 32)
-                            params 0 1)] ;; TODO don't hardcode this
-      (set-position! samp (rand-int Integer/MAX_VALUE))
-      (init! samp (rand-int Integer/MAX_VALUE))
-      (burn-in! samp 512 (wrap-float 2.0))
-      (init! samp (rand-int Integer/MAX_VALUE))
-      (run-sampler! samp 64 (wrap-float 2.0))
-      samp))
+  (sampler [_ options]
+    (let [walkers (or (:walkers options)
+                      (* (long (processing-elements bayadera-factory)) 32))]
+      (apply prepare-mcmc-sampler (beta-sampler bayadera-factory)
+             walkers params 0.0 1.0 options)))
+  (sampler [this]
+    (sampler this nil))
   Distribution
   (parameters [_]
     params)
@@ -126,20 +139,18 @@
     (beta-variance a b)))
 
 ;;TODO Sort out whether params are on the host or on the GPU!
-(deftype UnivariateDistribution [dist-eng sampler-factory params dist-model]
+(deftype UnivariateDistribution [bayadera-factory dist-eng sampler-factory params dist-model]
   Releaseable
   (release [_]
     (release params))
   SamplerProvider
-  (sampler [_];;TODO make low/high optional in MCMC-stretch, and also introduce training options in this method
-    (let [samp (mcmc-sampler sampler-factory (* 44 256 32)
-                             params (lower dist-model) (upper dist-model))]
-      (set-position! samp (rand-int Integer/MAX_VALUE))
-      (init! samp (rand-int Integer/MAX_VALUE))
-      (burn-in! samp 512 (wrap-float 2.0))
-      (init! samp (rand-int Integer/MAX_VALUE))
-      (run-sampler! samp 64 (wrap-float 2.0))
-      samp))
+  (sampler [_ options]
+    (let [walkers (or (:walkers options)
+                      (* (long (processing-elements bayadera-factory)) 32))]
+      (apply prepare-mcmc-sampler sampler-factory walkers params
+             (lower dist-model) (upper dist-model) options)))
+  (sampler [this]
+    (sampler this nil))
   Distribution
   (parameters [_]
     params)
@@ -150,7 +161,7 @@
   (model [_]
     dist-model))
 
-(deftype UnivariateDistributionCreator [factory dist-eng sampler-factory dist-model]
+(deftype UnivariateDistributionCreator [bayadera-factory dist-eng sampler-factory dist-model]
   Releaseable
   (release [_]
     (release dist-eng)
@@ -158,8 +169,8 @@
   IFn
   (invoke [_ params];;Use GPU params instead of host later
     (->UnivariateDistribution
-     dist-eng sampler-factory
-     (transfer! params (create (np/factory factory) (dim params)))
+     bayadera-factory dist-eng sampler-factory
+     (transfer! params (create (np/factory bayadera-factory) (dim params)))
      dist-model))
   (invoke [this data hyperparams]
     (let [params (sv (+ (dim data) (dim hyperparams)))]
