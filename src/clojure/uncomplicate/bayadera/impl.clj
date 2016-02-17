@@ -6,7 +6,7 @@
             [uncomplicate.neanderthal
              [protocols :as np]
              [math :refer [sqrt]]
-             [core :refer [dim create subvector copy! transfer!]]
+             [core :refer [dim create-raw create-vector subvector copy! transfer! vect?]]
              [real :refer [entry sum]]
              [native :refer [sv]]]
             [uncomplicate.bayadera
@@ -14,6 +14,9 @@
              [math :refer [log-beta]]
              [distributions :refer :all]])
   (:import [clojure.lang IFn]))
+
+(def ^:private INVALID_PARAMS_MESSAGE
+  "Invalid params dimension. Must be %s, but is %s.")
 
 (defrecord UnivariateDataSet [dataset-eng data-vect]
   Releaseable
@@ -42,6 +45,7 @@
     (sample! samp-engine (rand-int Integer/MAX_VALUE) params res)))
 
 ;; ==================== Distributions ====================
+
 (deftype GaussianDistribution [bayadera-factory dist-eng params
                                ^double mu ^double sigma]
   Releaseable
@@ -138,8 +142,8 @@
   (variance [_]
     (beta-variance a b)))
 
-;;TODO Sort out whether params are on the host or on the GPU!
-(deftype UnivariateDistribution [bayadera-factory dist-eng sampler-factory params dist-model]
+(deftype UnivariateDistribution [bayadera-factory dist-eng
+                                 sampler-factory params dist-model]
   Releaseable
   (release [_]
     (release params))
@@ -161,23 +165,75 @@
   (model [_]
     dist-model))
 
-(deftype UnivariateDistributionCreator [bayadera-factory dist-eng sampler-factory dist-model]
+(deftype UnivariateDistributionCreator [bayadera-factory dist-eng
+                                        sampler-factory dist-model]
   Releaseable
   (release [_]
-    (release dist-eng)
-    (release sampler-factory))
+    (and
+     (release dist-eng)
+     (release sampler-factory)))
   IFn
-  (invoke [_ params];;Use GPU params instead of host later
-    (->UnivariateDistribution
-     bayadera-factory dist-eng sampler-factory
-     (transfer! params (create (np/factory bayadera-factory) (dim params)))
-     dist-model))
+  (invoke [_ params]
+    (let [params-dim (if (vect? params) (dim params) (count params))]
+      (if (= (params-size dist-model) params-dim)
+        (->UnivariateDistribution
+         bayadera-factory dist-eng sampler-factory
+         (create-vector (np/factory bayadera-factory) params)
+         dist-model)
+        (throw (IllegalArgumentException.
+                (format INVALID_PARAMS_MESSAGE (params-size dist-model)
+                        (dim data)))))))
   (invoke [this data hyperparams]
-    (let [params (sv (+ (dim data) (dim hyperparams)))]
-      (do
-        (copy! data (subvector params 0 (dim data)))
-        (copy! hyperparams (subvector params (dim data) (dim hyperparams)))
-        (.invoke this params))))
+    (if (sequential? data)
+      (.invoke this (into data hyperparams))
+      (let [params (create-raw (np/factory data) (+ (dim data) (dim hyperparams)))];;TODO use concatenate
+        (do
+          (copy! data (subvector params 0 (dim data)))
+          (copy! hyperparams (subvector params (dim data) (dim hyperparams)))
+          (.invoke this params)))))
   ModelProvider
   (model [_]
     dist-model))
+
+(deftype UnivariatePosteriorPriorCreator [bayadera-factory dist-eng
+                                          sampler-factory hyperparams dist-model]
+  Releaseable
+  (release [_]
+    (and (release hyperparams)
+         (release dist-eng)
+         (release sampler-factory)))
+  IFn
+  (invoke [_ data]
+    (let [expected-dim (- (long (params-size dist-model)) (dim hyperparams))
+          data-dim (if (vect? data) (dim data) (count data))]
+      (if (= expected-dim data-dim)
+        (let [params-copy (create-raw (np/factory bayadera-factory)
+                                      (params-size dist-model))]
+          (transfer! data (subvector params-copy 0 expected-dim))
+          (copy! hyperparams (subvector params-copy expected-dim (dim hyperparams)))
+          (->UnivariateDistribution
+           bayadera-factory dist-eng sampler-factory params-copy dist-model))
+        (throw (IllegalArgumentException.
+                (format INVALID_PARAMS_MESSAGE expected-dim data-dim))))))
+  ModelProvider
+  (model [_]
+    dist-model))
+
+(defn univariate-distribution-creator [factory model]
+  (->UnivariateDistributionCreator factory
+                                   (distribution-engine factory model)
+                                   (mcmc-factory factory model)
+                                   model))
+
+(defn univariate-posterior-creator [factory model]
+  (->UnivariateDistributionCreator factory
+                                   (posterior-engine factory model)
+                                   (mcmc-factory factory model)
+                                   model))
+
+(defn univariate-posterior-prior-creator [factory params model]
+  (->UnivariatePosteriorPriorCreator factory
+                                     (posterior-engine factory model)
+                                     (mcmc-factory factory model)
+                                     params
+                                     model))

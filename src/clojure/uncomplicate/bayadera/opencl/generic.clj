@@ -1,7 +1,15 @@
 (ns uncomplicate.bayadera.opencl.generic
   (:require [clojure.java.io :as io]
+            [uncomplicate.neanderthal
+             [core :as nc]
+             [protocols :as np]]
             [uncomplicate.clojurecl.core :refer [Releaseable release]]
-            [uncomplicate.bayadera.protocols :refer :all]))
+            [uncomplicate.bayadera
+             [protocols :refer :all]
+             [impl :refer [univariate-posterior-creator
+                           univariate-posterior-prior-creator]]]))
+
+;; ==================== Likelihood model ====================================
 
 (deftype CLLikelihoodModel [name loglik-name ^long lik-params-size model-source]
   Releaseable
@@ -26,29 +34,9 @@
   (->CLLikelihoodModel name loglik params-size
                        (if (sequential? source) source [source])))
 
+;; ==================== Posterior model ====================================
+
 (declare ->CLPosteriorModel)
-
-(let [post-source (slurp (io/resource "uncomplicate/bayadera/opencl/templates/posterior.clt"))]
-
-  (defn cl-posterior [prior lik ^String name]
-    (let [post-name (str (gensym name))
-          post-logpdf (format "%s_logpdf" post-name)
-          post-mcmc-logpdf (format "%s_mcmc_logpdf" post-name)
-          post-params-size (+ (long (params-size lik))
-                              (long (params-size prior)))]
-      (->CLPosteriorModel post-name post-logpdf post-mcmc-logpdf
-                          (dimension prior) post-params-size
-                          (lower prior) (upper prior)
-                          (conj (into [] (dedupe)
-                                      (into (source prior) (source lik)))
-                                (format "%s\n%s"
-                                        (format post-source post-logpdf
-                                                (loglik lik) (logpdf prior)
-                                                (params-size lik))
-                                        (format post-source post-mcmc-logpdf
-                                                (loglik lik) (mcmc-logpdf prior)
-                                                (params-size lik))))
-                          lik))))
 
 (deftype CLPosteriorModel [name logpdf-name mcmc-logpdf-name
                            ^long dist-dimension ^long dist-params-size
@@ -80,10 +68,9 @@
   (source [_]
     model-source)
   (sampler-source [_]
-    nil)
-  PriorModel
-  (posterior [prior likelihood name]
-    (cl-posterior prior likelihood name)))
+    nil))
+
+;; ==================== Distribution model ====================================
 
 (deftype CLDistributionModel [name logpdf-name mcmc-logpdf-name
                               ^long dist-dimension ^long dist-params-size
@@ -112,10 +99,7 @@
   (source [_]
     model-source)
   (sampler-source [_]
-    sampler-kernels)
-  PriorModel
-  (posterior [prior likelihood name]
-    (cl-posterior prior likelihood name)))
+    sampler-kernels))
 
 (defn cl-distribution-model
   [source & {:keys [name logpdf mcmc-logpdf dimension params-size
@@ -130,6 +114,60 @@
                          (if (sequential? sampler-source)
                            sampler-source
                            [sampler-source])))
+
+;; ================ Posterior multimethod implementations ======================
+
+(let [post-source (slurp (io/resource "uncomplicate/bayadera/opencl/templates/posterior.clt"))]
+
+  (defn cl-posterior-model [^String name lik prior]
+    (let [post-name (str (gensym name))
+          post-logpdf (format "%s_logpdf" post-name)
+          post-mcmc-logpdf (format "%s_mcmc_logpdf" post-name)
+          post-params-size (+ (long (params-size lik))
+                              (long (params-size prior)))]
+      (->CLPosteriorModel post-name post-logpdf post-mcmc-logpdf
+                          (dimension prior) post-params-size
+                          (lower prior) (upper prior)
+                          (conj (into [] (dedupe)
+                                      (into (source prior) (source lik)))
+                                (format "%s\n%s"
+                                        (format post-source post-logpdf
+                                                (loglik lik) (logpdf prior)
+                                                (params-size lik))
+                                        (format post-source post-mcmc-logpdf
+                                                (loglik lik) (mcmc-logpdf prior)
+                                                (params-size lik))))
+                          lik))))
+
+(defmethod posterior-model [CLLikelihoodModel CLDistributionModel]
+  [name likelihood prior]
+  (cl-posterior-model name likelihood prior))
+
+(defmethod posterior-model [CLLikelihoodModel CLPosteriorModel]
+  [name likelihood prior]
+  (cl-posterior-model name likelihood prior))
+
+(defmethod posterior-model [CLLikelihoodModel Distribution]
+  [name likelihood prior]
+  (cl-posterior-model name likelihood (model prior)))
+
+(defmethod posterior [1 CLPosteriorModel]
+  [factory model]
+  (univariate-posterior-creator factory model))
+
+(defmethod posterior [1 CLLikelihoodModel DistributionModel]
+  [factory name likelihood prior]
+  (univariate-posterior-creator
+   factory (cl-posterior-model name likelihood (model prior))))
+
+(defmethod posterior
+  [1 CLLikelihoodModel uncomplicate.bayadera.protocols.Distribution]
+  [factory name likelihood prior]
+  (univariate-posterior-prior-creator
+   factory (nc/copy (parameters prior))
+   (cl-posterior-model name likelihood (model prior))))
+
+;; ==================== Distribution Models ====================================
 
 (def gaussian-model
   (cl-distribution-model (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/gaussian.h"))

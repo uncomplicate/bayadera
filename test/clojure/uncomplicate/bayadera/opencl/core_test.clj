@@ -17,6 +17,7 @@
              :refer [binomial-likelihood beta-model]]))
 
 (with-default-bayadera
+
   (facts
    "Core functions for gaussian distribution."
    (let [sample-count (* 256 44 94)
@@ -68,16 +69,13 @@
 
 (with-default-bayadera
   (let [sample-count (* 256 44 94)
-        a 2.0
-        b 5.0
-        z 3.0
-        N 5.0
-        a1 (+ z a)
-        b1 (+ (- N z) b)]
+        a 2.0 b 5.0
+        z 3.0 N 5.0
+        a1 (+ z a) b1 (+ (- N z) b)]
     (with-release [prior-dist (beta a b)
                    prior-sample (dataset (sample (sampler prior-dist) sample-count))
-                   post (posterior binomial-likelihood prior-dist "post")
-                   post-dist (post (sv N z) (sv a b (log-beta a b)))
+                   post (posterior "post" binomial-likelihood prior-dist)
+                   post-dist (post (binomial-lik-params N z))
                    post-sampler (time (sampler post-dist))
                    post-sample (dataset (sample post-sampler sample-count))
                    post-pdf (pdf post-dist post-sample)

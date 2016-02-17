@@ -17,9 +17,9 @@
              [impl :refer :all]
              [math :refer [log-beta]]
              [visual :refer :all]]
+            [uncomplicate.bayadera.opencl :refer [with-default-bayadera]]
             [uncomplicate.bayadera.opencl
-             [generic :refer [binomial-likelihood beta-model]]
-             [amd-gcn :refer [gcn-engine-factory]]]
+             [generic :refer [binomial-likelihood beta-model]]]
             [clojure.java.io :as io])
   (:import [uncomplicate.neanderthal.opencl.clblock CLBlockVector]
            [uncomplicate.bayadera.impl UnivariateDataSet]))
@@ -47,27 +47,22 @@
 (def plots (atom nil))
 
 (defn analysis [prior-plot posterior-plot]
-  (with-default
+  (with-default-bayadera
     (let [sample-count (* 256 44)
-          a 1
-          b 1
-          z 15
-          N 50
-          posterior-model (posterior binomial-likelihood beta-model)]
-      (with-release [engine-factory (gcn-engine-factory *context* *command-queue*)
-                     prior-distribution (beta engine-factory a b)
-                     prior-sampler (sampler prior-distribution)
-                     prior-sample (dataset engine-factory (sample prior-sampler sample-count))
-                     prior-pdf (pdf prior-distribution prior-sample)
-                     create-posterior (distribution engine-factory posterior-model)
-                     posterior-distribution (create-posterior (sv N z) (sv a b (log-beta a b)))
-                     posterior-sampler (sampler posterior-distribution)
-                     posterior-sample (dataset engine-factory (sample posterior-sampler sample-count))
-                     posterior-pdf (scal! (/ 1.0 (evidence posterior-distribution prior-sample))
-                                          (pdf posterior-distribution posterior-sample))]
+          a 1 b 1
+          z 15 N 50]
+      (with-release [prior-dist (beta a b)
+                     prior-sample (dataset (sample (sampler prior-dist) sample-count))
+                     prior-pdf (pdf prior-dist prior-sample)
+                     post (posterior (posterior-model binomial-likelihood beta-model))
+                     post-dist (post (binomial-lik-params N z) (beta-params a b))
+                     post-sampler (time (sampler post-dist))
+                     post-sample (dataset (sample post-sampler sample-count))
+                     post-pdf (scal! (/ 1.0 (evidence post-dist prior-sample))
+                                     (pdf post-dist post-sample))]
 
         (plot-distribution prior-plot prior-sample prior-pdf {})
-        (plot-distribution posterior-plot posterior-sample posterior-pdf {})))))
+        (plot-distribution posterior-plot post-sample post-pdf {})))))
 
 (defn setup []
   (reset! plots

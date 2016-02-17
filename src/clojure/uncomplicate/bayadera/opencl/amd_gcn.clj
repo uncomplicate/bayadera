@@ -32,13 +32,13 @@
         this)
       res)))
 
-(deftype GCNDistributionEngine [ctx cqueue prog ^long WGS model-record]
+(deftype GCNDistributionEngine [ctx cqueue prog ^long WGS dist-model]
   Releaseable
   (release [_]
     (release prog))
   ModelProvider
   (model [_]
-    model-record)
+    dist-model)
   DistributionEngine
   (logpdf! [this cl-params x res]
     (with-release [logpdf-kernel (kernel prog "logpdf")]
@@ -51,7 +51,7 @@
       (enq-nd! cqueue pdf-kernel (work-size-1d (dim x)))
       this))
   (evidence [this cl-params x]
-    (if (satisfies? LikelihoodModel model-record)
+    (if (satisfies? LikelihoodModel dist-model)
       (let [n (dim x)
             acc-size (* Double/BYTES (count-work-groups WGS n))]
         (with-release [evidence-kernel (kernel prog "evidence_reduce")

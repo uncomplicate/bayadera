@@ -42,11 +42,19 @@
   (source [this])
   (sampler-source [this]))
 
-(defprotocol PriorModel
-  (posterior [prior likelihood model-name]))
-
 (defprotocol ModelProvider
   (model [this]))
+
+(defmulti posterior-model (fn [name likelihood prior]
+                            [(class likelihood) (class prior)]))
+
+
+(defmulti posterior (fn
+                      ([factory model]
+                       [(dimension model) (class model)])
+                      ([factory name likelihood prior]
+                       [(dimension (model prior)) (class likelihood) (class prior)])))
+
 
 ;; ==================== Engines ====================
 

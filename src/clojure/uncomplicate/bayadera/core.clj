@@ -3,7 +3,7 @@
             [uncomplicate.neanderthal
              [protocols :as np]
              [math :refer [sqrt]]
-             [core :refer [raw dim alter! create transfer! vect? raw scal!]]]
+             [core :refer [dim alter! create-vector vect? raw scal!]]]
             [uncomplicate.bayadera
              [protocols :as p]
              [impl :refer :all]
@@ -18,69 +18,85 @@
      (try ~@body
           (finally (release *bayadera-factory*)))))
 
+;; =============================================================================
+
 (defn dataset
   ([src]
    (dataset *bayadera-factory* src))
   ([factory src]
    (->UnivariateDataSet (p/dataset-engine factory)
                         (cond (number? src)
-                              (create (np/factory factory) src)
+                              (create-vector (np/factory factory) src)
                               (vect? src) src))))
+
+;; =============================================================================
+
+(defn gaussian-params [mu sigma]
+  [mu sigma])
 
 (defn gaussian
   ([^double mu ^double sigma]
    (gaussian *bayadera-factory* mu sigma))
   ([factory ^double mu ^double sigma]
-   (let [params (transfer! [mu sigma] (create (np/factory factory) 2))]
-     (->GaussianDistribution factory (p/gaussian-engine factory) params mu sigma))))
+   (->GaussianDistribution
+    factory (p/gaussian-engine factory)
+    (create-vector (np/factory factory) (gaussian-params mu sigma))
+    mu sigma)))
+
+(defn uniform-params [a b]
+  [a b])
 
 (defn uniform
   ([^double a ^double b]
    (uniform *bayadera-factory* a b))
   ([factory ^double a ^double b]
-   (let [params (transfer! [a b] (create (np/factory factory) 2))]
-     (->UniformDistribution factory (p/uniform-engine factory) params a b))))
+   (->UniformDistribution
+    factory (p/uniform-engine factory)
+    (create-vector (np/factory factory) (uniform-params a b))
+    a b)))
+
+(defn beta-params [a b]
+  [a b (log-beta a b)])
 
 (defn beta
   ([^double a ^double b]
    (beta *bayadera-factory* a b))
   ([factory ^double a ^double b]
-   (let [params (transfer! [a b (log-beta a b)] (create (np/factory factory) 3))]
-     (->BetaDistribution factory (p/beta-engine factory) params a b))))
+   (->BetaDistribution
+    factory (p/beta-engine factory)
+    (create-vector (np/factory factory) (beta-params a b))
+    a b)))
 
-;;TODO This should probably go to opencl.clj, similarly to neanderthal
+(defn binomial-lik-params [n k]
+  [n k])
+
+;; =============================================================================
+
 (defn distribution
   ([model]
    (distribution *bayadera-factory* model))
   ([factory model]
    (if (= 1 (p/dimension model))
-     (->UnivariateDistributionCreator factory
-                                      (p/distribution-engine factory model)
-                                      (p/mcmc-factory factory model)
-                                      model)
+     (univariate-distribution-creator factory model)
      (throw (UnsupportedOperationException. "TODO")))))
 
 (defn posterior-model
-  ([likelihood prior name]
-   (p/posterior prior likelihood name))
+  ([name likelihood prior]
+   (p/posterior-model name likelihood prior))
   ([likelihood prior]
-   (posterior-model likelihood prior "posterior")))
+   (p/posterior-model "posterior" likelihood prior)))
 
 (defn posterior
   ([model]
-   (posterior *bayadera-factory* model))
+   (p/posterior *bayadera-factory* model))
   ([factory model]
-   (if (= 1 (p/dimension model))
-     (->UnivariateDistributionCreator factory
-                                      (p/posterior-engine factory model)
-                                      (p/mcmc-factory factory model)
-                                      model)
-     (throw (UnsupportedOperationException. "TODO"))))
-  ([likelihood prior name]
-   (posterior *bayadera-factory* likelihood prior name))
-  ([factory likelihood prior ^String name]
-   (let [post-model (p/posterior (p/model prior) likelihood name)]
-     (posterior factory post-model))))
+   (p/posterior factory model))
+  ([^String name likelihood prior]
+   (p/posterior *bayadera-factory* name likelihood prior))
+  ([factory ^String name likelihood prior]
+   (p/posterior factory name likelihood prior)))
+
+;; =============================================================================
 
 (defn mean-variance [x]
   (p/mean-variance x))
