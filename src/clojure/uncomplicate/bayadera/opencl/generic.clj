@@ -1,9 +1,9 @@
 (ns uncomplicate.bayadera.opencl.generic
   (:require [clojure.java.io :as io]
+            [uncomplicate.commons.core :refer [Releaseable release]]
             [uncomplicate.neanderthal
              [core :as nc]
              [protocols :as np]]
-            [uncomplicate.clojurecl.core :refer [Releaseable release]]
             [uncomplicate.bayadera
              [protocols :refer :all]
              [impl :refer [univariate-posterior-creator

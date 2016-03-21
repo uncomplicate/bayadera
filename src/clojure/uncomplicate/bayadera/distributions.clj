@@ -1,7 +1,9 @@
 (ns uncomplicate.bayadera.distributions
-  (:require [uncomplicate.neanderthal
+  (:require [uncomplicate.commons.core :refer [double-fn]]
+            [uncomplicate.fluokitten.core :refer [foldmap fmap]]
+            [uncomplicate.neanderthal
              [math :refer [log exp pow floor sqrt]]
-             [core :refer [scal! copy! copy freduce fmap!]]
+             [core :refer [scal! copy! copy]]
              [real :refer [asum]]]
             [uncomplicate.bayadera.math
              :refer [log-factorial factorial log-binco log-multico
@@ -347,18 +349,21 @@
 
 ;; ==================== Multinomial Distribution ================
 
+(def ^:private p+ (double-fn +) )
+
 (defn multinomial-log-unscaled
   ^double [ps ks]
-  (freduce (fn ^double [^double acc ^double p ^double k]
-             (+ acc (* k (log p))))
-           0.0
+  (foldmap p+
+           (fn ^double [^double p ^double k]
+             (* k (log p)))
            ps ks))
 
 (defn multinomial-log-pmf
   ^double [ps ks]
-  (freduce (fn ^double [^double acc ^double p ^double k]
-             (+ acc (- (* k (log p)) (log-factorial k))))
+  (foldmap p+
            (log-factorial (asum ks))
+           (fn ^double [^double p ^double k]
+             (- (* k (log p)) (log-factorial k)))
            ps ks))
 
 (defn multinomial-pmf
@@ -373,9 +378,9 @@
 
 (defn multinomial-variance
   ^double [ps ks]
-  (scal! (fmap! (fn ^double [^double p]
-                  (* p (- 1.0 p)))
-                (copy ps))))
+  (scal! (fmap (fn ^double [^double p]
+                 (* p (- 1.0 p)))
+               ps)))
 
 (defn multinomial-cdf
   ^double [ps ks]

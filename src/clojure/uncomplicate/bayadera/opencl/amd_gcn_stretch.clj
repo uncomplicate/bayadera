@@ -1,9 +1,10 @@
 (ns uncomplicate.bayadera.opencl.amd-gcn-stretch
   (:require [clojure.java.io :as io]
+            [uncomplicate.commons.core
+             :refer [Releaseable release wrap-float wrap-int with-release]]
             [uncomplicate.clojurecl
              [core :refer :all]
-             [toolbox :refer [count-work-groups enq-reduce enq-read-long
-                              wrap-float wrap-int]]]
+             [toolbox :refer [count-work-groups enq-reduce enq-read-long]]]
             [uncomplicate.neanderthal
              [math :refer [sqrt]]
              [core :refer [dim create]]

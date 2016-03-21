@@ -1,11 +1,12 @@
 (ns uncomplicate.bayadera.opencl.amd-gcn
   (:require [clojure.java.io :as io]
+            [uncomplicate.commons.core
+             :refer [Releaseable release with-release wrap-int wrap-float]]
             [uncomplicate.clojurecl
              [core :refer :all]
              [info :refer [max-compute-units max-work-group-size queue-device]]]
             [uncomplicate.clojurecl.toolbox
-             :refer [enq-reduce enq-read-double count-work-groups
-                     wrap-int wrap-float]]
+             :refer [enq-reduce enq-read-double count-work-groups]]
             [uncomplicate.neanderthal
              [core :refer [dim create]]
              [real :refer [sum]]

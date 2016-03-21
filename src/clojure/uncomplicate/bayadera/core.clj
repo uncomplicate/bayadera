@@ -1,5 +1,5 @@
 (ns uncomplicate.bayadera.core
-  (:require [uncomplicate.clojurecl.core :refer [release]]
+  (:require [uncomplicate.commons.core :refer [release]]
             [uncomplicate.neanderthal
              [protocols :as np]
              [math :refer [sqrt]]

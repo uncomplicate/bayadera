@@ -1,10 +1,10 @@
 (ns uncomplicate.bayadera.opencl.mcmc-stretch-test
   (:require [midje.sweet :refer :all]
             [clojure.core.async :refer [chan <!!]]
+            [uncomplicate.commons.core :refer [with-release wrap-float]]
+            [uncomplicate.clojurecl.core :refer [enq-read!]]
             [clojure.java.io :as io]
-            [uncomplicate.clojurecl
-             [core :refer :all]
-             [toolbox :refer [wrap-float]]]
+            [uncomplicate.clojurecl.core :refer :all]
             [uncomplicate.neanderthal
              [core :refer [dim create]]
              [real :refer [sum]]

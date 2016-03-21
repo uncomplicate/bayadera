@@ -5,10 +5,11 @@
             [quil.middlewares
              [pause-on-error :refer [pause-on-error]]
              [fun-mode :refer [fun-mode]]]
-            [uncomplicate.clojurecl.core :refer :all]
+            [uncomplicate.commons.core :refer :all]
+            [uncomplicate.fluokitten.core :refer [fmap!]]
             [uncomplicate.neanderthal
              [math :refer [log exp]]
-             [core :refer [dim sum nrm2 fmap! copy transfer! dot entry imax imin scal!]]
+             [core :refer [dim sum nrm2 copy transfer! dot entry imax imin scal!]]
              [native :refer [sv]]]
             [uncomplicate.bayadera
              [protocols :as p]

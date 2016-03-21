@@ -1,8 +1,6 @@
 (ns uncomplicate.bayadera.impl
   (:require [clojure.java.io :as io]
-            [uncomplicate.clojurecl
-             [core :refer [Releaseable release]]
-             [toolbox :refer [wrap-float]]]
+            [uncomplicate.commons.core :refer [Releaseable release wrap-float]]
             [uncomplicate.neanderthal
              [protocols :as np]
              [math :refer [sqrt]]

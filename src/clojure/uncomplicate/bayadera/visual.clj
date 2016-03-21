@@ -1,5 +1,5 @@
 (ns uncomplicate.bayadera.visual
-  (:require [uncomplicate.clojurecl.core :refer [with-release]]
+  (:require [uncomplicate.commons.core :refer [with-release]]
             [uncomplicate.neanderthal
              [core :refer [dim]]
              [real :refer [entry]]

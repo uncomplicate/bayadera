@@ -1,6 +1,6 @@
 (ns uncomplicate.bayadera.examples.fapsp.ch04-distributions-test
   (:require [midje.sweet :refer :all]
-            [uncomplicate.clojurecl.core :refer [with-release]]
+            [uncomplicate.commons.core :refer [with-release]]
             [uncomplicate.neanderthal
              [math :refer [exp sqrt]]
              [native :refer [dv]]]

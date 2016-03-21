@@ -1,6 +1,7 @@
 (ns uncomplicate.bayadera.math
-  (:require [uncomplicate.neanderthal
-             [core :refer [asum freduce]]
+  (:require [uncomplicate.fluokitten.core :refer [fold]]
+            [uncomplicate.neanderthal
+             [core :refer [asum]]
              [math :refer [exp round?]]])
   (:import [org.apache.commons.math3.special Gamma Beta]))
 
@@ -94,10 +95,10 @@
   into k groups of size x1, x2, ... , xk;
   where k = (dim xks) and N = (sum xks)"
   ^double [xks]
-  (freduce (fn ^double [^double acc ^double xk]
-             (- acc (log-factorial xk)))
-           (log-factorial (asum xks))
-           xks))
+  (fold (fn ^double [^double acc ^double xk]
+          (- acc (log-factorial xk)))
+        (log-factorial (asum xks))
+        xks))
 
 (defn multico
   "Multinomial coefficient of a RealVector xks:

@@ -1,9 +1,10 @@
 (ns uncomplicate.bayadera.opencl.core-test
   (:require [midje.sweet :refer :all]
-            [uncomplicate.clojurecl.core :refer :all]
+            [uncomplicate.commons.core :refer [with-release]]
+            [uncomplicate.fluokitten.core :refer [fmap!]]
             [uncomplicate.neanderthal
              [math :refer [log exp]]
-             [core :refer [dim sum nrm2 fmap! copy dot scal! transfer!]]
+             [core :refer [dim sum nrm2 copy dot scal! transfer!]]
              [native :refer [sv]]]
             [uncomplicate.bayadera
              [protocols :as p]
