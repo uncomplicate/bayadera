@@ -1,14 +1,10 @@
 # bayadera
 
-A Clojure library designed to ... well, that part is up to you.
-
-## Usage
-
-FIXME
+A Clojure Library for Bayesian Data Analysis and Machine Learning on the GPU
 
 ## License
 
-Copyright © 2014 FIXME
+Copyright © 2014 - 2016 FIXME
 
 Distributed under the Eclipse Public License either version 1.0 or (at
 your option) any later version.
