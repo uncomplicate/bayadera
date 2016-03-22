@@ -55,7 +55,6 @@
                       ([factory name likelihood prior]
                        [(dimension (model prior)) (class likelihood) (class prior)])))
 
-
 ;; ==================== Engines ====================
 
 (defprotocol DistributionEngine

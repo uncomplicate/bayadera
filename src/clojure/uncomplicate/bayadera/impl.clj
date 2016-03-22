@@ -1,10 +1,11 @@
 (ns uncomplicate.bayadera.impl
   (:require [clojure.java.io :as io]
             [uncomplicate.commons.core :refer [Releaseable release wrap-float]]
+            [uncomplicate.fluokitten.core :refer [op]]
             [uncomplicate.neanderthal
              [protocols :as np]
              [math :refer [sqrt]]
-             [core :refer [dim create-raw create-vector subvector copy! transfer! vect?]]
+             [core :refer [dim create-vector compatible? vect?]]
              [real :refer [entry sum]]
              [native :refer [sv]]]
             [uncomplicate.bayadera
@@ -172,23 +173,16 @@
      (release sampler-factory)))
   IFn
   (invoke [_ params]
-    (let [params-dim (if (vect? params) (dim params) (count params))]
-      (if (= (params-size dist-model) params-dim)
-        (->UnivariateDistribution
-         bayadera-factory dist-eng sampler-factory
-         (create-vector (np/factory bayadera-factory) params)
-         dist-model)
-        (throw (IllegalArgumentException.
-                (format INVALID_PARAMS_MESSAGE (params-size dist-model)
-                        (dim data)))))))
+    (if (= (params-size dist-model)
+           (if (vect? params) (dim params) (count params)))
+      (->UnivariateDistribution bayadera-factory dist-eng sampler-factory
+                                (create-vector (np/factory bayadera-factory) params)
+       dist-model)
+      (throw (IllegalArgumentException.
+              (format INVALID_PARAMS_MESSAGE (params-size dist-model)
+                      (dim data))))))
   (invoke [this data hyperparams]
-    (if (sequential? data)
-      (.invoke this (into data hyperparams))
-      (let [params (create-raw (np/factory data) (+ (dim data) (dim hyperparams)))];;TODO use concatenate
-        (do
-          (copy! data (subvector params 0 (dim data)))
-          (copy! hyperparams (subvector params (dim data) (dim hyperparams)))
-          (.invoke this params)))))
+    (this (op data hyperparams)))
   ModelProvider
   (model [_]
     dist-model))
@@ -205,12 +199,12 @@
     (let [expected-dim (- (long (params-size dist-model)) (dim hyperparams))
           data-dim (if (vect? data) (dim data) (count data))]
       (if (= expected-dim data-dim)
-        (let [params-copy (create-raw (np/factory bayadera-factory)
-                                      (params-size dist-model))]
-          (transfer! data (subvector params-copy 0 expected-dim))
-          (copy! hyperparams (subvector params-copy expected-dim (dim hyperparams)))
-          (->UnivariateDistribution
-           bayadera-factory dist-eng sampler-factory params-copy dist-model))
+        (let [params (if (compatible? hyperparams data)
+                       (op data hyperparams)
+                       (op (create-vector (np/factory bayadera-factory) data)
+                           hyperparams))]
+          (->UnivariateDistribution bayadera-factory dist-eng sampler-factory
+                                    params dist-model))
         (throw (IllegalArgumentException.
                 (format INVALID_PARAMS_MESSAGE expected-dim data-dim))))))
   ModelProvider
