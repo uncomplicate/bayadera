@@ -1,4 +1,5 @@
-(ns uncomplicate.bayadera.visual
+(ns ^{:author "Dragan Djuric"}
+    uncomplicate.bayadera.visual
   (:require [uncomplicate.commons.core :refer [with-release]]
             [uncomplicate.neanderthal
              [core :refer [dim]]

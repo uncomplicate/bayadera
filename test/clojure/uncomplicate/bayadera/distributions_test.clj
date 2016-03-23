@@ -1,4 +1,5 @@
-(ns uncomplicate.bayadera.distributions-test
+(ns ^{:author "Dragan Djuric"}
+    uncomplicate.bayadera.distributions-test
   (:require [midje.sweet :refer :all]
             [uncomplicate.bayadera.distributions :refer :all]))
 

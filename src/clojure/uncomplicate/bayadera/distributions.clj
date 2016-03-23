@@ -1,4 +1,5 @@
-(ns uncomplicate.bayadera.distributions
+(ns ^{:author "Dragan Djuric"}
+    uncomplicate.bayadera.distributions
   (:require [uncomplicate.commons.core :refer [double-fn]]
             [uncomplicate.fluokitten.core :refer [foldmap fmap]]
             [uncomplicate.neanderthal

@@ -1,4 +1,5 @@
-(ns uncomplicate.bayadera.opencl
+(ns ^{:author "Dragan Djuric"}
+    uncomplicate.bayadera.opencl
   (:require [uncomplicate.clojurecl.core
              :refer [with-default *context* *command-queue*]]
             [uncomplicate.bayadera.core :refer [with-bayadera *bayadera-factory*]]

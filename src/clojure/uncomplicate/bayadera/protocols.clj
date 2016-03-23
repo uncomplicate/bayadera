@@ -1,4 +1,5 @@
-(ns uncomplicate.bayadera.protocols)
+(ns ^{:author "Dragan Djuric"}
+    uncomplicate.bayadera.protocols)
 
 (defrecord Autocorrelation [^float tau ^float mean ^float sigma ^long size
                             ^long steps ^long walkers ^long lag ^float acc-rate])

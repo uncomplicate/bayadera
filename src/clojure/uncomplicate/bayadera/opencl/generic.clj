@@ -1,4 +1,5 @@
-(ns uncomplicate.bayadera.opencl.generic
+(ns ^{:author "Dragan Djuric"}
+    uncomplicate.bayadera.opencl.generic
   (:require [clojure.java.io :as io]
             [uncomplicate.commons.core :refer [Releaseable release]]
             [uncomplicate.neanderthal

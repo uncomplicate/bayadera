@@ -1,4 +1,5 @@
-(ns uncomplicate.bayadera.opencl.utils
+(ns ^{:author "Dragan Djuric"}
+    uncomplicate.bayadera.opencl.utils
   (:require [clojure.java.io :as io]
             [me.raynes.fs :as fsc]))
 

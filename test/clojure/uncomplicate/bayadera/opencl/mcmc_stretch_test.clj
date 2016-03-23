@@ -1,4 +1,5 @@
-(ns uncomplicate.bayadera.opencl.mcmc-stretch-test
+(ns ^{:author "Dragan Djuric"}
+    uncomplicate.bayadera.opencl.mcmc-stretch-test
   (:require [midje.sweet :refer :all]
             [clojure.core.async :refer [chan <!!]]
             [uncomplicate.commons.core :refer [with-release wrap-float]]

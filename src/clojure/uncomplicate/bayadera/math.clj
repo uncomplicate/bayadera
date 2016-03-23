@@ -1,4 +1,5 @@
-(ns uncomplicate.bayadera.math
+(ns ^{:author "Dragan Djuric"}
+    uncomplicate.bayadera.math
   (:require [uncomplicate.fluokitten.core :refer [fold]]
             [uncomplicate.neanderthal
              [core :refer [asum]]

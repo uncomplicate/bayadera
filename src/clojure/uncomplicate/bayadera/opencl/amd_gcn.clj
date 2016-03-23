@@ -1,4 +1,5 @@
-(ns uncomplicate.bayadera.opencl.amd-gcn
+(ns ^{:author "Dragan Djuric"}
+    uncomplicate.bayadera.opencl.amd-gcn
   (:require [clojure.java.io :as io]
             [uncomplicate.commons.core
              :refer [Releaseable release with-release wrap-int wrap-float]]

@@ -1,4 +1,5 @@
-(ns uncomplicate.bayadera.visual-test
+(ns ^{:author "Dragan Djuric"}
+    uncomplicate.bayadera.visual-test
   (:require [midje.sweet :refer :all]
             [uncomplicate.commons.core :refer [with-release]]
             [uncomplicate.fluokitten.core :refer [fmap fmap!]]

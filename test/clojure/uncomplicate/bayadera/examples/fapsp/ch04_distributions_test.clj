@@ -1,4 +1,5 @@
-(ns uncomplicate.bayadera.examples.fapsp.ch04-distributions-test
+(ns ^{:author "Dragan Djuric"}
+    uncomplicate.bayadera.examples.fapsp.ch04-distributions-test
   (:require [midje.sweet :refer :all]
             [uncomplicate.commons.core :refer [with-release]]
             [uncomplicate.neanderthal

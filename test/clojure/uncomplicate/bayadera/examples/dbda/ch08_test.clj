@@ -1,4 +1,5 @@
-(ns uncomplicate.bayadera.examples.dbda.ch08-test
+(ns ^{:author "Dragan Djuric"}
+    uncomplicate.bayadera.examples.dbda.ch08-test
   (:require [midje.sweet :refer :all]
             [quil.core :as q]
             [quil.applet :as qa]

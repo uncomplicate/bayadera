@@ -1,4 +1,5 @@
-(ns uncomplicate.bayadera.impl
+(ns ^{:author "Dragan Djuric"}
+    uncomplicate.bayadera.impl
   (:require [clojure.java.io :as io]
             [uncomplicate.commons.core :refer [Releaseable release wrap-float]]
             [uncomplicate.fluokitten.core :refer [op]]

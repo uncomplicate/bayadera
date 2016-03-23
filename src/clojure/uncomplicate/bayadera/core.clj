@@ -1,4 +1,5 @@
-(ns uncomplicate.bayadera.core
+(ns ^{:author "Dragan Djuric"}
+    uncomplicate.bayadera.core
   (:require [uncomplicate.commons.core :refer [release]]
             [uncomplicate.neanderthal
              [protocols :as np]
