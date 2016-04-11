@@ -12,10 +12,10 @@ inline float beta_log(const float a, const float b, const float x) {
 
 // ============= With params ========================================
 
-inline float beta_mcmc_logpdf(__constant const float* params, float x) {
-    return beta_log(params[0], params[1], x);
+inline float beta_mcmc_logpdf(__constant const float* params, float* x) {
+    return beta_log(params[0], params[1], x[0]);
 }
 
-inline float beta_logpdf(__constant const float* params, float x) {
-    return beta_log(params[0], params[1], x) - params[2];
+inline float beta_logpdf(__constant const float* params, float* x) {
+    return beta_log(params[0], params[1], x[0]) - params[2];
 }

@@ -4,7 +4,8 @@
             [uncomplicate.commons.core :refer [Releaseable release]]
             [uncomplicate.neanderthal
              [core :as nc]
-             [protocols :as np]]
+             [protocols :as np]
+             [native :refer [sv]]]
             [uncomplicate.bayadera
              [protocols :refer :all]
              [impl :refer [univariate-posterior-creator
@@ -79,7 +80,9 @@
                               model-source sampler-kernels]
   Releaseable
   (release [_]
-    true)
+    (and
+     (release lower-limit)
+     (release upper-limit)))
   ModelProvider
   (model [this]
     this)
@@ -118,7 +121,7 @@
 
 ;; ================ Posterior multimethod implementations ======================
 
-(let [post-source (slurp (io/resource "uncomplicate/bayadera/opencl/templates/posterior.clt"))]
+(let [post-source (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/posterior.cl"))]
 
   (defn cl-posterior-model [^String name lik prior]
     (let [post-name (str (gensym name))
@@ -173,26 +176,26 @@
 (def gaussian-model
   (cl-distribution-model (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/gaussian.h"))
                          :name "gaussian" :params-size 2
-                         :lower Double/MIN_VALUE :upper Double/MAX_VALUE
+                         :lower (sv (- Float/MAX_VALUE)) :upper (sv Float/MAX_VALUE)
                          :sampler-source
                          (slurp (io/resource "uncomplicate/bayadera/opencl/rng/gaussian-sampler.cl"))))
 (def uniform-model
   (cl-distribution-model (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/uniform.h"))
                          :name "uniform" :params-size 2
-                         :lower Double/MIN_VALUE :upper Double/MAX_VALUE
+                         :lower (- Float/MAX_VALUE) :upper (sv Float/MAX_VALUE)
                          :sampler-source
                          (slurp (io/resource "uncomplicate/bayadera/opencl/rng/uniform-sampler.cl"))))
 (def beta-model
   (cl-distribution-model (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/beta.h"))
                          :name "beta" :mcmc-logpdf "beta_mcmc_logpdf" :params-size 3
-                         :lower 0.0 :upper 1.0))
+                         :lower (sv 0.0) :upper (sv 1.0)))
 
 ;; TODO support is from 0 to infinity
 
 (def binomial-model
   (cl-distribution-model (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/binomial.h"))
                          :name "binomial" :mcmc-logpdf "binomial_mcmc_logpdf" :params-size 3
-                         :lower 0 :upper Double/MAX_VALUE))
+                         :lower (sv 0.0) :upper (sv Float/MAX_VALUE)))
 
 (def binomial-likelihood
   (cl-likelihood-model (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/binomial.h"))

@@ -9,6 +9,6 @@ inline float gaussian_log(float mu, float sigma, float x) {
 
 // ============= With params ========================================
 
-inline float gaussian_logpdf(__constant float* params, float x) {
-    return gaussian_log(params[0], params[1], x);
+inline float gaussian_logpdf(__constant const float* params, float* x) {
+    return gaussian_log(params[0], params[1], x[0]);
 }

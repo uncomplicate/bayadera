@@ -104,7 +104,7 @@
            iterations 64
            a 2.0}}]
   (let [a (wrap-float a)
-        samp (mcmc-sampler sampler-factory walkers params lower-limit upper-limit)];;TODO make low/high optional in MCMC-stretch
+        samp (mcmc-sampler sampler-factory walkers params lower-limit upper-limit)]
     (set-position! samp (rand-int Integer/MAX_VALUE))
     (init! samp (rand-int Integer/MAX_VALUE))
     (burn-in! samp warm-up a)
@@ -117,11 +117,12 @@
   (release [_]
     (release params))
   SamplerProvider
-  (sampler [_ options]
+  (sampler [this options]
     (let [walkers (or (:walkers options)
-                      (* (long (processing-elements bayadera-factory)) 32))]
+                      (* (long (processing-elements bayadera-factory)) 32))
+          beta-model (model this)]
       (apply prepare-mcmc-sampler (beta-sampler bayadera-factory)
-             walkers params 0.0 1.0 options)))
+             walkers params (lower beta-model) (upper beta-model) options)))
   (sampler [this]
     (sampler this nil))
   Distribution

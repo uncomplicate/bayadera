@@ -4,7 +4,8 @@
             [uncomplicate.neanderthal
              [protocols :as np]
              [math :refer [sqrt]]
-             [core :refer [dim alter! create-vector vect? raw scal!]]]
+             [core :refer [dim alter! create-vector vect? raw scal!]]
+             [native :refer [sv]]]
             [uncomplicate.bayadera
              [protocols :as p]
              [impl :refer :all]
@@ -32,8 +33,8 @@
 
 ;; =============================================================================
 
-(defn gaussian-params [mu sigma]
-  [mu sigma])
+(defn gaussian-params [^double mu ^double sigma]
+  (sv mu sigma))
 
 (defn gaussian
   ([^double mu ^double sigma]
@@ -44,8 +45,8 @@
     (create-vector (np/factory factory) (gaussian-params mu sigma))
     mu sigma)))
 
-(defn uniform-params [a b]
-  [a b])
+(defn uniform-params [^double a ^double b]
+  (sv a b))
 
 (defn uniform
   ([^double a ^double b]
@@ -56,8 +57,8 @@
     (create-vector (np/factory factory) (uniform-params a b))
     a b)))
 
-(defn beta-params [a b]
-  [a b (log-beta a b)])
+(defn beta-params [^double a ^double b]
+  (sv a b (log-beta a b)))
 
 (defn beta
   ([^double a ^double b]
@@ -68,8 +69,8 @@
     (create-vector (np/factory factory) (beta-params a b))
     a b)))
 
-(defn binomial-lik-params [n k]
-  [n k])
+(defn binomial-lik-params [^double n ^double k]
+  (sv n k))
 
 ;; =============================================================================
 

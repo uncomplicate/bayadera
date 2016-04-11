@@ -22,7 +22,7 @@ inline float4 u01fpt_oo_4x32_24(uint4 i) {
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
 __kernel void sample( __constant const float* params
-                      __attribute__ ((max_constant_size(2))),
+                      __attribute__ ((max_constant_size(PARAMS_SIZE))),
                       const uint seed, __global float4* x) {
 
     uint gid = get_global_id(0);

@@ -9,6 +9,6 @@ inline float uniform_log(float lower, float upper, float x) {
 
 // ============= With params ========================================
 
-inline float uniform_logpdf(__constant float* params, float x) {
-    return uniform_log(params[0], params[1], x);
+inline float uniform_logpdf(__constant float* params, float* x) {
+    return uniform_log(params[0], params[1], x[0]);
 }

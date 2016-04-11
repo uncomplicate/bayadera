@@ -19,7 +19,7 @@
             [uncomplicate.bayadera.opencl
              [utils :refer [with-philox get-tmp-dir-name]]
              [generic :refer :all]
-             [amd-gcn-stretch :refer [gcn-stretch-1d-factory]]]))
+             [amd-gcn-stretch :refer [gcn-stretch-factory]]]))
 
 (deftype GCNDirectSampler [cqueue prog neanderthal-factory]
   Releaseable
@@ -61,7 +61,7 @@
                        cl-acc (cl-buffer ctx acc-size :read-write)]
           (set-args! evidence-kernel 0 cl-acc (buffer cl-params) (buffer x))
           (set-arg! sum-reduction-kernel 0 cl-acc)
-          (enq-reduce cqueue evidence-kernel sum-reduction-kernel WGS n)
+          (enq-reduce cqueue evidence-kernel sum-reduction-kernel n WGS)
           (/ (enq-read-double cqueue cl-acc) n)))
       1.0)))
 
@@ -78,7 +78,7 @@
                      cl-acc (cl-buffer ctx acc-size :read-write)]
         (set-args! variance-kernel 0 cl-acc (buffer data-vect) (wrap-float m))
         (set-arg! sum-reduction-kernel 0 cl-acc)
-        (enq-reduce cqueue variance-kernel sum-reduction-kernel WGS (dim data-vect))
+        (enq-reduce cqueue variance-kernel sum-reduction-kernel (dim data-vect) WGS)
         (sv m (/ (enq-read-double cqueue cl-acc) (dec (dim data-vect))))))))
 
 (let [dataset-src [(slurp (io/resource "uncomplicate/clojurecl/kernels/reduction.cl"))
@@ -87,7 +87,7 @@
   (defn gcn-dataset-engine
     ([ctx cqueue ^long WGS]
      (let [prog (build-program! (program-with-source ctx dataset-src)
-                                (format "-cl-std=CL2.0 -DWGS=%s" WGS)
+                                (format "-cl-std=CL2.0 -DREAL=float -DWGS=%s" WGS)
                                 nil)]
        (->GCNDataSetEngine ctx cqueue prog WGS)))
     ([ctx queue]
@@ -99,8 +99,9 @@
     ([ctx cqueue tmp-dir-name model WGS]
      (let [prog (build-program!
                  (program-with-source ctx (conj (source model) kernels-src))
-                 (format "-cl-std=CL2.0 -DLOGPDF=%s -DPARAMS_SIZE=%d -DWGS=%s -I%s"
-                         (logpdf model) (params-size model) WGS tmp-dir-name)
+                 (format "-cl-std=CL2.0 -DREAL=float -DLOGPDF=%s -DPARAMS_SIZE=%d -DDIM=%d -DWGS=%s -I%s"
+                         (logpdf model) (params-size model) (dimension model)
+                         WGS tmp-dir-name)
                  nil)]
        (->GCNDistributionEngine ctx cqueue prog WGS model)))
     ([ctx queue model]
@@ -114,10 +115,10 @@
   (defn gcn-posterior-engine
     ([ctx cqueue tmp-dir-name model WGS]
      (let [prog (build-program!
-                 (program-with-source ctx
-                                      (conj (source model) kernels-src))
-                 (format "-cl-std=CL2.0 -DLOGPDF=%s -DLOGLIK=%s -DPARAMS_SIZE=%d -DWGS=%s -I%s"
-                         (logpdf model) (loglik model) (params-size model) WGS tmp-dir-name)
+                 (program-with-source ctx (conj (source model) kernels-src))
+                 (format "-cl-std=CL2.0 -DREAL=float -DLOGPDF=%s -DLOGLIK=%s -DPARAMS_SIZE=%d -DDIM=%d -DWGS=%s -I%s"
+                         (logpdf model) (loglik model)
+                         (params-size model) (dimension model) WGS tmp-dir-name)
                  nil)]
        (->GCNDistributionEngine ctx cqueue prog WGS model)))
     ([ctx queue model]
@@ -182,8 +183,8 @@
     beta-samp)
   (mcmc-factory [_ model]
     (with-philox tmp-dir-name
-      (gcn-stretch-1d-factory ctx cqueue tmp-dir-name
-                              neanderthal-factory model WGS)))
+      (gcn-stretch-factory ctx cqueue tmp-dir-name
+                           neanderthal-factory model WGS)))
   (processing-elements [_]
     (* compute-units WGS))
   DataSetFactory
@@ -213,12 +214,12 @@
                             uniform-model WGS)
         beta-model
         (gcn-distribution-engine ctx cqueue tmp-dir-name beta-model WGS)
-        (gcn-stretch-1d-factory ctx cqueue tmp-dir-name neanderthal-factory
-                                beta-model WGS)
+        (gcn-stretch-factory ctx cqueue tmp-dir-name neanderthal-factory
+                             beta-model WGS)
         binomial-model
         (gcn-distribution-engine ctx cqueue tmp-dir-name binomial-model WGS)
-        (gcn-stretch-1d-factory ctx cqueue tmp-dir-name neanderthal-factory
-                                binomial-model WGS)))))
+        (gcn-stretch-factory ctx cqueue tmp-dir-name neanderthal-factory
+                             binomial-model WGS)))))
   ([ctx cqueue]
    (let [dev (queue-device cqueue)]
      (gcn-bayadera-factory ctx cqueue
