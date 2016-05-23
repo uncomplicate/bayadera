@@ -2,22 +2,32 @@
 #define WGS 256
 #endif
 
-__attribute__((reqd_work_group_size(WGS, 1, 1)))
-__kernel void sum_reduction (__global double* acc) {
-    double sum = work_group_reduction_sum(acc[get_global_id(0)]);
-    if (get_local_id(0) == 0) {
-        acc[get_group_id(0)] = sum;
+__kernel void sum_reduction_horizontal(__global ACCUMULATOR* acc) {
+    const uint i = get_global_size(0) * get_global_id(1) + get_global_id(0);
+    const uint iacc = get_global_size(0) * get_group_id(1) + get_global_id(0);
+    const ACCUMULATOR sum = work_group_reduction_sum_2(1, acc[i]);
+    if (get_local_id(1) == 0) {
+        acc[iacc] = sum;
     }
 }
 
-__attribute__((reqd_work_group_size(WGS, 1, 1)))
-__kernel void variance_reduce(__global double* x_acc, __global const float* x,
-                              float mu) {
-
-    float xi = x[get_global_id(0)];
-    double sum = work_group_reduction_sum(pown(xi - mu, 2));
-    if (get_local_id(0) == 0) {
-        x_acc[get_group_id(0)] = sum;
+__kernel void mean_reduce(__global ACCUMULATOR* acc, __global const REAL* x) {
+    const uint i = get_global_size(0) * get_global_id(1) + get_global_id(0);
+    const uint iacc = get_global_size(0) * get_group_id(1) + get_global_id(0);
+    const ACCUMULATOR sum = work_group_reduction_sum_2(1, x[i]);
+    if (get_local_id(1) == 0) {
+        acc[iacc] = sum;
     }
+}
 
+__kernel void variance_reduce(__global ACCUMULATOR* acc,
+                              __global const REAL* x,
+                              __constant const REAL* mu) {
+    const uint i = get_global_size(0) * get_global_id(1) + get_global_id(0);
+    const uint iacc = get_global_size(0) * get_group_id(1) + get_global_id(0);
+    const REAL diff = x[i] - mu[get_global_id(0)];
+    const ACCUMULATOR sum = work_group_reduction_sum_2(1, diff * diff);
+    if (get_local_id(1) == 0) {
+        acc[iacc] = sum;
+    }
 }

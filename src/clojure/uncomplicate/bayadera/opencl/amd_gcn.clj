@@ -2,37 +2,35 @@
     uncomplicate.bayadera.opencl.amd-gcn
   (:require [clojure.java.io :as io]
             [uncomplicate.commons.core
-             :refer [Releaseable release with-release wrap-int wrap-float]]
+             :refer [Releaseable release with-release let-release
+                     wrap-int wrap-float]]
             [uncomplicate.clojurecl
              [core :refer :all]
              [info :refer [max-compute-units max-work-group-size queue-device]]]
             [uncomplicate.clojurecl.toolbox
              :refer [enq-reduce enq-read-double count-work-groups]]
             [uncomplicate.neanderthal
-             [core :refer [dim create]]
-             [real :refer [sum]]
+             [core :refer [create-raw ncols mrows scal! transfer]]
              [protocols :as np]
              [block :refer [buffer]]
-             [native :refer [sv]]
-             [opencl :refer [gcn-single]]]
+             [opencl :refer [opencl-single]]]
             [uncomplicate.bayadera.protocols :refer :all]
             [uncomplicate.bayadera.opencl
              [utils :refer [with-philox get-tmp-dir-name]]
-             [generic :refer :all]
+             [models :refer :all]
              [amd-gcn-stretch :refer [gcn-stretch-factory]]]))
 
-(deftype GCNDirectSampler [cqueue prog neanderthal-factory]
+(deftype GCNDirectSampler [cqueue prog ^long DIM]
   Releaseable
   (release [_]
     (release prog))
   RandomSampler
-  (sample! [this seed cl-params res]
-    (let [res (if (number? res) (create neanderthal-factory res) res)]
+  (sample! [this seed cl-params n]
+    (let-release [res (create-raw (np/factory cl-params) DIM n)]
       (with-release [sample-kernel (kernel prog "sample")]
         (set-args! sample-kernel 0 (buffer cl-params) (wrap-int seed) (buffer res))
-        (enq-nd! cqueue sample-kernel (work-size-1d (dim res)))
-        this)
-      res)))
+        (enq-nd! cqueue sample-kernel (work-size-1d n))
+        res))))
 
 (deftype GCNDistributionEngine [ctx cqueue prog ^long WGS dist-model]
   Releaseable
@@ -42,19 +40,21 @@
   (model [_]
     dist-model)
   DistributionEngine
-  (logpdf! [this cl-params x res]
-    (with-release [logpdf-kernel (kernel prog "logpdf")]
-      (set-args! logpdf-kernel 0 (buffer cl-params) (buffer x) (buffer res))
-      (enq-nd! cqueue logpdf-kernel (work-size-1d (dim x)))
-      this))
-  (pdf! [this cl-params x res]
-    (with-release [pdf-kernel (kernel prog "pdf")]
-      (set-args! pdf-kernel 0 (buffer cl-params) (buffer x) (buffer res))
-      (enq-nd! cqueue pdf-kernel (work-size-1d (dim x)))
-      this))
+  (log-pdf [this cl-params x]
+    (let-release [res (create-raw (np/factory cl-params) (ncols x))]
+      (with-release [logpdf-kernel (kernel prog "logpdf")]
+        (set-args! logpdf-kernel 0 (buffer cl-params) (buffer x) (buffer res))
+        (enq-nd! cqueue logpdf-kernel (work-size-1d (ncols x)))
+        res)))
+  (pdf [this cl-params x]
+    (let-release [res (create-raw (np/factory cl-params) (ncols x))]
+      (with-release [pdf-kernel (kernel prog "pdf")]
+        (set-args! pdf-kernel 0 (buffer cl-params) (buffer x) (buffer res))
+        (enq-nd! cqueue pdf-kernel (work-size-1d (ncols x)))
+        res)))
   (evidence [this cl-params x]
     (if (satisfies? LikelihoodModel dist-model)
-      (let [n (dim x)
+      (let [n (ncols x)
             acc-size (* Double/BYTES (count-work-groups WGS n))]
         (with-release [evidence-kernel (kernel prog "evidence_reduce")
                        sum-reduction-kernel (kernel prog "sum_reduction")
@@ -69,17 +69,42 @@
   Releaseable
   (release [_]
     (release prog))
-  Spread
-  (mean-variance [this data-vect]
-    (let [m (/ (sum data-vect) (dim data-vect))
-          acc-size (* Double/BYTES (count-work-groups WGS (dim data-vect)))]
-      (with-release [variance-kernel (kernel prog "variance_reduce")
-                     sum-reduction-kernel (kernel prog "sum_reduction")
-                     cl-acc (cl-buffer ctx acc-size :read-write)]
-        (set-args! variance-kernel 0 cl-acc (buffer data-vect) (wrap-float m))
+  DatasetEngine
+  (means [this data-matrix]
+    (let [m (mrows data-matrix)
+          n (ncols data-matrix)
+          wgsn (min n WGS)
+          wgsm (/ WGS wgsn)
+          acc-size (* Float/BYTES (max 1 (* m (count-work-groups wgsn n))))]
+      (let-release [res (create-raw (np/factory data-matrix) m)]
+        (with-release [cl-acc (cl-buffer ctx acc-size :read-write)
+                       sum-reduction-kernel (kernel prog "sum_reduction_horizontal")
+                       mean-kernel (kernel prog "mean_reduce")]
+          (set-arg! sum-reduction-kernel 0 cl-acc)
+          (set-args! mean-kernel cl-acc (buffer data-matrix))
+          (enq-reduce cqueue mean-kernel sum-reduction-kernel m n wgsm wgsn)
+          (enq-copy! cqueue cl-acc (buffer res))
+          (scal! (/ 1.0 n) (transfer res))))))
+  (variances [this data-matrix]
+    (let [m (mrows data-matrix)
+          n (ncols data-matrix)
+          wgsn (min n WGS)
+          wgsm (/ WGS wgsn)
+          acc-size (* Float/BYTES (max 1 (* m (count-work-groups wgsn n))))]
+      (with-release [cl-acc (cl-buffer ctx acc-size :read-write)
+                     res-vec (create-raw (np/factory data-matrix) m)
+                     sum-reduction-kernel (kernel prog "sum_reduction_horizontal")
+                     mean-kernel (kernel prog "mean_reduce")
+                     variance-kernel (kernel prog "variance_reduce")]
         (set-arg! sum-reduction-kernel 0 cl-acc)
-        (enq-reduce cqueue variance-kernel sum-reduction-kernel (dim data-vect) WGS)
-        (sv m (/ (enq-read-double cqueue cl-acc) (dec (dim data-vect))))))))
+        (set-args! mean-kernel cl-acc (buffer data-matrix))
+        (enq-reduce cqueue mean-kernel sum-reduction-kernel m n wgsm wgsn)
+        (enq-copy! cqueue cl-acc (buffer res-vec))
+        (scal! (/ 1.0 n) res-vec)
+        (set-args! variance-kernel 0 cl-acc (buffer data-matrix) (buffer res-vec))
+        (enq-reduce cqueue variance-kernel sum-reduction-kernel m n wgsm wgsn)
+        (enq-copy! cqueue cl-acc (buffer res-vec))
+        (scal! (/ 1.0 n) (transfer res-vec))))))
 
 (let [dataset-src [(slurp (io/resource "uncomplicate/clojurecl/kernels/reduction.cl"))
                    (slurp (io/resource "uncomplicate/bayadera/opencl/dataset/amd-gcn.cl"))]]
@@ -87,7 +112,7 @@
   (defn gcn-dataset-engine
     ([ctx cqueue ^long WGS]
      (let [prog (build-program! (program-with-source ctx dataset-src)
-                                (format "-cl-std=CL2.0 -DREAL=float -DWGS=%s" WGS)
+                                (format "-cl-std=CL2.0 -DREAL=float -DACCUMULATOR=float -DWGS=%s" WGS)
                                 nil)]
        (->GCNDataSetEngine ctx cqueue prog WGS)))
     ([ctx queue]
@@ -103,9 +128,7 @@
                          (logpdf model) (params-size model) (dimension model)
                          WGS tmp-dir-name)
                  nil)]
-       (->GCNDistributionEngine ctx cqueue prog WGS model)))
-    ([ctx queue model]
-     (gcn-distribution-engine ctx queue model 256))))
+       (->GCNDistributionEngine ctx cqueue prog WGS model)))))
 
 (let [kernels-src (format "%s\n%s\n%s"
                           (slurp (io/resource "uncomplicate/clojurecl/kernels/reduction.cl"))
@@ -120,21 +143,17 @@
                          (logpdf model) (loglik model)
                          (params-size model) (dimension model) WGS tmp-dir-name)
                  nil)]
-       (->GCNDistributionEngine ctx cqueue prog WGS model)))
-    ([ctx queue model]
-     (gcn-posterior-engine ctx queue model 256))))
+       (->GCNDistributionEngine ctx cqueue prog WGS model)))))
 
 (defn gcn-direct-sampler
-  ([ctx cqueue tmp-dir-name neanderthal-factory model WGS]
+  ([ctx cqueue tmp-dir-name model WGS]
    (->GCNDirectSampler
     cqueue
     (build-program!
      (program-with-source ctx (into (source model) (sampler-source model)))
      (format "-cl-std=CL2.0 -DWGS=%s -I%s/" WGS tmp-dir-name)
      nil)
-    neanderthal-factory))
-  ([ctx cqueue model]
-   (gcn-direct-sampler ctx cqueue model 256)))
+    (dimension model))))
 
 ;; =========================== Distribution creators ===========================
 
@@ -197,7 +216,7 @@
 (defn gcn-bayadera-factory
   ([ctx cqueue ^long compute-units ^long WGS]
    (let [tmp-dir-name (get-tmp-dir-name)
-         neanderthal-factory (gcn-single ctx cqueue)]
+         neanderthal-factory (opencl-single ctx cqueue)]
      (with-philox tmp-dir-name
        (->GCNBayaderaFactory
         ctx cqueue tmp-dir-name
@@ -206,12 +225,10 @@
         neanderthal-factory
         gaussian-model
         (gcn-distribution-engine ctx cqueue tmp-dir-name gaussian-model WGS)
-        (gcn-direct-sampler ctx cqueue tmp-dir-name neanderthal-factory
-                            gaussian-model WGS)
+        (gcn-direct-sampler ctx cqueue tmp-dir-name gaussian-model WGS)
         uniform-model
         (gcn-distribution-engine ctx cqueue tmp-dir-name uniform-model WGS)
-        (gcn-direct-sampler ctx cqueue tmp-dir-name neanderthal-factory
-                            uniform-model WGS)
+        (gcn-direct-sampler ctx cqueue tmp-dir-name uniform-model WGS)
         beta-model
         (gcn-distribution-engine ctx cqueue tmp-dir-name beta-model WGS)
         (gcn-stretch-factory ctx cqueue tmp-dir-name neanderthal-factory

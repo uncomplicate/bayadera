@@ -6,13 +6,13 @@
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.8.0"]
-                 [uncomplicate/commons "0.2.0-SNAPSHOT"]
-                 [uncomplicate/fluokitten "0.4.0"]
-                 [uncomplicate/clojurecl "0.6.0-SNAPSHOT"]
+                 [uncomplicate/commons "0.2.0"]
+                 [uncomplicate/fluokitten "0.5.0-SNAPSHOT"]
+                 [uncomplicate/clojurecl "0.6.2"]
                  [uncomplicate/neanderthal "0.6.0-SNAPSHOT"]
-                 [org.apache.commons/commons-math3 "3.6"]
+                 [org.apache.commons/commons-math3 "3.6.1"]
                  [me.raynes/fs "1.4.6"]
-                 [quil "2.3.0"]]
+                 [quil "2.4.0"]]
 
   ;;:aot [uncomplicate.bayadera.protocols
                                         ;uncomplicate.bayadera.impl

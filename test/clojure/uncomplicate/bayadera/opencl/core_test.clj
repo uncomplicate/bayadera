@@ -5,8 +5,8 @@
             [uncomplicate.fluokitten.core :refer [fmap!]]
             [uncomplicate.neanderthal
              [math :refer [log exp]]
-             [core :refer [dim sum nrm2 copy dot scal! transfer!]]
-             [native :refer [sv]]]
+             [core :refer [dim sum nrm2 copy dot scal! transfer entry row]]
+             [native :refer [sge]]]
             [uncomplicate.bayadera
              [protocols :as p]
              [core :refer :all]
@@ -15,8 +15,12 @@
              [math :refer [log-beta]]
              [visual :refer :all]]
             [uncomplicate.bayadera.opencl :refer [with-default-bayadera]]
-            [uncomplicate.bayadera.opencl.generic
+            [uncomplicate.bayadera.opencl.models
              :refer [binomial-likelihood beta-model]]))
+
+(defmacro roughly100 [exp]
+  `(let [v# ~exp]
+     (roughly v# (/ v# 100.0)) ))
 
 (with-default-bayadera
 
@@ -31,10 +35,9 @@
 
        (mean dist) => mu
        (sd dist) => sigma
-       (mean cl-sample) => (roughly mu)
-       (sd cl-sample) => (roughly sigma (/ sigma 100))
-       (mean-variance cl-sample) => (sv (mean cl-sample) (variance cl-sample))
-       (mean-sd cl-sample) => (sv (mean cl-sample) (sd cl-sample)))))
+       (entry (mean cl-sample) 0) => (roughly mu)
+       (entry (variance cl-sample) 0)  => (roughly100 (* sigma sigma))
+       (entry (sd cl-sample) 0) => (roughly100 sigma))))
 
   (facts
    "Core functions for uniform distribution."
@@ -46,10 +49,8 @@
                     cl-sample (dataset (sample uniform-sampler sample-count))
                     cl-pdf (pdf dist cl-sample)]
 
-       (mean cl-sample) => (roughly (mean dist))
-       (sd cl-sample) => (roughly (sd dist) (/ (sd dist) 100.0))
-       (mean-variance cl-sample) => (sv (mean cl-sample) (variance cl-sample))
-       (mean-sd cl-sample) => (sv (mean cl-sample) (sd cl-sample))
+       (entry (mean cl-sample) 0) => (roughly (mean dist))
+       (entry (sd cl-sample) 0) => (roughly (sd dist) (/ (sd dist) 100))
        (/ (sum cl-pdf) (dim cl-pdf)) => (roughly (/ 1.0 (- b a))))))
 
   (let [sample-count (* 256 44 94)
@@ -62,12 +63,10 @@
                     beta-sampler (time (sampler dist))
                     cl-sample (dataset (sample beta-sampler sample-count))
                     cl-pdf (pdf dist cl-sample)
-                    host (transfer! (p/data cl-sample) (sv sample-count))]
-       (mean cl-sample) => (roughly (mean dist) (/ (mean dist) 100.0))
-       (sd cl-sample) => (roughly (sd dist) (/ (sd dist) 100.0))
-       (mean-variance cl-sample) => (sv (mean cl-sample) (variance cl-sample))
-       (mean-sd cl-sample) => (sv (mean cl-sample) (sd cl-sample))
-       (sum cl-pdf) => (roughly (sum (fmap! beta-pdf host)))))))
+                    host-sample-data (transfer (p/data cl-sample))]
+       (entry (mean cl-sample) 0) => (roughly100 (mean dist))
+       (entry (sd cl-sample) 0) => (roughly100 (sd dist))
+       (sum cl-pdf) => (roughly (sum (fmap! beta-pdf (row host-sample-data 0))))))))
 
 (with-default-bayadera
   (let [sample-count (* 256 44 94)
@@ -92,5 +91,5 @@
                                     (/ prior-evidence 100.0))
          (sum (scal! (/ prior-evidence) post-pdf))
          => (roughly (sum real-pdf) (/ (sum real-pdf) 100.0))
-         (mean post-sample) => (roughly (mean real-post) (/ (mean real-post) 100.0))
-         (sd post-sample) => (roughly (sd real-post) (/ (sd real-post) 100.0)))))))
+         (entry (mean post-sample) 0) => (roughly (mean real-post))
+         (entry (sd post-sample) 0) => (roughly100 (sd real-post)))))))

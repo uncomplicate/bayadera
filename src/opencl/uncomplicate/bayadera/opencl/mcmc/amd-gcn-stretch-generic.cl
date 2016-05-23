@@ -2,18 +2,6 @@
 #define WGS 256
 #endif
 
-#ifndef DIM
-#define DIM 1
-#endif
-
-#ifndef WGSm
-#define WGSm WGS
-#endif
-
-#ifndef WGSn
-#define WGSn 1
-#endif
-
 inline void work_group_reduction_sum_ulong (__global ulong* acc,
                                             const ulong value) {
 

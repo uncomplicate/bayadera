@@ -2,13 +2,12 @@
     uncomplicate.bayadera.impl
   (:require [clojure.java.io :as io]
             [uncomplicate.commons.core :refer [Releaseable release wrap-float]]
-            [uncomplicate.fluokitten.core :refer [op]]
+            [uncomplicate.fluokitten.core :refer [op fmap!]]
             [uncomplicate.neanderthal
              [protocols :as np]
              [math :refer [sqrt]]
-             [core :refer [dim create-vector compatible? vect?]]
-             [real :refer [entry sum]]
-             [native :refer [sv]]]
+             [core :refer [ecount transfer]]
+             [native :refer [sge]]]
             [uncomplicate.bayadera
              [protocols :refer :all]
              [math :refer [log-beta]]
@@ -18,31 +17,32 @@
 (def ^:private INVALID_PARAMS_MESSAGE
   "Invalid params dimension. Must be %s, but is %s.")
 
-(defrecord UnivariateDataSet [dataset-eng data-vect]
+(def ^:private USE_SAMPLE_MSG
+  "This distribution's %s is a random variable. Please draw a sample to estimate it.")
+
+(defrecord DataSetImpl [dataset-eng data-matrix]
   Releaseable
   (release [_]
-    (release data-vect))
+    (release data-matrix))
   DataSet
   (data [_]
-    data-vect)
-  (data-count [_]
-    (dim data-vect))
+    data-matrix)
   Location
-  (mean [_]
-    (/ (sum data-vect) (dim data-vect)))
+  (mean [this]
+    (means dataset-eng data-matrix))
   Spread
-  (mean-variance [this]
-    (mean-variance dataset-eng data-vect))
   (variance [this]
-    (entry (mean-variance this) 1)))
+    (variances dataset-eng data-matrix))
+  (sd [this]
+    (fmap! sqrt (variance this))))
 
 (deftype DirectSampler [samp-engine params]
   Releaseable
   (release [_]
     true)
   RandomSampler
-  (sample! [_ res]
-    (sample! samp-engine (rand-int Integer/MAX_VALUE) params res)))
+  (sample! [_ n]
+    (sample! samp-engine (rand-int Integer/MAX_VALUE) params n)))
 
 ;; ==================== Distributions ====================
 
@@ -67,10 +67,10 @@
   (mean [_]
     mu)
   Spread
-  (mean-variance [this]
-    (sv mu (gaussian-variance sigma)))
   (variance [_]
-    (gaussian-variance sigma)))
+    (gaussian-variance sigma))
+  (sd [_]
+    sigma))
 
 (deftype UniformDistribution [bayadera-factory dist-eng params ^double a ^double b]
   Releaseable
@@ -92,10 +92,10 @@
   (mean [_]
     (uniform-mean a b))
   Spread
-  (mean-variance [this]
-    (sv (uniform-mean a b) (uniform-variance a b)))
   (variance [_]
-    (uniform-variance a b)))
+    (uniform-variance a b))
+  (sd [_]
+    (sqrt (uniform-variance a b))))
 
 (defn ^:private prepare-mcmc-sampler
   [sampler-factory walkers params lower-limit upper-limit
@@ -138,13 +138,12 @@
   (mean [_]
     (beta-mean a b))
   Spread
-  (mean-variance [this]
-    (sv (beta-mean a b) (beta-variance a b)))
   (variance [_]
-    (beta-variance a b)))
+    (beta-variance a b))
+  (sd [_]
+    (sqrt (beta-variance a b))))
 
-(deftype UnivariateDistribution [bayadera-factory dist-eng
-                                 sampler-factory params dist-model]
+(deftype DistributionImpl [bayadera-factory dist-eng sampler-factory params dist-model]
   Releaseable
   (release [_]
     (release params))
@@ -164,10 +163,17 @@
     dist-eng)
   ModelProvider
   (model [_]
-    dist-model))
+    dist-model)
+  Location
+  (mean [_]
+    (throw (UnsupportedOperationException. (format USE_SAMPLE_MSG "mean"))))
+  Spread
+  (variance [_]
+    (throw (UnsupportedOperationException. (format USE_SAMPLE_MSG "variance"))))
+  (sd [_]
+    (throw (UnsupportedOperationException. (format USE_SAMPLE_MSG "standard deviation")))))
 
-(deftype UnivariateDistributionCreator [bayadera-factory dist-eng
-                                        sampler-factory dist-model]
+(deftype DistributionCreator [bayadera-factory dist-eng sampler-factory dist-model]
   Releaseable
   (release [_]
     (and
@@ -175,59 +181,24 @@
      (release sampler-factory)))
   IFn
   (invoke [_ params]
-    (if (= (params-size dist-model)
-           (if (vect? params) (dim params) (count params)))
-      (->UnivariateDistribution bayadera-factory dist-eng sampler-factory
-                                (create-vector (np/factory bayadera-factory) params)
-       dist-model)
+    (if (= (params-size dist-model) (ecount params))
+      (->DistributionImpl bayadera-factory dist-eng sampler-factory
+                          (transfer (np/factory bayadera-factory) params)
+                          dist-model)
       (throw (IllegalArgumentException.
               (format INVALID_PARAMS_MESSAGE (params-size dist-model)
-                      (dim data))))))
+                      (ecount params))))))
   (invoke [this data hyperparams]
-    (this (op data hyperparams)))
+    (.invoke this (op data hyperparams)))
   ModelProvider
   (model [_]
     dist-model))
 
-(deftype UnivariatePosteriorPriorCreator [bayadera-factory dist-eng
-                                          sampler-factory hyperparams dist-model]
+(deftype PosteriorCreator [^IFn dist-creator hyperparams]
   Releaseable
   (release [_]
     (and (release hyperparams)
-         (release dist-eng)
-         (release sampler-factory)))
+         (release dist-creator)))
   IFn
   (invoke [_ data]
-    (let [expected-dim (- (long (params-size dist-model)) (dim hyperparams))
-          data-dim (if (vect? data) (dim data) (count data))]
-      (if (= expected-dim data-dim)
-        (let [params (if (compatible? hyperparams data)
-                       (op data hyperparams)
-                       (op (create-vector (np/factory bayadera-factory) data)
-                           hyperparams))]
-          (->UnivariateDistribution bayadera-factory dist-eng sampler-factory
-                                    params dist-model))
-        (throw (IllegalArgumentException.
-                (format INVALID_PARAMS_MESSAGE expected-dim data-dim))))))
-  ModelProvider
-  (model [_]
-    dist-model))
-
-(defn univariate-distribution-creator [factory model]
-  (->UnivariateDistributionCreator factory
-                                   (distribution-engine factory model)
-                                   (mcmc-factory factory model)
-                                   model))
-
-(defn univariate-posterior-creator [factory model]
-  (->UnivariateDistributionCreator factory
-                                   (posterior-engine factory model)
-                                   (mcmc-factory factory model)
-                                   model))
-
-(defn univariate-posterior-prior-creator [factory params model]
-  (->UnivariatePosteriorPriorCreator factory
-                                     (posterior-engine factory model)
-                                     (mcmc-factory factory model)
-                                     params
-                                     model))
+    (.invoke dist-creator data hyperparams)))

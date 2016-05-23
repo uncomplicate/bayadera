@@ -7,7 +7,7 @@ __kernel void loglik(__constant const float* params
                      __attribute__ ((max_constant_size(PARAMS_SIZE))),
                      __global const float* x, __global float* res) {
 
-    uint gid = get_global_id(0);
+    uint gid = DIM * get_global_id(0);
     float px[DIM];
     for (uint i = 0; i < DIM; i++) {
         px[i] = x[gid + i];
@@ -20,15 +20,13 @@ __kernel void lik(__constant const float* params
                   __attribute__ ((max_constant_size(PARAMS_SIZE))),
                   __global const float* x, __global float* res) {
 
-    uint gid = get_global_id(0);
+    uint gid = DIM * get_global_id(0);
     float px[DIM];
     for (uint i = 0; i < DIM; i++) {
         px[i] = x[gid + i];
     }
     res[gid] = native_exp(LOGLIK(params, px));
 }
-
-//TODO Support DIM > 1
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
 __kernel void sum_reduction (__global double* acc) {
@@ -44,7 +42,7 @@ __kernel void evidence_reduce(__global double* x_acc,
                               __attribute__ ((max_constant_size(PARAMS_SIZE))),
                               __global const float* x) {
 
-    uint gid = get_global_id(0);
+    uint gid = DIM * get_global_id(0);
     float px[DIM];
     for (uint i = 0; i < DIM; i++) {
         px[i] = x[gid + i];

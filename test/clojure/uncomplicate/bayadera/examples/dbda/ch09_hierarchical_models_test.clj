@@ -1,5 +1,5 @@
 (ns ^{:author "Dragan Djuric"}
-    uncomplicate.bayadera.examples.dbda.ch08-test
+    uncomplicate.bayadera.examples.dbda.ch09-hierarchical-models-test
   (:require [midje.sweet :refer :all]
             [quil.core :as q]
             [quil.applet :as qa]
@@ -7,49 +7,40 @@
              [pause-on-error :refer [pause-on-error]]
              [fun-mode :refer [fun-mode]]]
             [uncomplicate.commons.core :refer [with-release]]
-            [uncomplicate.neanderthal.core
-             :refer [row transfer dot entry imax imin scal!]]
+            [uncomplicate.neanderthal
+             [core :refer [row transfer dot entry imax imin scal!]]
+             [native :refer [sv]]]
             [uncomplicate.bayadera
              [protocols :as p]
              [core :refer :all]
              [visual :refer :all]]
             [uncomplicate.bayadera.opencl :refer [with-default-bayadera]]
             [uncomplicate.bayadera.opencl.models
-             :refer [binomial-likelihood beta-model]]
-            [clojure.java.io :as io]))
-
-(defn render-sample
-  ([plot xs ps x-min x-max]
-   (let [imax-p (imax ps)]
-     (render plot {:x-axis (axis x-min x-max) :x xs
-                   :y-axis (axis 0 10) :y ps
-                   :vertical-lines [[(entry xs imax-p) (entry ps imax-p)]]}))))
-
-(defmulti plot-distribution
-  (fn [plot xs ps options]
-    [(class xs) (class ps)]))
-
-(defmethod plot-distribution [uncomplicate.neanderthal.opencl.clblock.CLBlockVector
-                              uncomplicate.neanderthal.opencl.clblock.CLBlockVector]
-  [plot xs ps options]
-  (with-release [host-xs (transfer xs)
-                 host-ps (transfer ps)]
-    (render-sample plot host-xs host-ps 0 1
-                   #_(entry host-xs (imin xs))
-                   #_(entry host-xs (imax xs)))))
+             :refer [binomial-likelihood cl-distribution-model]]
+            [clojure.java.io :as io]
+            [uncomplicate.bayadera.examples.dbda.ch08-test
+             :refer [render-sample plot-distribution]]);;TODO extract to new namespace
+  )
 
 (def plots (atom nil))
+
+(def ch09-1mint-1coin-model
+  (cl-distribution-model [(slurp (io/resource "uncomplicate/bayadera/opencl/distributions/beta.h"))
+                          (slurp (io/resource "uncomplicate/bayadera/examples/dbda/ch09-1mint-1coin.h"))]
+                         :name "ch09_1mint_1coin" :params-size 3 :dimension 2
+                         :lower (sv 0 0) :upper (sv 1 1)))
 
 (defn analysis [prior-plot posterior-plot]
   (with-default-bayadera
     (let [sample-count (* 256 44)
           a 1 b 1
-          z 15 N 50]
-      (with-release [prior-dist (beta a b)
+          z 9 N 12]
+      (with-release [prior (distribution ch09-1mint-1coin-model)
+                     prior-dist (prior (sv 2 2 100))
                      prior-sample (dataset (sample (sampler prior-dist) sample-count))
                      prior-pdf (pdf prior-dist prior-sample)
-                     post (posterior (posterior-model binomial-likelihood beta-model))
-                     post-dist (post (binomial-lik-params N z) (beta-params a b))
+                     post (posterior "posterior_ch09" binomial-likelihood prior-dist)
+                     post-dist (post (binomial-lik-params N z))
                      post-sampler (time (sampler post-dist))
                      post-sample (dataset (sample post-sampler sample-count))
                      post-pdf (scal! (/ 1.0 (evidence post-dist prior-sample))

@@ -1,5 +1,5 @@
 (ns ^{:author "Dragan Djuric"}
-    uncomplicate.bayadera.opencl.generic
+    uncomplicate.bayadera.opencl.models
   (:require [clojure.java.io :as io]
             [uncomplicate.commons.core :refer [Releaseable release]]
             [uncomplicate.neanderthal
@@ -7,9 +7,11 @@
              [protocols :as np]
              [native :refer [sv]]]
             [uncomplicate.bayadera
-             [protocols :refer :all]
-             [impl :refer [univariate-posterior-creator
-                           univariate-posterior-prior-creator]]]))
+             [protocols :refer :all]]))
+
+(defprotocol CLModel
+  (source [this])
+  (sampler-source [this]))
 
 ;; ==================== Likelihood model ====================================
 
@@ -17,9 +19,10 @@
   Releaseable
   (release [_]
     true)
-  CLModel
+  Model
   (params-size [_]
     lik-params-size)
+  CLModel
   (source [_]
     model-source)
   (sampler-source [_]
@@ -38,8 +41,6 @@
 
 ;; ==================== Posterior model ====================================
 
-(declare ->CLPosteriorModel)
-
 (deftype CLPosteriorModel [name logpdf-name mcmc-logpdf-name
                            ^long dist-dimension ^long dist-params-size
                            lower-limit upper-limit
@@ -47,9 +48,9 @@
   Releaseable
   (release [_]
     (release likelihood-model))
-  ModelProvider
-  (model [this]
-    this)
+  Model
+  (params-size [_]
+    dist-params-size)
   DistributionModel
   (logpdf [_]
     logpdf-name)
@@ -65,12 +66,21 @@
   (loglik [_]
     (loglik likelihood-model))
   CLModel
-  (params-size [_]
-    dist-params-size)
   (source [_]
     model-source)
   (sampler-source [_]
-    nil))
+    nil)
+  ModelProvider
+  (model [this]
+    this))
+
+(defn cl-likelihood-model
+  [source & {:keys [name loglik params-size]
+             :or {name (str (gensym "likelihood"))
+                  loglik (format "%s_loglik" name)
+                  params-size 1}}]
+  (->CLLikelihoodModel name loglik params-size
+                       (if (sequential? source) source [source])))
 
 ;; ==================== Distribution model ====================================
 
@@ -83,9 +93,9 @@
     (and
      (release lower-limit)
      (release upper-limit)))
-  ModelProvider
-  (model [this]
-    this)
+  Model
+  (params-size [_]
+    dist-params-size)
   DistributionModel
   (logpdf [_]
     logpdf-name)
@@ -98,12 +108,13 @@
   (upper [_]
     upper-limit)
   CLModel
-  (params-size [_]
-    dist-params-size)
   (source [_]
     model-source)
   (sampler-source [_]
-    sampler-kernels))
+    sampler-kernels)
+  ModelProvider
+  (model [this]
+    this))
 
 (defn cl-distribution-model
   [source & {:keys [name logpdf mcmc-logpdf dimension params-size
@@ -123,7 +134,7 @@
 
 (let [post-source (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/posterior.cl"))]
 
-  (defn cl-posterior-model [^String name lik prior]
+  (defn cl-posterior-model [prior name lik]
     (let [post-name (str (gensym name))
           post-logpdf (format "%s_logpdf" post-name)
           post-mcmc-logpdf (format "%s_mcmc_logpdf" post-name)
@@ -143,33 +154,13 @@
                                                 (params-size lik))))
                           lik))))
 
-(defmethod posterior-model [CLLikelihoodModel CLDistributionModel]
-  [name likelihood prior]
-  (cl-posterior-model name likelihood prior))
+(extend CLDistributionModel
+  PriorModel
+  {:posterior-model cl-posterior-model})
 
-(defmethod posterior-model [CLLikelihoodModel CLPosteriorModel]
-  [name likelihood prior]
-  (cl-posterior-model name likelihood prior))
-
-(defmethod posterior-model [CLLikelihoodModel Distribution]
-  [name likelihood prior]
-  (cl-posterior-model name likelihood (model prior)))
-
-(defmethod posterior [1 CLPosteriorModel]
-  [factory model]
-  (univariate-posterior-creator factory model))
-
-(defmethod posterior [1 CLLikelihoodModel DistributionModel]
-  [factory name likelihood prior]
-  (univariate-posterior-creator
-   factory (cl-posterior-model name likelihood (model prior))))
-
-(defmethod posterior
-  [1 CLLikelihoodModel uncomplicate.bayadera.protocols.Distribution]
-  [factory name likelihood prior]
-  (univariate-posterior-prior-creator
-   factory (nc/copy (parameters prior))
-   (cl-posterior-model name likelihood (model prior))))
+(extend CLPosteriorModel
+  PriorModel
+  {:posterior-model cl-posterior-model})
 
 ;; ==================== Distribution Models ====================================
 

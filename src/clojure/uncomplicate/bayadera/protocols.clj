@@ -6,27 +6,29 @@
                             ^long lag ^float acc-rate])
 
 (defprotocol Location
-  (mean [this])
-  (median [this]))
+  (mean [x])
+  (median [x]))
 
 (defprotocol Spread
   (total-range [x])
   (interquartile-range [x])
-  (mean-variance [x] [eng data])
-  (variance [x]))
+  (variance [x])
+  (sd [x]))
 
 (defprotocol Association
   (cov [x y])
   (corr [x y]))
 
 (defprotocol DataSet
-  (data [_])
-  (data-count [_]))
+  (data [_]))
 
 (defprotocol Distribution
   (parameters [_]))
 
 ;; ==================== Models ====================
+
+(defprotocol Model
+  (params-size [this]))
 
 (defprotocol DistributionModel
   (mcmc-logpdf [this])
@@ -38,36 +40,27 @@
 (defprotocol LikelihoodModel
   (loglik [this]))
 
-(defprotocol CLModel
-  (params-size [this])
-  (source [this])
-  (sampler-source [this]))
-
 (defprotocol ModelProvider
   (model [this]))
 
-(defmulti posterior-model (fn [name likelihood prior]
-                            [(class likelihood) (class prior)]))
-
-
-(defmulti posterior (fn
-                      ([factory model]
-                       [(dimension model) (class model)])
-                      ([factory name likelihood prior]
-                       [(dimension (model prior)) (class likelihood) (class prior)])))
+(defprotocol PriorModel
+  (posterior-model [prior name likelihood]))
 
 ;; ==================== Engines ====================
+(defprotocol DatasetEngine
+  (means [engine x])
+  (variances [engine x]))
 
 (defprotocol DistributionEngine
-  (logpdf! [_ params x res])
-  (pdf! [_ params x res])
+  (log-pdf [_ params x])
+  (pdf [_ params x])
   (evidence [_ params x]))
 
 ;; ==================== Samplers ====================
 
 (defprotocol RandomSampler
   (init! [this seed])
-  (sample! [this res] [this params res] [this seed params res]))
+  (sample! [this n] [this seed params n]))
 
 (defprotocol MCMC
   (set-position! [this position])
