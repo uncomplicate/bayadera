@@ -98,18 +98,19 @@
     (sqrt (uniform-variance a b))))
 
 (defn ^:private prepare-mcmc-sampler
-  [sampler-factory walkers params lower-limit upper-limit
-   & {:keys [warm-up iterations a]
-      :or {warm-up 512
-           iterations 64
-           a 2.0}}]
-  (let [a (wrap-float a)
+  [sampler-factory walkers params lower-limit upper-limit options]
+  (let [{warm-up :warm-up
+         iterations :iterations
+         a :a
+         :or {warm-up 512
+              iterations 64
+              a 2.0}} options
         samp (mcmc-sampler sampler-factory walkers params lower-limit upper-limit)]
     (set-position! samp (rand-int Integer/MAX_VALUE))
     (init! samp (rand-int Integer/MAX_VALUE))
-    (burn-in! samp warm-up a)
+    (burn-in! samp warm-up (wrap-float a))
     (init! samp (rand-int Integer/MAX_VALUE))
-    (run-sampler! samp iterations a)
+    (run-sampler! samp iterations (wrap-float a))
     samp))
 
 (deftype BetaDistribution [bayadera-factory dist-eng params ^double a ^double b]
@@ -121,8 +122,8 @@
     (let [walkers (or (:walkers options)
                       (* (long (processing-elements bayadera-factory)) 32))
           beta-model (model this)]
-      (apply prepare-mcmc-sampler (beta-sampler bayadera-factory)
-             walkers params (lower beta-model) (upper beta-model) options)))
+      (prepare-mcmc-sampler (beta-sampler bayadera-factory) walkers params
+                            (lower beta-model) (upper beta-model) options)))
   (sampler [this]
     (sampler this nil))
   Distribution
@@ -151,8 +152,8 @@
   (sampler [_ options]
     (let [walkers (or (:walkers options)
                       (* (long (processing-elements bayadera-factory)) 32))]
-      (apply prepare-mcmc-sampler sampler-factory walkers params
-             (lower dist-model) (upper dist-model) options)))
+      (prepare-mcmc-sampler sampler-factory walkers params
+                            (lower dist-model) (upper dist-model) options)))
   (sampler [this]
     (sampler this nil))
   Distribution

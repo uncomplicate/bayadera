@@ -109,8 +109,11 @@
 (defn sd [x]
   (p/sd x))
 
-(defn sampler [dist]
-  (p/sampler dist))
+(defn sampler
+  ([dist]
+   (p/sampler dist))
+  ([dist options]
+   (p/sampler dist options)))
 
 (defn sample [sampler n]
   (p/sample! sampler n))

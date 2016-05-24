@@ -17,10 +17,27 @@
             [uncomplicate.bayadera.opencl :refer [with-default-bayadera]]
             [uncomplicate.bayadera.opencl.models
              :refer [binomial-likelihood cl-distribution-model]]
-            [clojure.java.io :as io]
-            [uncomplicate.bayadera.examples.dbda.ch08-test
-             :refer [render-sample plot-distribution]]);;TODO extract to new namespace
-  )
+            [clojure.java.io :as io]))
+
+(defn render-sample
+  ([plot xs ys]
+   (let [x-min (* 0.9 (entry xs (imin xs)))
+         x-max (* 1.1 (entry xs (imax xs)))
+         y-min (* 0.9 (entry ys (imin ys)))
+         y-max (* 1.1 (entry ys (imax ys)))]
+     (render plot {:x-axis (axis 0 1) :x xs
+                   :y-axis (axis 0 1) :y ys}))))
+
+(defmulti plot-distribution
+  (fn [plot xs ys options]
+    [(class xs) (class ys)]))
+
+(defmethod plot-distribution [uncomplicate.neanderthal.opencl.clblock.CLBlockVector
+                              uncomplicate.neanderthal.opencl.clblock.CLBlockVector]
+  [plot xs ys options]
+  (with-release [host-xs (transfer xs)
+                 host-ys (transfer ys)]
+    (render-sample plot host-xs host-ys)))
 
 (def plots (atom nil))
 
@@ -37,17 +54,17 @@
           z 9 N 12]
       (with-release [prior (distribution ch09-1mint-1coin-model)
                      prior-dist (prior (sv 2 2 100))
-                     prior-sample (dataset (sample (sampler prior-dist) sample-count))
+                     prior-sample (dataset (sample (sampler prior-dist {:warm-up 8092 :iterations 8092 :walkers sample-count}) sample-count))
                      prior-pdf (pdf prior-dist prior-sample)
                      post (posterior "posterior_ch09" binomial-likelihood prior-dist)
                      post-dist (post (binomial-lik-params N z))
-                     post-sampler (time (sampler post-dist))
+                     post-sampler (time (sampler post-dist {:warm-up 8092 :iterations 8092 :walkers sample-count}))
                      post-sample (dataset (sample post-sampler sample-count))
                      post-pdf (scal! (/ 1.0 (evidence post-dist prior-sample))
                                      (pdf post-dist post-sample))]
 
-        (plot-distribution prior-plot (row (p/data prior-sample) 0) prior-pdf {})
-        (plot-distribution posterior-plot (row (p/data post-sample) 0) post-pdf {})))))
+        (plot-distribution prior-plot (row (p/data prior-sample) 0) (row (p/data prior-sample) 1) {})
+        (plot-distribution posterior-plot (row (p/data post-sample) 0) (row (p/data post-sample) 1) {})))))
 
 (defn setup []
   (reset! plots
