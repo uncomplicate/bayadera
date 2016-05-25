@@ -1,12 +1,13 @@
 (ns ^{:author "Dragan Djuric"}
     uncomplicate.bayadera.visual-test
   (:require [midje.sweet :refer :all]
-            [uncomplicate.commons.core :refer [with-release]]
+            [uncomplicate.commons.core :refer [with-release double-fn]]
             [uncomplicate.fluokitten.core :refer [fmap fmap!]]
             [uncomplicate.bayadera.visual :refer :all]
             [uncomplicate.neanderthal
              [math :refer [log exp]]
-             [core :refer [dim copy]]
+             [core :refer [dim copy imax imin]]
+             [real :refer [entry]]
              [native :refer [sv]]]
             [quil.core :as q]
             [quil.applet :as qa]
@@ -19,11 +20,12 @@
                  pdf-vect (fmap (fn ^double [^double x] (log (inc x))) rand-vect)]
     (q/background 0)
     (q/image (-> (plot2d (qa/current-applet))
-                 (render {:x-axis (axis 0 10) :y-axis (axis -3 3) :x rand-vect :y pdf-vect})
+                 (render {:x-axis (vector-axis rand-vect)
+                          :y-axis (vector-axis pdf-vect)
+                          :x rand-vect
+                          :y pdf-vect})
                  show)
              0 0)))
-
-(defn draw [])
 
 (defn display-sketch []
   (q/defsketch diagrams
@@ -31,5 +33,4 @@
     :size :fullscreen
     :display 3
     :setup setup
-    :draw draw
     :middleware [pause-on-error]))

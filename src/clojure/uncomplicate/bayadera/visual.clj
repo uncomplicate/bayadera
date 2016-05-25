@@ -2,13 +2,15 @@
     uncomplicate.bayadera.visual
   (:require [uncomplicate.commons.core :refer [with-release]]
             [uncomplicate.neanderthal
-             [core :refer [dim]]
+             [core :refer [dim imin imax]]
              [real :refer [entry]]
-             [native :refer [dv]]]
+             [math :refer [magnitude floor ceil]]]
             [quil.core :as q]
             [quil.applet :refer [resolve-renderer]])
   (:import [processing.core PGraphics PConstants PApplet]
            [clojure.lang IFn$DDDD IFn$DD]))
+
+;; ============= Styles and themes ========================================
 
 (defrecord HSBColor [^float h ^float s ^float b])
 (defrecord Style [^HSBColor color ^float weight])
@@ -21,6 +23,37 @@
   (def cyberpunk-theme
     (->Theme frame-style frame-style label-style grid-style data-style)))
 
+;;================== Finding nice axis scaling =============================
+
+(defn nice ^double [^double x]
+  (let [mag (magnitude x)
+        fraction (/ x mag)]
+    (* (double (cond
+                 (<= fraction 1.0) 1.0
+                 (<= fraction 2.0) 2.0
+                 (<= fraction 5.0) 5.0
+                 :default 10.0))
+       mag)))
+
+(defn nice-round ^double [^double x]
+  (let [mag (magnitude x)
+        fraction (/ x mag)]
+    (* (double (cond
+                 (< fraction 1.5) 1.0
+                 (< fraction 3.0) 2.0
+                 (< fraction 7.0) 5.0
+                 :default 10.0))
+       mag)))
+
+(defn nice-spacing
+  (^double [^double lower ^double upper ^double max-ticks]
+   (nice-round (/ (nice (- upper lower)) (dec max-ticks))))
+  (^double [^double lower ^double upper]
+   (nice-spacing lower upper 10.0)))
+
+(defn nice-limit ^double [^IFn$DD limit-fn ^double spacing ^double x]
+  (* (.invokePrim limit-fn (/ x spacing)) spacing))
+
 (defn range-mapper
   (^IFn$DD [^double start1 ^double end1 ^double start2 ^double end2]
    (fn ^double [^double value]
@@ -29,19 +62,30 @@
    (fn ^double [^double value ^double start2 ^double end2]
      (+ start2 (* (- end2 start2) (/ (- value start1) (- end1 start1)))))))
 
-(defrecord Axis [^double lower ^double upper])
+(defrecord Axis [^double lower ^double upper ^double spacing])
 
-(defn axis [^double lower ^double upper]
-  (->Axis lower upper))
+(defn axis
+  (^Axis [^double lower ^double upper]
+   (axis lower upper 10.0))
+  (^Axis [^double lower ^double upper ^double max-ticks]
+   (let [spacing (nice-spacing lower upper max-ticks)]
+     (->Axis (nice-limit floor spacing lower)
+             (nice-limit ceil spacing upper)
+             spacing))))
+
+(defn vector-axis
+  (^Axis [x ^double max-ticks]
+   (axis (entry x (imin x)) (entry x (imax x)) max-ticks))
+  (^Axis [x]
+   (vector-axis x 10.0)))
+
+
 
 (defn axis-mapper
   (^IFn$DD [^Axis axis ^double start ^double end]
    (range-mapper (.lower axis) (.upper axis) start end))
   (^IFn$DDDD [^Axis axis]
    (range-mapper (.lower axis) (.upper axis))))
-
-(defn offset ^double [^Axis axis ^long density]
-  (/ (- (.upper axis) (.lower axis)) (double density)))
 
 (defn frame! [^PGraphics g]
   (do
@@ -52,14 +96,17 @@
     (.endDraw g)
     g))
 
-(defn bars! [^PGraphics g ^Axis axis ^long density]
+(defn bars! [^PGraphics g ^Axis axis ^double density]
   (let [height (.height g)
-        ofst (offset axis density)
+        ofst (/ (.spacing axis) density)
+        upper (.upper axis)
         map-range (axis-mapper axis 0 (dec (.width g)))]
     (.beginDraw g)
-    (dotimes [i (inc density)]
-      (let [x (Math/floor (map-range (+ (.lower axis ) (* (double i) ofst))))]
-        (.line g x 0 x height)))
+    (loop [value (.lower axis)]
+      (if (<= value upper)
+        (let [x (floor (map-range value))]
+          (.line g x 0 x height)
+          (recur (+ value ofst)))))
     (.endDraw g)
     g))
 
@@ -69,16 +116,19 @@
 (defn labels!
   ([^PGraphics g ^Axis axis nf ^long density]
    (let [height (float (.height g))
-         ofst (offset axis density)
+         ofst (* (.spacing axis) density)
+         upper (.upper axis)
          left-padding (/ (.textWidth g ^String (nf (.lower axis))) 2.0)
-         right-padding (/ (.textWidth g ^String (nf (.upper axis))) 2.0)
+         right-padding (/ (.textWidth g ^String (nf upper)) 2.0)
          map-range (axis-mapper axis left-padding (- (.width g) right-padding))]
      (.beginDraw g)
      (.textAlign g PConstants/CENTER)
-     (dotimes [i (inc density)]
-       (let [value (+ (.lower axis) (* (double i) ofst))]
-         (.text g ^String (nf value)
-                (float (map-range value)) (- height (* 2 (.textDescent g))))))
+     (loop [value (.lower axis)]
+       (if (<= value upper)
+         (let [x (floor (map-range value))]
+           (.text g ^String (nf value)
+                  (float (map-range value)) (- height (* 2 (.textDescent g))))
+           (recur (+ value ofst)))))
      (.endDraw g)
      g))
   ([^PGraphics g ^Axis axis ^double density]
@@ -232,7 +282,7 @@
     {:keys [theme width height padding tick-length
             x-density y-density grid-density renderer]
      :or {padding 4 tick-length 4
-          x-density 10 y-density 10 grid-density 2
+          x-density 1.0 y-density 1.0 grid-density 2.0
           width (.sketchWidth applet) height (.sketchHeight applet)
           theme cyberpunk-theme renderer :p2d}}]
    (let [width (int width)

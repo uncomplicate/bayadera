@@ -3,7 +3,7 @@
   (:require [uncomplicate.fluokitten.core :refer [fold]]
             [uncomplicate.neanderthal
              [core :refer [asum]]
-             [math :refer [exp round?]]])
+             [math :refer [exp round? pow magnitude]]])
   (:import [org.apache.commons.math3.special Gamma Beta]))
 
 (defn log-gamma

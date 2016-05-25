@@ -19,10 +19,10 @@
             [clojure.java.io :as io]))
 
 (defn render-sample
-  ([plot xs ps x-min x-max]
+  ([plot xs ps]
    (let [imax-p (imax ps)]
-     (render plot {:x-axis (axis x-min x-max) :x xs
-                   :y-axis (axis 0 10) :y ps
+     (render plot {:x-axis (vector-axis xs) :x xs
+                   :y-axis (vector-axis ps) :y ps
                    :vertical-lines [[(entry xs imax-p) (entry ps imax-p)]]}))))
 
 (defmulti plot-distribution
@@ -34,9 +34,7 @@
   [plot xs ps options]
   (with-release [host-xs (transfer xs)
                  host-ps (transfer ps)]
-    (render-sample plot host-xs host-ps 0 1
-                   #_(entry host-xs (imin xs))
-                   #_(entry host-xs (imax xs)))))
+    (render-sample plot host-xs host-ps)))
 
 (def plots (atom nil))
 
@@ -68,8 +66,8 @@
     (do
       (q/background 0)
       (analysis (:prior @plots) (:posterior @plots))
-      (q/image  (-> (:prior @plots) (show)) 0 0)
-      (q/image  (-> (:posterior @plots) (show)) 0 720)
+      (q/image (show (:prior @plots)) 0 0)
+      (q/image (show (:posterior @plots)) 0 720)
       (reset! plots (assoc @plots :changed false)))))
 
 (defn display-sketch []

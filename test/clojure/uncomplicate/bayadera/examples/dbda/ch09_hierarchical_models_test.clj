@@ -21,12 +21,8 @@
 
 (defn render-sample
   ([plot xs ys]
-   (let [x-min (* 0.9 (entry xs (imin xs)))
-         x-max (* 1.1 (entry xs (imax xs)))
-         y-min (* 0.9 (entry ys (imin ys)))
-         y-max (* 1.1 (entry ys (imax ys)))]
-     (render plot {:x-axis (axis 0 1) :x xs
-                   :y-axis (axis 0 1) :y ys}))))
+   (render plot {:x-axis (vector-axis xs) :x xs
+                 :y-axis (vector-axis ys) :y ys})))
 
 (defmulti plot-distribution
   (fn [plot xs ys options]
