@@ -20,20 +20,22 @@
             [clojure.java.io :as io]))
 
 (defn render-sample
-  ([plot xs ys]
+  ([plot xs ys ps]
    (render plot {:x-axis (vector-axis xs) :x xs
-                 :y-axis (vector-axis ys) :y ys})))
+                 :y-axis (vector-axis ys) :y ys
+                 :z ps})))
 
 (defmulti plot-distribution
-  (fn [plot xs ys options]
+  (fn [plot xs ys ps options]
     [(class xs) (class ys)]))
 
 (defmethod plot-distribution [uncomplicate.neanderthal.opencl.clblock.CLBlockVector
                               uncomplicate.neanderthal.opencl.clblock.CLBlockVector]
-  [plot xs ys options]
+  [plot xs ys ps options]
   (with-release [host-xs (transfer xs)
-                 host-ys (transfer ys)]
-    (render-sample plot host-xs host-ys)))
+                 host-ys (transfer ys)
+                 host-ps (transfer ps)]
+    (render-sample plot host-xs host-ys host-ps)))
 
 (def plots (atom nil))
 
@@ -54,13 +56,13 @@
                      prior-pdf (pdf prior-dist prior-sample)
                      post (posterior "posterior_ch09" binomial-likelihood prior-dist)
                      post-dist (post (binomial-lik-params N z))
-                     post-sampler (time (sampler post-dist {:warm-up 8092 :iterations 8092 :walkers sample-count}))
+                     post-sampler (time (sampler post-dist {:warm-up 80920 :iterations 8092 :walkers sample-count}))
                      post-sample (dataset (sample post-sampler sample-count))
                      post-pdf (scal! (/ 1.0 (evidence post-dist prior-sample))
                                      (pdf post-dist post-sample))]
 
-        (plot-distribution prior-plot (row (p/data prior-sample) 0) (row (p/data prior-sample) 1) {})
-        (plot-distribution posterior-plot (row (p/data post-sample) 0) (row (p/data post-sample) 1) {})))))
+        (plot-distribution prior-plot (row (p/data prior-sample) 0) (row (p/data prior-sample) 1) prior-pdf {})
+        (plot-distribution posterior-plot (row (p/data post-sample) 0) (row (p/data post-sample) 1) post-pdf {})))))
 
 (defn setup []
   (reset! plots
@@ -72,8 +74,8 @@
     (do
       (q/background 0)
       (analysis (:prior @plots) (:posterior @plots))
-      (q/image  (-> (:prior @plots) (show)) 0 0)
-      (q/image  (-> (:posterior @plots) (show)) 0 720)
+      (q/image (show (:prior @plots)) 0 0)
+      (q/image (show (:posterior @plots)) 0 720)
       (reset! plots (assoc @plots :changed false)))))
 
 (defn display-sketch []

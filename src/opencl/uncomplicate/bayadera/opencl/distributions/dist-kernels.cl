@@ -7,26 +7,26 @@
 #endif
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
-__kernel void logpdf(__constant const float* params
+__kernel void logpdf(__constant const REAL* params
                      __attribute__ ((max_constant_size(PARAMS_SIZE))),
-                     __global const float* x, __global float* res) {
-    uint gid = DIM * get_global_id(0);
-    float px[DIM];
+                     __global const REAL* x, __global REAL* res) {
+    uint start = DIM * get_global_id(0);
+    REAL px[DIM];
     for (uint i = 0; i < DIM; i++) {
-        px[i] = x[gid + i];
+        px[i] = x[start + i];
     }
-    res[gid] = LOGPDF(params, px);
+    res[get_global_id(0)] = LOGPDF(params, px);
 }
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
-__kernel void pdf(__constant const float* params
+__kernel void pdf(__constant const REAL* params
                   __attribute__ ((max_constant_size(PARAMS_SIZE))),
-                  __global const float* x, __global float* res) {
+                  __global const REAL* x, __global REAL* res) {
 
-    uint gid = DIM * get_global_id(0);
-    float px[DIM];
+    uint start = DIM * get_global_id(0);
+    REAL px[DIM];
     for (uint i = 0; i < DIM; i++) {
-        px[i] = x[gid + i];
+        px[i] = x[start + i];
     }
-    res[gid] = native_exp(LOGPDF(params, px));
+    res[get_global_id(0)] = native_exp(LOGPDF(params, px));
 }

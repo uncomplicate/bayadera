@@ -124,7 +124,7 @@
     ([ctx cqueue tmp-dir-name model WGS]
      (let [prog (build-program!
                  (program-with-source ctx (conj (source model) kernels-src))
-                 (format "-cl-std=CL2.0 -DREAL=float -DLOGPDF=%s -DPARAMS_SIZE=%d -DDIM=%d -DWGS=%s -I%s"
+                 (format "-cl-std=CL2.0 -DREAL=float -DACCUMULATOR=float -DLOGPDF=%s -DPARAMS_SIZE=%d -DDIM=%d -DWGS=%s -I%s"
                          (logpdf model) (params-size model) (dimension model)
                          WGS tmp-dir-name)
                  nil)]

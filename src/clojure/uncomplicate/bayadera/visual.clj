@@ -7,21 +7,75 @@
              [math :refer [magnitude floor ceil]]]
             [quil.core :as q]
             [quil.applet :refer [resolve-renderer]])
-  (:import [processing.core PGraphics PConstants PApplet]
+  (:import [java.awt Color]
+           [processing.core PGraphics PConstants PApplet]
            [clojure.lang IFn$DDDD IFn$DD]))
+
+;; ============= Color mapping functions =================================
+
+(definterface Colormap
+  (^float r [^float x])
+  (^float g [^float x])
+  (^float b [^float x]))
+
+(defmacro ^:private cube-helix-color [p0 p1 gamma s r h x]
+  `(let [xg# (Math/pow ~x ~gamma)
+         a# (* ~h xg# (- 1 xg#) 0.5)
+         phi# (* 2 Math/PI (+ (/ ~s 3) (* ~r ~x)))]
+     (* (float 255.0) (+ xg# (* a# (+ (* ~p0 (Math/cos phi#)) (* ~p1 (Math/sin phi#))))))))
+
+(deftype CubeHelix [^float gamma ^float start-color ^float rotations ^float hue]
+  Colormap
+  (r [_ x]
+    (cube-helix-color (float -0.14861) (float 1.78277)
+                      gamma start-color rotations hue x))
+  (g [_ x]
+    (cube-helix-color (float -0.29227) (float -0.90649)
+                      gamma start-color rotations hue x))
+  (b [_ x]
+    (cube-helix-color (float 1.97294) (float 0.0)
+                      gamma start-color rotations hue x)))
+
+(defn cube-helix
+  ([^double gamma ^double start-color ^double rotations ^double hue]
+   (CubeHelix. gamma start-color rotations hue))
+  ([]
+   (cube-helix 1.0 0.5 -1.5 1.0)))
+
+(definterface RGBColor
+  (^float r [])
+  (^float g [])
+  (^float b []))
+
+(deftype ConstantColor [^float red ^float green ^float blue]
+  RGBColor
+  (r [_] red)
+  (g [_] green)
+  (b [_] blue)
+  Colormap
+  (r [_ x] red)
+  (g [_ x] green)
+  (b [_ x] blue))
+
+(defn rgb-color [^double red ^double green ^double blue]
+  (ConstantColor. red green blue))
+
+(defn hsb-color [^double h ^double s ^double b]
+  (let [color (Color/getHSBColor (/ h 360.0) (/ s 100.0) (/ b 100.0))]
+    (ConstantColor. (.getRed color) (.getGreen color) (.getBlue color))))
 
 ;; ============= Styles and themes ========================================
 
-(defrecord HSBColor [^float h ^float s ^float b])
-(defrecord Style [^HSBColor color ^float weight])
-(defrecord Theme [^Style frame ^Style ticks ^Style labels ^Style grid ^Style data])
+(defrecord Style [^RGBColor color ^float weight])
+(defrecord Theme [^Style frame ^Style ticks ^Style labels ^Style grid
+                  ^Style data ^Colormap colormap])
 
-(let [frame-style (->Style (->HSBColor 200 50 60) 1)
-      data-style (->Style (->HSBColor 320 100 100) 4)
-      grid-style (->Style (->HSBColor 60 30 10) 1)
-      label-style (->Style (->HSBColor 180 40 100) 10)]
+(let [frame-style (->Style (hsb-color 200 50 60) 1)
+      data-style (->Style (hsb-color 320 100 100) 2)
+      grid-style (->Style (hsb-color 60 30 10) 1)
+      label-style (->Style (hsb-color 180 40 100) 10)]
   (def cyberpunk-theme
-    (->Theme frame-style frame-style label-style grid-style data-style)))
+    (->Theme frame-style frame-style label-style grid-style data-style (cube-helix))))
 
 ;;================== Finding nice axis scaling =============================
 
@@ -79,8 +133,6 @@
   (^Axis [x]
    (vector-axis x 10.0)))
 
-
-
 (defn axis-mapper
   (^IFn$DD [^Axis axis ^double start ^double end]
    (range-mapper (.lower axis) (.upper axis) start end))
@@ -135,21 +187,19 @@
    (labels! g axis format-number density)))
 
 (defn style! [^PGraphics g ^Style style]
-  (let [color ^HSBColor (.color style)]
+  (let [color ^RGBColor (.color style)]
     (doto g
       (.beginDraw)
-      (.colorMode PConstants/HSB 360 100 100)
       (.strokeWeight (.weight style))
-      (.stroke (.h color) (.s color) (.b color))
+      (.stroke (.r color) (.g color) (.b color))
       (.endDraw))
     g))
 
 (defn fill! [^PGraphics g ^Style style]
-  (let [color ^HSBColor (.color style)]
+  (let [color ^RGBColor (.color style)]
     (doto g
       (.beginDraw)
-      (.colorMode PConstants/HSB 360 100 100)
-      (.fill (.h color) (.s color) (.b color))
+      (.fill (.r color) (.g color) (.b color))
       (.endDraw))
     g))
 
@@ -159,14 +209,38 @@
   (.endDraw g)
   g)
 
-(defn points! [^PGraphics g ^Axis x-axis ^Axis y-axis xs ys]
-  (let [map-x (axis-mapper x-axis 0 (dec (.width g)))
-        map-y (axis-mapper y-axis (dec (.height g)) 0)]
-    (.beginDraw g)
-    (dotimes [i (dim xs)]
-      (.point g (map-x (entry xs i)) (map-y (entry ys i))))
-    (.endDraw g)
-    g))
+(defn points!
+  ([^PGraphics g ^Axis x-axis ^Axis y-axis xs ys]
+   (let [map-x (axis-mapper x-axis 0 (dec (.width g)))
+         map-y (axis-mapper y-axis (dec (.height g)) 0)]
+     (.beginDraw g)
+     (dotimes [i (dim xs)]
+       (.point g (map-x (entry xs i)) (map-y (entry ys i))))
+     (.endDraw g)
+     g))
+  ([^PGraphics g ^Colormap colormap ^Axis x-axis ^Axis y-axis xs ys]
+   (let [map-x (axis-mapper x-axis 0 (dec (.width g)))
+         map-y (axis-mapper y-axis (dec (.height g)) 0)
+         map-01 (range-mapper (entry ys (imin ys)) (entry ys (imax ys)) 0.0 1.0)]
+     (.beginDraw g)
+     (dotimes [i (dim xs)]
+       (let [y (entry ys i)
+             y-01 (map-01 y)]
+         (.stroke g (.r colormap y-01) (.g colormap y-01) (.b colormap y-01))
+         (.point g (map-x (entry xs i)) (map-y y))))
+     (.endDraw g)
+     g))
+  ([^PGraphics g ^Colormap colormap ^Axis x-axis ^Axis y-axis xs ys zs]
+   (let [map-x (axis-mapper x-axis 0 (dec (.width g)))
+         map-y (axis-mapper y-axis (dec (.height g)) 0)
+         map-01 (range-mapper (entry zs (imin zs)) (entry zs (imax zs)) 0.0 1.0)]
+     (.beginDraw g)
+     (dotimes [i (dim xs)]
+       (let [z-01 (map-01 (entry zs i))]
+         (.stroke g (.r colormap z-01) (.g colormap z-01) (.b colormap z-01))
+         (.point g (map-x (entry xs i)) (map-y (entry ys i)))))
+     (.endDraw g)
+     g)))
 
 (defn vertical-lines! [^PGraphics g ^Axis x-axis ^Axis y-axis marks]
   (let [map-x (axis-mapper x-axis 0 (dec (.width g)))
@@ -221,14 +295,16 @@
       (bars! y-grid y-axis (* y-density grid-density))
       this))
   (render-data [this options]
-    (let [{:keys [x y x-axis y-axis style vertical-lines]
+    (let [{:keys [x y z x-axis y-axis style vertical-lines]
            :or {x-axis (axis -1.0 1.0)
                 y-axis (axis -1.0 1.0)
                 style (.data theme)
                 vertical-lines []}} options]
       (clear! g-data)
       (style! g-data style)
-      (points! g-data x-axis y-axis x y)
+      (if z
+        (points! g-data (.colormap theme) x-axis y-axis x y z)
+        (points! g-data (.colormap theme) x-axis y-axis x y))
       (style! g-data (.ticks theme))
       (vertical-lines! g-data x-axis y-axis vertical-lines)
       this))

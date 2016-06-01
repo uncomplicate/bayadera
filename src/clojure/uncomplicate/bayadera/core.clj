@@ -121,6 +121,9 @@
 (defn pdf [dist xs]
   (p/pdf (p/engine dist) (p/parameters dist) (p/data xs)))
 
+(defn log-pdf [dist xs]
+  (p/log-pdf (p/engine dist) (p/parameters dist) (p/data xs)))
+
 (defn evidence [dist xs]
   (p/evidence (p/engine dist) (p/parameters dist) (p/data xs)))
 
