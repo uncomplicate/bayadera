@@ -7,11 +7,10 @@
             [clojure.java.io :as io]
             [uncomplicate.clojurecl.core :refer :all]
             [uncomplicate.neanderthal
-             [core :refer [dim create-vector row ncols]]
+             [core :refer [create-vector row ncols]]
              [real :refer [sum]]
              [native :refer [sv]]
-             [block :refer [buffer]]
-             [opencl :refer [opencl-single clge with-engine]]]
+             [opencl :refer [opencl-single]]]
             [uncomplicate.bayadera.protocols :refer :all]
             [uncomplicate.bayadera.opencl
              [models :refer [gaussian-model]]

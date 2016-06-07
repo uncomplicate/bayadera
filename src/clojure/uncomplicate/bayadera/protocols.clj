@@ -5,6 +5,8 @@
                             ^long size ^long steps ^long walkers
                             ^long lag ^float acc-rate])
 
+(defrecord Histogram [limits pmf sorted-bins])
+
 (defprotocol Location
   (mean [x])
   (median [x]))
@@ -49,7 +51,9 @@
 ;; ==================== Engines ====================
 (defprotocol DatasetEngine
   (means [engine x])
-  (variances [engine x]))
+  (variances [engine x])
+  (histogram [engine x])
+  (sort-data [engine x]))
 
 (defprotocol DistributionEngine
   (log-pdf [_ params x])

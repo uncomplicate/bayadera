@@ -10,7 +10,7 @@
             [uncomplicate.clojurecl.toolbox
              :refer [enq-reduce enq-read-double count-work-groups]]
             [uncomplicate.neanderthal
-             [core :refer [create-raw ncols mrows scal! transfer]]
+             [core :refer [create-raw ncols mrows scal! transfer copy raw ecount]]
              [protocols :as np]
              [block :refer [buffer]]
              [opencl :refer [opencl-single]]]
@@ -104,7 +104,39 @@
         (set-args! variance-kernel 0 cl-acc (buffer data-matrix) (buffer res-vec))
         (enq-reduce cqueue variance-kernel sum-reduction-kernel m n wgsm wgsn)
         (enq-copy! cqueue cl-acc (buffer res-vec))
-        (scal! (/ 1.0 n) (transfer res-vec))))))
+        (scal! (/ 1.0 n) (transfer res-vec)))))
+  (histogram [this data-matrix]
+    (let [m (mrows data-matrix)
+          n (ncols data-matrix)
+          wgsn (min n WGS)
+          wgsm (/ WGS wgsn)
+          acc-size (* 2 Float/BYTES (max 1 (* m (count-work-groups wgsn n))))]
+      (with-release [cl-min-max (cl-buffer ctx acc-size :read-write)
+                     uint-res (cl-buffer ctx (* Integer/BYTES WGS m) :read-write)
+                     result (create-raw (np/factory data-matrix) WGS m)
+                     limits (create-raw (np/factory data-matrix) 2 m)
+                     sorted-bins (create-raw (np/factory data-matrix) WGS m)
+                     min-max-reduction-kernel (kernel prog "min_max_reduction")
+                     min-max-kernel (kernel prog "min_max_reduce")
+                     histogram-kernel (kernel prog "histogram")
+                     uint-to-real-kernel (kernel prog "uint_to_real")
+                     local-sort-kernel (kernel prog "bitonic_local")]
+        (set-arg! min-max-reduction-kernel 0 cl-min-max)
+        (set-args! min-max-kernel cl-min-max (buffer data-matrix))
+        (enq-reduce cqueue min-max-kernel min-max-reduction-kernel m n wgsm wgsn)
+        (enq-copy! cqueue cl-min-max (buffer limits))
+        (enq-fill! cqueue uint-res (wrap-int 0))
+        (set-args! histogram-kernel
+                   (buffer limits) (buffer data-matrix)
+                   (wrap-int (ecount data-matrix)) uint-res)
+        (enq-nd! cqueue histogram-kernel
+                 (work-size-2d (mrows data-matrix) n wgsm wgsn))
+        (set-args! uint-to-real-kernel
+                   (wrap-float (/ 1 n)) uint-res (buffer result))
+        (enq-nd! cqueue uint-to-real-kernel (work-size-1d (* m WGS)))
+        (set-args! local-sort-kernel (buffer result) (buffer sorted-bins))
+        (enq-nd! cqueue local-sort-kernel (work-size-1d (* m WGS)))
+        (->Histogram (transfer limits) (transfer result) (transfer sorted-bins))))))
 
 (let [dataset-src [(slurp (io/resource "uncomplicate/clojurecl/kernels/reduction.cl"))
                    (slurp (io/resource "uncomplicate/bayadera/opencl/dataset/amd-gcn.cl"))]]
@@ -112,7 +144,7 @@
   (defn gcn-dataset-engine
     ([ctx cqueue ^long WGS]
      (let [prog (build-program! (program-with-source ctx dataset-src)
-                                (format "-cl-std=CL2.0 -DREAL=float -DACCUMULATOR=float -DWGS=%s" WGS)
+                                (format "-cl-std=CL2.0 -DREAL=float -DREAL2=float2 -DACCUMULATOR=float -DWGS=%s" WGS)
                                 nil)]
        (->GCNDataSetEngine ctx cqueue prog WGS)))
     ([ctx queue]

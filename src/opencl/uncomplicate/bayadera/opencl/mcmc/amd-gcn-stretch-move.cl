@@ -1,19 +1,5 @@
 #include "Random123/philox.h"
 
-#ifndef PARAMS_SIZE
-#define PARAMS_SIZE 2
-#endif
-
-#ifndef WGS
-#define WGS 256
-#endif
-
-#ifndef DIM
-    #define DIM 1
-#endif
-
-// =============================================================================
-
 inline void work_group_reduction_accumulate (__global uint* accept,
                                              const uint accepted,
                                              __global float* acc,

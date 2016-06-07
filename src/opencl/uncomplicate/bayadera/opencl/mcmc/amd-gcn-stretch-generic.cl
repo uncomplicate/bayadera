@@ -1,7 +1,3 @@
-#ifndef WGS
-#define WGS 256
-#endif
-
 inline void work_group_reduction_sum_ulong (__global ulong* acc,
                                             const ulong value) {
 
@@ -45,7 +41,7 @@ __kernel void sum_accept_reduce (__global ulong* acc,
 }
 
 __kernel void sum_means_vertical (__global REAL* acc,
-                                  __global REAL* data) {
+                                  __global const REAL* data) {
     size_t i = get_global_size(0) * get_global_id(1) + get_global_id(0);
     size_t iacc = get_global_size(1) * get_group_id(0) + get_global_id(1);
     REAL sum = work_group_reduction_sum_2(0, data[i]);
