@@ -131,7 +131,7 @@
   (^Axis [x ^double max-ticks]
    (axis (entry x (imin x)) (entry x (imax x)) max-ticks))
   (^Axis [x]
-   (vector-axis x 10.0)))
+   (vector-axis x 5.0)))
 
 (defn axis-mapper
   (^IFn$DD [^Axis axis ^double start ^double end]

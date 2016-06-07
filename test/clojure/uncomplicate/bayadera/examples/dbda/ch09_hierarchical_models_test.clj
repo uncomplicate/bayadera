@@ -20,35 +20,6 @@
              :refer [binomial-likelihood cl-distribution-model]]
             [clojure.java.io :as io]))
 
-(defn render-sample
-  ([plot xs ps]
-   (render plot {:x-axis (vector-axis xs) :x xs
-                 :y-axis (vector-axis ps) :y ps}))
-  ([plot xs ys ps]
-   (render plot {:x-axis (vector-axis xs) :x xs
-                 :y-axis (vector-axis ys) :y ys
-                 :z ps})))
-
-(defmulti plot-distribution
-  (fn [plot xs ys ps options]
-    [(class xs) (class ys)]))
-
-(defmethod plot-distribution [uncomplicate.neanderthal.opencl.clblock.CLBlockVector
-                              uncomplicate.neanderthal.opencl.clblock.CLBlockVector]
-  [plot xs ys ps options]
-  (with-release [host-xs (transfer xs)
-                 host-ys (transfer ys)
-                 host-ps (transfer ps)]
-    (render-sample plot host-xs host-ys host-ps)))
-
-(def plots (atom nil))
-
-(def ch09-1mint-1coin-model
-  (cl-distribution-model [(slurp (io/resource "uncomplicate/bayadera/opencl/distributions/beta.h"))
-                          (slurp (io/resource "uncomplicate/bayadera/examples/dbda/ch09-1mint-1coin.h"))]
-                         :name "ch09_1mint_1coin" :params-size 3 :dimension 2
-                         :lower (sv 0 0) :upper (sv 1 1)))
-
 (defn bin-centers [limits ^long bin-count]
   (let [lower (entry limits 0)
         upper (entry limits 1)
@@ -59,9 +30,27 @@
         (entry! res i (+ start (* i bin-width))))
       res)))
 
-(defn analysis [plots]
+(defn render-sample
+  ([plot xs ps]
+   (render plot {:x-axis (vector-axis xs) :x xs
+                 :y-axis (vector-axis ps) :y ps}))
+  ([plot xs ys ps]
+   (render plot {:x-axis (vector-axis xs) :x xs
+                 :y-axis (vector-axis ys) :y ys
+                 :z ps})))
+
+(def all-data (atom {}))
+(def state (atom nil))
+
+(def ch09-1mint-1coin-model
+  (cl-distribution-model [(slurp (io/resource "uncomplicate/bayadera/opencl/distributions/beta.h"))
+                          (slurp (io/resource "uncomplicate/bayadera/examples/dbda/ch09-1mint-1coin.h"))]
+                         :name "ch09_1mint_1coin" :params-size 3 :dimension 2
+                         :lower (sv 0 0) :upper (sv 1 1)))
+
+(defn analysis []
   (with-default-bayadera
-    (let [sample-count (* 256 44 8)
+    (let [sample-count (* 256 44 64)
           a 1 b 1
           z 9 N 12]
       (with-release [prior (distribution ch09-1mint-1coin-model)
@@ -74,30 +63,17 @@
                      post-sample (dataset (sample post-sampler sample-count))
                      post-pdf (scal! (/ 1.0 (evidence post-dist prior-sample))
                                      (pdf post-dist post-sample))]
-        (let [prior-histogram (p/histogram (.dataset-eng prior-sample) (p/data prior-sample))
-              post-histogram (p/histogram (.dataset-eng post-sample) (p/data post-sample))]
-
-          (plot-distribution (:prior @plots)
-                             (row (p/data prior-sample) 0)
-                             (row (p/data prior-sample) 1) prior-pdf {})
-          (render-sample (:prior-omega @plots)
-                         (bin-centers (col (:limits prior-histogram) 0) 256)
-                         (col (:pmf prior-histogram) 0))
-          (render-sample (:prior-theta @plots)
-                         (bin-centers (col (:limits prior-histogram) 1) 256)
-                         (col (:pmf prior-histogram) 1))
-          (plot-distribution (:posterior @plots) (row (p/data post-sample) 0)
-                             (row (p/data post-sample) 1) post-pdf {})
-          (render-sample (:posterior-omega @plots)
-                         (bin-centers (col (:limits post-histogram) 0) 256)
-                         (col (:pmf post-histogram) 0))
-          (render-sample (:posterior-theta @plots)
-                         (bin-centers (col (:limits post-histogram) 1) 256)
-                         (col (:pmf post-histogram) 1)))))))
+        {:prior-sample (transfer (p/data prior-sample))
+         :prior-pdf (transfer prior-pdf)
+         :prior-histogram (p/histogram (.dataset-eng prior-sample) (p/data prior-sample))
+         :posterior-sample (transfer (p/data post-sample))
+         :posterior-pdf (transfer post-pdf)
+         :posterior-histogram (p/histogram (.dataset-eng post-sample) (p/data post-sample))}))))
 
 (defn setup []
-  (reset! plots
-          {:prior (plot2d (qa/current-applet) {:width 400 :height 400})
+  (reset! state
+          {:data @all-data
+           :prior (plot2d (qa/current-applet) {:width 400 :height 400})
            :prior-omega (plot2d (qa/current-applet) {:width 400 :height 400})
            :prior-theta (plot2d (qa/current-applet) {:width 400 :height 400})
            :posterior (plot2d (qa/current-applet) {:width 400 :height 400})
@@ -105,17 +81,35 @@
            :posterior-theta (plot2d (qa/current-applet) {:width 400 :height 400})}))
 
 (defn draw []
-  (when (:changed @plots)
-    (do
-      (q/background 0)
-      (analysis plots)
-      (q/image (show (:prior @plots)) 0 0)
-      (q/image (show (:prior-omega @plots)) 420 0)
-      (q/image (show (:prior-theta @plots)) 0 420)
-      (q/image (show (:posterior @plots)) 0 840)
-      (q/image (show (:posterior-omega @plots)) 420 840)
-      (q/image (show (:posterior-theta @plots)) 0 1260)
-      (reset! plots (assoc @plots :changed false)))))
+  (when-not (= @all-data (:data @state))
+    (swap! state assoc :data @all-data)
+    (q/background 0)
+    (q/image (show (render-sample (:prior @state)
+                                  (row (:prior-sample @all-data) 0)
+                                  (row (:prior-sample @all-data) 1)
+                                  (:prior-pdf @all-data)))
+             0 0)
+    (q/image (show (render-sample (:prior-omega @state)
+                                  (bin-centers (col (:limits (:prior-histogram @all-data)) 0) 256)
+                                  (col (:pmf (:prior-histogram @all-data)) 0)))
+             420 0)
+    (q/image (show (render-sample (:prior-theta @state)
+                                  (bin-centers (col (:limits (:prior-histogram @all-data)) 1) 256)
+                                  (col (:pmf (:prior-histogram @all-data)) 1)))
+             0 420)
+    (q/image (show (render-sample (:prior @state)
+                                  (row (:posterior-sample @all-data) 0)
+                                  (row (:posterior-sample @all-data) 1)
+                                  (:posterior-pdf @all-data)))
+             0 840)
+    (q/image (show (render-sample (:posterior-omega @state)
+                                  (bin-centers (col (:limits (:posterior-histogram @all-data)) 0) 256)
+                                  (col (:pmf (:posterior-histogram @all-data)) 0)))
+             420 840)
+    (q/image (show (render-sample (:posterior-theta @state)
+                                  (bin-centers (col (:limits (:posterior-histogram @all-data)) 1) 256)
+                                  (col (:pmf (:posterior-histogram @all-data)) 1)))
+             0 1260)))
 
 (defn display-sketch []
   (q/defsketch diagrams
