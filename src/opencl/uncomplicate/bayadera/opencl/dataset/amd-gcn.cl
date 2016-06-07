@@ -58,10 +58,15 @@ __kernel void histogram(__constant const REAL* limits,
     atomic_add(&res[WGS * dim_id + lid], hist[lid]);
 }
 
-__attribute__((reqd_work_group_size(WGS, 1, 1)))
-__kernel void uint_to_real(const REAL alpha, __global const uint* data, __global REAL* res) {
-    const uint gid = get_global_id(0);
-    res[gid] = alpha * data[gid];
+__kernel void uint_to_real(const REAL alpha,
+                           __constant const REAL* limits,
+                           __global const uint* data,
+                           __global REAL* res) {
+    const uint bin_id = get_global_id(0);
+    const uint dim_id = get_global_id(1);
+    const uint data_id = get_global_size(0) * dim_id + bin_id;
+    res[data_id] = (limits[2 * dim_id + 1] - limits[2 * dim_id])
+        * alpha * data[data_id];
 }
 
 // ================ Max reduction ==============================================

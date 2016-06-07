@@ -132,8 +132,9 @@
         (enq-nd! cqueue histogram-kernel
                  (work-size-2d (mrows data-matrix) n wgsm wgsn))
         (set-args! uint-to-real-kernel
-                   (wrap-float (/ 1 n)) uint-res (buffer result))
-        (enq-nd! cqueue uint-to-real-kernel (work-size-1d (* m WGS)))
+                   (wrap-float (/ WGS n)) (buffer limits)
+                   uint-res (buffer result))
+        (enq-nd! cqueue uint-to-real-kernel (work-size-2d WGS m))
         (set-args! local-sort-kernel (buffer result) (buffer sorted-bins))
         (enq-nd! cqueue local-sort-kernel (work-size-1d (* m WGS)))
         (->Histogram (transfer limits) (transfer result) (transfer sorted-bins))))))
