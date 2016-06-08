@@ -295,18 +295,18 @@
       (bars! y-grid y-axis (* y-density grid-density))
       this))
   (render-data [this options]
-    (let [{:keys [x y z x-axis y-axis style vertical-lines]
+    (let [{:keys [x y z x-axis y-axis style vertical-marks]
            :or {x-axis (axis -1.0 1.0)
                 y-axis (axis -1.0 1.0)
                 style (.data theme)
-                vertical-lines []}} options]
+                vertical-marks []}} options]
       (clear! g-data)
       (style! g-data style)
       (if z
         (points! g-data (.colormap theme) x-axis y-axis x y z)
-        (points! g-data (.colormap theme) x-axis y-axis x y))
+        (points! g-data x-axis y-axis x y))
       (style! g-data (.ticks theme))
-      (vertical-lines! g-data x-axis y-axis vertical-lines)
+      (vertical-lines! g-data x-axis y-axis vertical-marks)
       this))
   (show [this]
     (show this {}))

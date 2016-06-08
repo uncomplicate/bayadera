@@ -65,8 +65,8 @@ __kernel void uint_to_real(const REAL alpha,
     const uint bin_id = get_global_id(0);
     const uint dim_id = get_global_id(1);
     const uint data_id = get_global_size(0) * dim_id + bin_id;
-    res[data_id] = (limits[2 * dim_id + 1] - limits[2 * dim_id])
-        * alpha * data[data_id];
+    res[data_id] = (limits[2 * dim_id + 1] - limits[2 * dim_id] + 2 * FLT_MIN)
+        * alpha * (REAL)data[data_id];
 }
 
 // ================ Max reduction ==============================================
