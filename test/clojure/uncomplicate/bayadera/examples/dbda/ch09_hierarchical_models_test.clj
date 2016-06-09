@@ -8,7 +8,7 @@
              [fun-mode :refer [fun-mode]]]
             [uncomplicate.commons.core :refer [with-release let-release]]
             [uncomplicate.neanderthal
-             [core :refer [row transfer dot imax imin scal! col]]
+             [core :refer [row transfer dot imax imin scal! col submatrix]]
              [real :refer [entry entry!]]
              [native :refer [sv]]]
             [uncomplicate.bayadera
@@ -50,24 +50,24 @@
 
 (defn analysis []
   (with-default-bayadera
-    (let [walker-count (* 256 44 16)
-          sample-count (* 8 walker-count)
+    (let [walker-count (* 256 44 32)
+          sample-count (* 16 walker-count)
           a 1 b 1
           z 9 N 12]
       (with-release [prior (distribution ch09-1mint-1coin-model)
                      prior-dist (prior (sv 2 2 100))
-                     prior-sample (dataset (sample (sampler prior-dist {:warm-up 8092 :iterations 8092 :walkers walker-count}) sample-count))
+                     prior-sample (dataset (sample (sampler prior-dist) sample-count))
                      prior-pdf (pdf prior-dist prior-sample)
                      post (posterior "posterior_ch09" binomial-likelihood prior-dist)
                      post-dist (post (binomial-lik-params N z))
-                     post-sampler (time (sampler post-dist {:warm-up 8092 :iterations 8092 :walkers walker-count}))
+                     post-sampler (time (sampler post-dist))
                      post-sample (dataset (sample post-sampler sample-count))
                      post-pdf (scal! (/ 1.0 (evidence post-dist prior-sample))
                                      (pdf post-dist post-sample))]
-        {:prior-sample (transfer (p/data prior-sample))
+        {:prior-sample (transfer (submatrix (p/data prior-sample) 0 0 2 walker-count))
          :prior-pdf (transfer prior-pdf)
          :prior-histogram (p/histogram (.dataset-eng prior-sample) (p/data prior-sample))
-         :posterior-sample (transfer (p/data post-sample))
+         :posterior-sample (transfer (submatrix (p/data post-sample) 0 0 2 walker-count))
          :posterior-pdf (transfer post-pdf)
          :posterior-histogram (p/histogram (.dataset-eng post-sample) (p/data post-sample))}))))
 
