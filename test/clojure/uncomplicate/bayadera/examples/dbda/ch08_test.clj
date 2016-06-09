@@ -25,7 +25,7 @@
 
 (defn analysis []
   (with-default-bayadera
-    (let [sample-count (* 256 44)
+    (let [sample-count (* 256 44 16)
           a 1 b 1
           z 15 N 50]
       (with-release [prior-dist (beta a b)

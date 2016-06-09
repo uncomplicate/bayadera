@@ -184,7 +184,7 @@
     cqueue
     (build-program!
      (program-with-source ctx (into (source model) (sampler-source model)))
-     (format "-cl-std=CL2.0 -DWGS=%s -I%s/" WGS tmp-dir-name)
+     (format "-cl-std=CL2.0 -DREAL=float -DWGS=%s -I%s/" WGS tmp-dir-name)
      nil)
     (dimension model))))
 

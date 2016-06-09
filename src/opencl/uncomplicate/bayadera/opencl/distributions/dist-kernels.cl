@@ -1,11 +1,3 @@
-#ifndef WGS
-#define WGS 256
-#endif
-
-#ifndef PARAMS_SIZE
-#define PARAMS_SIZE 2
-#endif
-
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
 __kernel void logpdf(__constant const REAL* params
                      __attribute__ ((max_constant_size(PARAMS_SIZE))),

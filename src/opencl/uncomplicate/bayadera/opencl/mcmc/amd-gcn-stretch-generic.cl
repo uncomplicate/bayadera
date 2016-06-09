@@ -84,6 +84,7 @@ __kernel void subtract_mean (__global REAL* means,
     means[dim_size * n_id + dim_id] -= mean[dim_id];
 }
 
+//TODO change floats to REALs
 inline float2 work_group_reduction_autocovariance (__global float* c0acc,
                                                    __global float* dacc,
                                                    const float x2,

@@ -4,10 +4,6 @@
 #define R123_0x1p_23f 1.1920928955078125E-7f
 #endif
 
-#ifndef WGS
-#define WGS 256
-#endif
-
 // Sampling from the uniform distribution
 inline float u01fpt_oo_32_24(uint i) {
     return (0.5f + (i >> 9)) * R123_0x1p_23f;

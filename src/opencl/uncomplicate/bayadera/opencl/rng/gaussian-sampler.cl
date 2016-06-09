@@ -1,9 +1,5 @@
 #include "Random123/philox.h"
 
-#ifndef WGS
-#define WGS 256
-#endif
-
 #ifndef M_2PI_F
 #define M_2PI_F 6.2831855f
 #endif
