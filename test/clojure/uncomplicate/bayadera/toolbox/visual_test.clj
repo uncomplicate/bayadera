@@ -8,7 +8,9 @@
              [core :refer [dim copy imax imin]]
              [real :refer [entry]]
              [native :refer [sv]]]
-            [uncomplicate.bayadera.toolbox.visual :refer :all]
+            [uncomplicate.bayadera.toolbox
+             [processing :refer [plot2d render show]]
+             [scaling :refer [vector-axis]]]
             [quil.core :as q]
             [quil.applet :as qa]
             [quil.middlewares.pause-on-error :refer [pause-on-error]])

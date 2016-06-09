@@ -8,37 +8,22 @@
              [fun-mode :refer [fun-mode]]]
             [uncomplicate.commons.core :refer [with-release]]
             [uncomplicate.neanderthal.core
-             :refer [row transfer dot entry imax imin scal!]]
+             :refer [row transfer scal!]]
             [uncomplicate.bayadera
              [protocols :as p]
              [core :refer :all]
              [opencl :refer [with-default-bayadera]]]
             [uncomplicate.bayadera.opencl.models
              :refer [binomial-likelihood beta-model]]
-            [uncomplicate.bayadera.toolbox.visual :refer :all]
+            [uncomplicate.bayadera.toolbox
+             [processing :refer :all]
+             [plots :refer [render-sample]]]
             [clojure.java.io :as io]))
 
-(defn render-sample
-  ([plot xs ps]
-   (let [imax-p (imax ps)]
-     (render plot {:x-axis (vector-axis xs) :x xs
-                   :y-axis (vector-axis ps) :y ps
-                   :vertical-lines [[(entry xs imax-p) (entry ps imax-p)]]}))))
-
-(defmulti plot-distribution
-  (fn [plot xs ps options]
-    [(class xs) (class ps)]))
-
-(defmethod plot-distribution [uncomplicate.neanderthal.opencl.clblock.CLBlockVector
-                              uncomplicate.neanderthal.opencl.clblock.CLBlockVector]
-  [plot xs ps options]
-  (with-release [host-xs (transfer xs)
-                 host-ps (transfer ps)]
-    (render-sample plot host-xs host-ps)))
-
+(def all-data (atom {}))
 (def plots (atom nil))
 
-(defn analysis [prior-plot posterior-plot]
+(defn analysis []
   (with-default-bayadera
     (let [sample-count (* 256 44)
           a 1 b 1
@@ -53,22 +38,27 @@
                      post-pdf (scal! (/ 1.0 (evidence post-dist prior-sample))
                                      (pdf post-dist post-sample))]
 
-        (plot-distribution prior-plot (row (p/data prior-sample) 0) prior-pdf {})
-        (plot-distribution posterior-plot (row (p/data post-sample) 0) post-pdf {})))))
+        {:prior {:sample (transfer (row (p/data prior-sample) 0))
+                 :pdf (transfer prior-pdf)}
+         :posterior {:sample (transfer (row (p/data post-sample) 0))
+                     :pdf (transfer post-pdf)}}))))
 
 (defn setup []
   (reset! plots
-          {:prior (plot2d (qa/current-applet) {:width 1000 :height 700})
+          {:data @all-data
+           :prior (plot2d (qa/current-applet) {:width 1000 :height 700})
            :posterior (plot2d (qa/current-applet) {:width 1000 :height 700})}))
 
 (defn draw []
-  (when (:changed @plots)
-    (do
-      (q/background 0)
-      (analysis (:prior @plots) (:posterior @plots))
-      (q/image (show (:prior @plots)) 0 0)
-      (q/image (show (:posterior @plots)) 0 720)
-      (reset! plots (assoc @plots :changed false)))))
+  (when-not (= @all-data (:data @plots))
+    (swap! plots assoc :data @all-data)
+    (q/background 0)
+    (q/image (show (render-sample (:prior @plots)
+                                  (:sample (:prior @all-data))
+                                  (:pdf (:prior @all-data)))) 0 0)
+    (q/image (show (render-sample (:posterior @plots)
+                                  (:sample (:posterior @all-data))
+                                  (:pdf (:posterior @all-data)))) 0 720)))
 
 (defn display-sketch []
   (q/defsketch diagrams

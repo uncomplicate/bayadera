@@ -14,12 +14,13 @@
                  [me.raynes/fs "1.4.6"]
                  [quil "2.4.0"]]
 
-  ;;:aot [uncomplicate.bayadera.protocols
+  :aot [;;uncomplicate.bayadera.protocols
                                         ;uncomplicate.bayadera.impl
                                         ;uncomplicate.bayadera.core
                                         ;uncomplicate.bayadera.opencl.amd-gcn
                                         ;uncomplicate.bayadera.mcmc.opencl.amd-gcn-stretch
-  ;;    ]
+        uncomplicate.bayadera.toolbox.theme
+      ]
 
   :codox {:src-dir-uri "http://github.com/uncomplicate/bayadera/blob/master"
           :src-linenum-anchor-prefix "L"

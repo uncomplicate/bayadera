@@ -14,30 +14,14 @@
             [uncomplicate.bayadera
              [protocols :as p]
              [core :refer :all]
+             [util :refer [bin-mapper]]
              [opencl :refer [with-default-bayadera]]]
             [uncomplicate.bayadera.opencl.models
              :refer [binomial-likelihood cl-distribution-model]]
-            [uncomplicate.bayadera.toolbox.visual :refer :all]
+            [uncomplicate.bayadera.toolbox
+             [processing :refer :all]
+             [plots :refer [render-sample render-histogram]]]
             [clojure.java.io :as io]))
-
-(defn reconstruct-values [limits ^long bin-count]
-  (let [lower (entry limits 0)
-        upper (entry limits 1)
-        bin-width (/ (- upper lower) bin-count)
-        start (+ lower (* bin-width 0.5))]
-    (let-release [res (sv bin-count)]
-      (dotimes [i bin-count]
-        (entry! res i (+ start (* i bin-width))))
-      res)))
-
-(defn render-sample
-  ([plot xs ps]
-   (render plot {:x-axis (vector-axis xs) :x xs
-                 :y-axis (vector-axis ps) :y ps}))
-  ([plot xs ys ps]
-   (render plot {:x-axis (vector-axis xs) :x xs
-                 :y-axis (vector-axis ys) :y ys
-                 :z ps})))
 
 (def all-data (atom {}))
 (def state (atom nil))
@@ -52,7 +36,6 @@
   (with-default-bayadera
     (let [walker-count (* 256 44 32)
           sample-count (* 16 walker-count)
-          a 1 b 1
           z 9 N 12]
       (with-release [prior (distribution ch09-1mint-1coin-model)
                      prior-dist (prior (sv 2 2 100))
@@ -74,37 +57,25 @@
 (defn setup []
   (reset! state
           {:data @all-data
-           :prior {:scatterplot (plot2d (qa/current-applet) {:width 400 :height 400})
-                   :omega (plot2d (qa/current-applet) {:width 400 :height 400})
-                   :theta (plot2d (qa/current-applet) {:width 400 :height 400})}
-           :posterior {:scatterplot (plot2d (qa/current-applet) {:width 400 :height 400})
-                       :omega (plot2d (qa/current-applet) {:width 400 :height 400})
-                       :theta (plot2d (qa/current-applet) {:width 400 :height 400})}}))
+           :plots (repeatedly 6 (partial plot2d (qa/current-applet) {:width 400 :height 400}))}))
 
-(defn draw-plots [g data ^long x-position ^long y-position]
-  (let [scatterplot (:scatterplot g)
-        omega (:omega g)
-        theta (:theta g)]
-    (q/image (show (render-sample scatterplot
-                                  (row (:sample data) 0)
-                                  (row (:sample data) 1)
-                                  (:pdf data)))
-             x-position y-position)
-    (q/image (show (render-sample omega
-                                  (col (:pdf (:histogram data)) 0)
-                                  (reconstruct-values (col (:limits (:histogram data)) 0) 256)))
-             (+ x-position 20 (.width (.main scatterplot))) y-position)
-    (q/image (show (render-sample theta
-                                  (reconstruct-values (col (:limits (:histogram data)) 1) 256)
-                                  (col (:pdf (:histogram data)) 1)))
-             x-position (+ y-position 20 (.height (.main scatterplot))))))
+(defn draw-plots [[scatterplot omega theta] data ^long x-position ^long y-position]
+  (q/image (show (render-sample scatterplot
+                                (row (:sample data) 0)
+                                (row (:sample data) 1)
+                                (:pdf data)))
+           x-position y-position)
+  (q/image (show (render-histogram omega (:histogram data) 0 :rotate))
+           (+ x-position 20 (width scatterplot)) y-position)
+  (q/image (show (render-histogram omega (:histogram data) 1))
+           x-position (+ y-position 20 (height scatterplot))))
 
 (defn draw []
   (when-not (= @all-data (:data @state))
     (swap! state assoc :data @all-data)
     (q/background 0)
-    (draw-plots (:prior @state) (:prior @all-data) 0 0)
-    (draw-plots (:posterior @state) (:posterior @all-data) 0 840)))
+    (draw-plots (:plots @state) (:prior @all-data) 0 0)
+    (draw-plots (drop 3 (:plots @state)) (:posterior @all-data) 0 840)))
 
 (defn display-sketch []
   (q/defsketch diagrams
