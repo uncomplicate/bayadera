@@ -28,6 +28,4 @@
                                                  (repeatedly (* 22 data-size) rand))]
       (facts
        "Test histogram"
-       (sum (col (:probabilities (histogram dataset-engine data-matrix)) 4)) => (roughly 1.0)
-       (println (histogram dataset-engine data-matrix)))))
-  )
+       (/ (sum (col (:pdf (histogram dataset-engine data-matrix)) 4)) 256) => (roughly 1.0)))))

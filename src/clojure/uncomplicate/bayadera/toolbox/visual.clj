@@ -1,5 +1,5 @@
 (ns ^{:author "Dragan Djuric"}
-    uncomplicate.bayadera.visual
+    uncomplicate.bayadera.toolbox.visual
   (:require [uncomplicate.commons.core :refer [with-release]]
             [uncomplicate.neanderthal
              [core :refer [dim imin imax]]

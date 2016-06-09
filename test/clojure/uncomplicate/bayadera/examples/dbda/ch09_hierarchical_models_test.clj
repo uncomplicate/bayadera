@@ -14,13 +14,13 @@
             [uncomplicate.bayadera
              [protocols :as p]
              [core :refer :all]
-             [visual :refer :all]]
-            [uncomplicate.bayadera.opencl :refer [with-default-bayadera]]
+             [opencl :refer [with-default-bayadera]]]
             [uncomplicate.bayadera.opencl.models
              :refer [binomial-likelihood cl-distribution-model]]
+            [uncomplicate.bayadera.toolbox.visual :refer :all]
             [clojure.java.io :as io]))
 
-(defn bin-centers [limits ^long bin-count]
+(defn reconstruct-values [limits ^long bin-count]
   (let [lower (entry limits 0)
         upper (entry limits 1)
         bin-width (/ (- upper lower) bin-count)
@@ -64,54 +64,47 @@
                      post-sample (dataset (sample post-sampler sample-count))
                      post-pdf (scal! (/ 1.0 (evidence post-dist prior-sample))
                                      (pdf post-dist post-sample))]
-        {:prior-sample (transfer (submatrix (p/data prior-sample) 0 0 2 walker-count))
-         :prior-pdf (transfer prior-pdf)
-         :prior-histogram (p/histogram (.dataset-eng prior-sample) (p/data prior-sample))
-         :posterior-sample (transfer (submatrix (p/data post-sample) 0 0 2 walker-count))
-         :posterior-pdf (transfer post-pdf)
-         :posterior-histogram (p/histogram (.dataset-eng post-sample) (p/data post-sample))}))))
+        {:prior {:sample (transfer (submatrix (p/data prior-sample) 0 0 2 walker-count))
+                 :pdf (transfer prior-pdf)
+                 :histogram (p/histogram (.dataset-eng prior-sample) (p/data prior-sample))}
+         :posterior {:sample (transfer (submatrix (p/data post-sample) 0 0 2 walker-count))
+                     :pdf (transfer post-pdf)
+                     :histogram (p/histogram (.dataset-eng post-sample) (p/data post-sample))}}))))
 
 (defn setup []
   (reset! state
           {:data @all-data
-           :prior (plot2d (qa/current-applet) {:width 400 :height 400})
-           :prior-omega (plot2d (qa/current-applet) {:width 400 :height 400})
-           :prior-theta (plot2d (qa/current-applet) {:width 400 :height 400})
-           :posterior (plot2d (qa/current-applet) {:width 400 :height 400})
-           :posterior-omega (plot2d (qa/current-applet) {:width 400 :height 400})
-           :posterior-theta (plot2d (qa/current-applet) {:width 400 :height 400})}))
+           :prior {:scatterplot (plot2d (qa/current-applet) {:width 400 :height 400})
+                   :omega (plot2d (qa/current-applet) {:width 400 :height 400})
+                   :theta (plot2d (qa/current-applet) {:width 400 :height 400})}
+           :posterior {:scatterplot (plot2d (qa/current-applet) {:width 400 :height 400})
+                       :omega (plot2d (qa/current-applet) {:width 400 :height 400})
+                       :theta (plot2d (qa/current-applet) {:width 400 :height 400})}}))
+
+(defn draw-plots [g data ^long x-position ^long y-position]
+  (let [scatterplot (:scatterplot g)
+        omega (:omega g)
+        theta (:theta g)]
+    (q/image (show (render-sample scatterplot
+                                  (row (:sample data) 0)
+                                  (row (:sample data) 1)
+                                  (:pdf data)))
+             x-position y-position)
+    (q/image (show (render-sample omega
+                                  (col (:pdf (:histogram data)) 0)
+                                  (reconstruct-values (col (:limits (:histogram data)) 0) 256)))
+             (+ x-position 20 (.width (.main scatterplot))) y-position)
+    (q/image (show (render-sample theta
+                                  (reconstruct-values (col (:limits (:histogram data)) 1) 256)
+                                  (col (:pdf (:histogram data)) 1)))
+             x-position (+ y-position 20 (.height (.main scatterplot))))))
 
 (defn draw []
   (when-not (= @all-data (:data @state))
     (swap! state assoc :data @all-data)
     (q/background 0)
-    (q/image (show (render-sample (:prior @state)
-                                  (row (:prior-sample @all-data) 0)
-                                  (row (:prior-sample @all-data) 1)
-                                  (:prior-pdf @all-data)))
-             0 0)
-    (q/image (show (render-sample (:prior-omega @state)
-                                  (col (:pmf (:prior-histogram @all-data)) 0)
-                                  (bin-centers (col (:limits (:prior-histogram @all-data)) 0) 256)
-                                  (col (:pmf (:prior-histogram @all-data)) 0)))
-             420 0)
-    (q/image (show (render-sample (:prior-theta @state)
-                                  (bin-centers (col (:limits (:prior-histogram @all-data)) 1) 256)
-                                  (col (:pmf (:prior-histogram @all-data)) 1)))
-             0 420)
-    (q/image (show (render-sample (:prior @state)
-                                  (row (:posterior-sample @all-data) 0)
-                                  (row (:posterior-sample @all-data) 1)
-                                  (:posterior-pdf @all-data)))
-             0 840)
-    (q/image (show (render-sample (:posterior-omega @state)
-                                  (col (:pmf (:posterior-histogram @all-data)) 0)
-                                  (bin-centers (col (:limits (:posterior-histogram @all-data)) 0) 256)))
-             420 840)
-    (q/image (show (render-sample (:posterior-theta @state)
-                                  (bin-centers (col (:limits (:posterior-histogram @all-data)) 1) 256)
-                                  (col (:pmf (:posterior-histogram @all-data)) 1)))
-             0 1260)))
+    (draw-plots (:prior @state) (:prior @all-data) 0 0)
+    (draw-plots (:posterior @state) (:posterior @all-data) 0 840)))
 
 (defn display-sketch []
   (q/defsketch diagrams

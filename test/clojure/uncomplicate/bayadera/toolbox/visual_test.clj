@@ -1,14 +1,14 @@
 (ns ^{:author "Dragan Djuric"}
-    uncomplicate.bayadera.visual-test
+    uncomplicate.bayadera.toolbox.visual-test
   (:require [midje.sweet :refer :all]
             [uncomplicate.commons.core :refer [with-release double-fn]]
             [uncomplicate.fluokitten.core :refer [fmap fmap!]]
-            [uncomplicate.bayadera.visual :refer :all]
             [uncomplicate.neanderthal
              [math :refer [log exp]]
              [core :refer [dim copy imax imin]]
              [real :refer [entry]]
              [native :refer [sv]]]
+            [uncomplicate.bayadera.toolbox.visual :refer :all]
             [quil.core :as q]
             [quil.applet :as qa]
             [quil.middlewares.pause-on-error :refer [pause-on-error]])

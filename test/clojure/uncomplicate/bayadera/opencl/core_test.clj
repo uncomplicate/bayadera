@@ -12,8 +12,7 @@
              [core :refer :all]
              [distributions :refer [beta-pdf]]
              [impl :refer :all]
-             [math :refer [log-beta]]
-             [visual :refer :all]]
+             [math :refer [log-beta]]]
             [uncomplicate.bayadera.opencl :refer [with-default-bayadera]]
             [uncomplicate.bayadera.opencl.models
              :refer [binomial-likelihood beta-model]]))

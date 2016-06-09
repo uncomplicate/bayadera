@@ -12,10 +12,10 @@
             [uncomplicate.bayadera
              [protocols :as p]
              [core :refer :all]
-             [visual :refer :all]]
-            [uncomplicate.bayadera.opencl :refer [with-default-bayadera]]
+             [opencl :refer [with-default-bayadera]]]
             [uncomplicate.bayadera.opencl.models
              :refer [binomial-likelihood beta-model]]
+            [uncomplicate.bayadera.toolbox.visual :refer :all]
             [clojure.java.io :as io]))
 
 (defn render-sample

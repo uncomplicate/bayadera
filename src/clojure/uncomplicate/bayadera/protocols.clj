@@ -5,7 +5,7 @@
                             ^long size ^long steps ^long walkers
                             ^long lag ^float acc-rate])
 
-(defrecord Histogram [limits pmf sorted-bins])
+(defrecord Histogram [limits pdf sorted-bins])
 
 (defprotocol Location
   (mean [x])
