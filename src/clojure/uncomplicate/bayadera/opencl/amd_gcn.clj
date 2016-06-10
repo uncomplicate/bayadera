@@ -138,10 +138,11 @@
         (enq-nd! cqueue uint-to-real-kernel (work-size-2d WGS m))
         (set-args! local-sort-kernel (buffer result) (buffer bin-ranks))
         (enq-nd! cqueue local-sort-kernel (work-size-1d (* m WGS)))
-        (->Histogram (transfer limits) (transfer result) (transfer bin-ranks))))))
+        (->Estimate (transfer limits) (transfer result) (transfer bin-ranks))))))
 
 (let [dataset-src [(slurp (io/resource "uncomplicate/clojurecl/kernels/reduction.cl"))
-                   (slurp (io/resource "uncomplicate/bayadera/opencl/dataset/amd-gcn.cl"))]]
+                   (slurp (io/resource "uncomplicate/bayadera/opencl/dataset/amd-gcn.cl"))
+                   (slurp (io/resource "uncomplicate/bayadera/opencl/engines/estimate.cl"))]]
 
   (defn gcn-dataset-engine
     ([ctx cqueue ^long WGS]

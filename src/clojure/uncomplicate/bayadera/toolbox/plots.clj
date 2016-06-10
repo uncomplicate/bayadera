@@ -15,12 +15,12 @@
                  :y-axis (vector-axis ys) :y ys
                  :z ps})))
 
-(defn render-histogram
-  ([plot histogram ^long dimension]
-   (render-histogram plot histogram dimension false))
-  ([plot histogram ^long dimension rotate]
-   (let [limits (col (:limits histogram) dimension)
-         ps (col (:pdf histogram) dimension)
+(defn render-estimate
+  ([plot estimate ^long dimension]
+   (render-estimate plot estimate dimension false))
+  ([plot estimate ^long dimension rotate]
+   (let [limits (col (:limits estimate) dimension)
+         ps (col (:histogram estimate) dimension)
          [x-axis y-axis x y] (if rotate
                                [:y-axis :x-axis :y :x]
                                [:x-axis :y-axis :x :y])]

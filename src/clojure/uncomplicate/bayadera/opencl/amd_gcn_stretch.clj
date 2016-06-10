@@ -115,9 +115,9 @@
           wgsn (long (/ WGS wgsm))
           wg-count (count-work-groups wgsn n)]
       (if (<= (* lag min-fac) n)
-        (with-release [cl-acc (cl-buffer ctx (* DIM wg-count element-width) :read-write)
-                       cl-sub-acc (cl-sub-buffer cl-acc 0 (* DIM element-width))
-                       d-acc (cl-buffer ctx (* DIM wg-count element-width) :read-write)]
+        (with-release [cl-acc (.createDataSource claccessor (* DIM wg-count))
+                       cl-sub-acc (.createDataSource claccessor DIM)
+                       d-acc (.createDataSource claccessor  (* DIM wg-count))]
           (set-arg! sum-reduction-kernel 0 cl-acc)
           (set-args! sum-reduce-kernel 0 cl-acc cl-sample)
           (enq-reduce cqueue sum-reduce-kernel sum-reduction-kernel
@@ -174,13 +174,13 @@
     (do
       (if (matrix? position)
         (let [cl-position (buffer position)]
-          (if (<= (size cl-xs) (size cl-position))
+          (if (<= (long (size cl-xs)) (long (size cl-position)))
             (enq-copy! cqueue cl-position cl-xs)
             (throw (IllegalArgumentException. "Position buffer too short."))))
         (let [seed (wrap-int position)]
           (set-arg! init-walkers-kernel 0 seed)
           (enq-nd! cqueue init-walkers-kernel
-                   (work-size-1d (* DIM (/ walker-count 4))))))
+                   (work-size-1d (* DIM (long (/ walker-count 4)))))))
       (enq-nd! cqueue logpdf-kernel (work-size-1d walker-count))
       this))
   (burn-in! [this n a]
@@ -192,8 +192,7 @@
         (move-bare! this))
       (let [means-count (long (count-work-groups WGS (/ walker-count 2)))]
         (with-release [cl-means-acc
-                       (cl-buffer ctx (* DIM (.entryWidth claccessor) means-count)
-                                  :read-write)]
+                       (.createDataSource claccessor (* DIM  means-count))]
           (aset step-counter 0 0)
           (enq-fill! cqueue cl-accept (int-array 1))
           (set-args! stretch-move-odd-kernel 6 cl-means-acc a)
@@ -208,11 +207,8 @@
           acc-count (long (count-work-groups local-m means-count))
           wgsn (min acc-count WGS)
           wgsm (long (/ WGS wgsn))]
-      (with-release [cl-means-acc
-                     (cl-buffer ctx (* DIM entry-width means-count (long n))
-                                :read-write)
-                     cl-acc (cl-buffer ctx (* DIM entry-width acc-count (long n))
-                                       :read-write)
+      (with-release [cl-means-acc (.createDataSource claccessor (* DIM  means-count (long n)))
+                     cl-acc (.createDataSource claccessor (* DIM acc-count (long n)))
                      means (create-ge-matrix neanderthal-factory DIM n
                                              (cl-sub-buffer cl-acc 0
                                                             (* DIM entry-width
@@ -233,36 +229,37 @@
                :acc-rate (acc-rate this)))))
   EstimateEngine
   (histogram [this n]
-    (let [cycles (floor (/ (double n) walker-count))
-          wgsn (min walker-count WGS)
-          wgsm (/ WGS wgsn)
-          histogram-worksize (work-size-2d DIM walker-count wgsm wgsn)
-          acc-size (* 2 Float/BYTES (max 1 (* DIM (count-work-groups wgsn walker-count))))];;TODO use claccessor
-      (with-release [cl-min-max (cl-buffer ctx acc-size :read-write)
+    (let [wgsm (min DIM (long (sqrt WGS)))
+          wgsn (long (/ WGS wgsm))
+          cycles (floor (/ (double n) walker-count))
+          histogram-worksize (work-size-2d DIM walker-count 1 WGS)
+          acc-size (* 2 (max 1 (* DIM (count-work-groups WGS walker-count))))]
+      (with-release [cl-min-max (.createDataSource claccessor acc-size)
                      uint-res (cl-buffer ctx (* Integer/BYTES WGS DIM) :read-write)
                      result (create-raw neanderthal-factory WGS DIM)
                      limits (create-raw neanderthal-factory 2 DIM)
                      bin-ranks (create-raw neanderthal-factory WGS DIM)]
-        (move-bare! this)
         (set-arg! min-max-reduction-kernel 0 cl-min-max)
         (set-args! min-max-kernel cl-min-max cl-xs)
-        (enq-reduce cqueue min-max-kernel min-max-reduction-kernel DIM walker-count wgsm wgsn)
+        (enq-reduce cqueue
+                    min-max-kernel min-max-reduction-kernel
+                    DIM walker-count wgsm wgsn)
         (enq-copy! cqueue cl-min-max (buffer limits))
-        (enq-fill! cqueue uint-res (wrap-int 0))
+        (.initialize claccessor uint-res)
         (set-args! histogram-kernel
                    (buffer limits) cl-xs
                    (wrap-int (* DIM walker-count)) uint-res)
-        (dotimes [i cycles]
-          (enq-nd! cqueue histogram-kernel histogram-worksize)
-          (set-arg! histogram-kernel 1 cl-xs)
-          (move-bare! this))
+        (enq-nd! cqueue histogram-kernel histogram-worksize)
+        (dotimes [i (dec cycles)]
+          (move-bare! this)
+          (enq-nd! cqueue histogram-kernel histogram-worksize))
         (set-args! uint-to-real-kernel
-                   (.wrapPrim claccessor (/ WGS n)) (buffer limits)
+                   (.wrapPrim claccessor (/ WGS (long n))) (buffer limits)
                    uint-res (buffer result))
         (enq-nd! cqueue uint-to-real-kernel (work-size-2d WGS DIM))
         (set-args! local-sort-kernel (buffer result) (buffer bin-ranks))
         (enq-nd! cqueue local-sort-kernel (work-size-1d (* DIM WGS)))
-        (->Histogram (transfer limits) (transfer result) (transfer bin-ranks))))))
+        (->Estimate (transfer limits) (transfer result) (transfer bin-ranks))))))
 
 (deftype GCNStretchFactory [ctx queue neanderthal-factory prog ^long DIM ^long WGS]
   Releaseable
@@ -275,24 +272,37 @@
         (let [cnt (long (/ walker-count 2))
               accept-count (count-work-groups WGS cnt)
               accept-acc-count (count-work-groups WGS accept-count)
-              entry-width (.entryWidth (data-accessor neanderthal-factory))
-              bytecount (long (* entry-width DIM cnt))
+              claccessor (data-accessor neanderthal-factory)
               step-counter (int-array 1)
               cl-params (buffer params)]
-          (let-release [cl-xs (cl-buffer ctx (* 2 bytecount) :read-write)
-                        cl-s0 (cl-sub-buffer cl-xs 0 bytecount :read-write)
-                        cl-s1 (cl-sub-buffer cl-xs bytecount bytecount :read-write)
-                        cl-logpdf-xs (cl-buffer ctx (* 2 bytecount) :read-write)
-                        cl-logpdf-s0 (cl-sub-buffer cl-logpdf-xs 0 bytecount :read-write)
-                        cl-logpdf-s1 (cl-sub-buffer cl-logpdf-xs bytecount bytecount :read-write)
-                        cl-accept (cl-buffer ctx (* Integer/BYTES accept-count) :read-write)
-                        cl-accept-acc (cl-buffer ctx (* Long/BYTES accept-acc-count) :read-write)
-                        cl-lower (cl-buffer ctx (* DIM entry-width) :read-only)
-                        cl-upper (cl-buffer ctx (* DIM entry-width) :read-only)]
+          (let-release [cl-xs (.createDataSource claccessor (* 2 DIM cnt))
+                        cl-s0 (cl-sub-buffer cl-xs 0
+                                             (/ (long (size cl-xs)) 2)
+                                             :read-write)
+                        cl-s1 (cl-sub-buffer cl-xs
+                                             (/ (long (size cl-xs)) 2)
+                                             (/ (long (size cl-xs)) 2)
+                                             :read-write)
+                        cl-logpdf-xs (.createDataSource claccessor (* 2 DIM cnt))
+                        cl-logpdf-s0 (cl-sub-buffer cl-logpdf-xs
+                                                    0 (/ (long (size cl-logpdf-xs)) 2)
+                                                    :read-write)
+                        cl-logpdf-s1 (cl-sub-buffer cl-logpdf-xs
+                                                    (/ (long (size cl-logpdf-xs)) 2)
+                                                    (/ (long (size cl-logpdf-xs)) 2)
+                                                    :read-write)
+                        cl-accept (cl-buffer ctx
+                                             (* Integer/BYTES accept-count)
+                                             :read-write)
+                        cl-accept-acc (cl-buffer ctx
+                                                 (* Long/BYTES accept-acc-count)
+                                                 :read-write)
+                        cl-lower (.createDataSource claccessor DIM)
+                        cl-upper (.createDataSource claccessor DIM)]
             (enq-write! queue cl-lower (buffer host-lower))
             (enq-write! queue cl-upper (buffer host-upper))
             (->GCNStretch
-             ctx queue neanderthal-factory (data-accessor neanderthal-factory)
+             ctx queue neanderthal-factory claccessor
              walker-count (work-size-1d (/ walker-count 2)) DIM WGS step-counter
              cl-params cl-xs cl-s0 cl-s1 cl-logpdf-xs cl-logpdf-s0 cl-logpdf-s1
              cl-accept cl-accept-acc
@@ -330,6 +340,7 @@
 (let [reduction-src (slurp (io/resource "uncomplicate/clojurecl/kernels/reduction.cl"))
       kernels-src (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/dist-kernels.cl"))
       uniform-sample-src (slurp (io/resource "uncomplicate/bayadera/opencl/rng/uniform-sampler.cl"))
+      estimate-src (slurp (io/resource "uncomplicate/bayadera/opencl/engines/estimate.cl"))
       stretch-common-src (slurp (io/resource "uncomplicate/bayadera/opencl/mcmc/amd-gcn-stretch-generic.cl"))
       stretch-move-src (slurp (io/resource "uncomplicate/bayadera/opencl/mcmc/amd-gcn-stretch-move.cl"))
       compiler-options "-cl-std=CL2.0 -DLOGPDF=%s -DACCUMULATOR=float -DREAL=float -DREAL2=float2 -DACCUMULATOR=float -DPARAMS_SIZE=%d -DDIM=%d -DWGS=%d -I%s/"]
@@ -339,7 +350,7 @@
      (let-release [prog-src (program-with-source
                              ctx (op [uniform-sample-src reduction-src]
                                      (source model)
-                                     [kernels-src stretch-common-src stretch-move-src]))]
+                                     [kernels-src estimate-src stretch-common-src stretch-move-src]))]
        (->GCNStretchFactory
         ctx cqueue neanderthal-factory
         (build-program! prog-src

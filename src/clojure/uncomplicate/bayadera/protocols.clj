@@ -5,7 +5,7 @@
                             ^long size ^long steps ^long walkers
                             ^long lag ^float acc-rate])
 
-(defrecord Histogram [limits pdf bin-ranks])
+(defrecord Estimate [limits histogram bin-ranks])
 
 (defprotocol Location
   (mean [x])
