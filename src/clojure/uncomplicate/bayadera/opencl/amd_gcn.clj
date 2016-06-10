@@ -105,6 +105,7 @@
         (enq-reduce cqueue variance-kernel sum-reduction-kernel m n wgsm wgsn)
         (enq-copy! cqueue cl-acc (buffer res-vec))
         (scal! (/ 1.0 n) (transfer res-vec)))))
+  EstimateEngine
   (histogram [this data-matrix]
     (let [m (mrows data-matrix)
           n (ncols data-matrix)
@@ -115,7 +116,7 @@
                      uint-res (cl-buffer ctx (* Integer/BYTES WGS m) :read-write)
                      result (create-raw (np/factory data-matrix) WGS m)
                      limits (create-raw (np/factory data-matrix) 2 m)
-                     sorted-bins (create-raw (np/factory data-matrix) WGS m)
+                     bin-ranks (create-raw (np/factory data-matrix) WGS m)
                      min-max-reduction-kernel (kernel prog "min_max_reduction")
                      min-max-kernel (kernel prog "min_max_reduce")
                      histogram-kernel (kernel prog "histogram")
@@ -135,9 +136,9 @@
                    (wrap-float (/ WGS n)) (buffer limits)
                    uint-res (buffer result))
         (enq-nd! cqueue uint-to-real-kernel (work-size-2d WGS m))
-        (set-args! local-sort-kernel (buffer result) (buffer sorted-bins))
+        (set-args! local-sort-kernel (buffer result) (buffer bin-ranks))
         (enq-nd! cqueue local-sort-kernel (work-size-1d (* m WGS)))
-        (->Histogram (transfer limits) (transfer result) (transfer sorted-bins))))))
+        (->Histogram (transfer limits) (transfer result) (transfer bin-ranks))))))
 
 (let [dataset-src [(slurp (io/resource "uncomplicate/clojurecl/kernels/reduction.cl"))
                    (slurp (io/resource "uncomplicate/bayadera/opencl/dataset/amd-gcn.cl"))]]
@@ -145,7 +146,7 @@
   (defn gcn-dataset-engine
     ([ctx cqueue ^long WGS]
      (let [prog (build-program! (program-with-source ctx dataset-src)
-                                (format "-cl-std=CL2.0 -DREAL=float -DREAL2=float2 -DACCUMULATOR=float -DWGS=%s" WGS)
+                                (format "-cl-std=CL2.0 -DREAL=float -DREAL2=float2 -DACCUMULATOR=float -DWGS=%d" WGS)
                                 nil)]
        (->GCNDataSetEngine ctx cqueue prog WGS)))
     ([ctx queue]
@@ -157,7 +158,7 @@
     ([ctx cqueue tmp-dir-name model WGS]
      (let [prog (build-program!
                  (program-with-source ctx (conj (source model) kernels-src))
-                 (format "-cl-std=CL2.0 -DREAL=float -DACCUMULATOR=float -DLOGPDF=%s -DPARAMS_SIZE=%d -DDIM=%d -DWGS=%s -I%s"
+                 (format "-cl-std=CL2.0 -DREAL=float -DACCUMULATOR=float -DLOGPDF=%s -DPARAMS_SIZE=%d -DDIM=%d -DWGS=%d -I%s"
                          (logpdf model) (params-size model) (dimension model)
                          WGS tmp-dir-name)
                  nil)]
@@ -172,7 +173,7 @@
     ([ctx cqueue tmp-dir-name model WGS]
      (let [prog (build-program!
                  (program-with-source ctx (conj (source model) kernels-src))
-                 (format "-cl-std=CL2.0 -DREAL=float -DLOGPDF=%s -DLOGLIK=%s -DPARAMS_SIZE=%d -DDIM=%d -DWGS=%s -I%s"
+                 (format "-cl-std=CL2.0 -DREAL=float -DLOGPDF=%s -DLOGLIK=%s -DPARAMS_SIZE=%d -DDIM=%d -DWGS=%d -I%s"
                          (logpdf model) (loglik model)
                          (params-size model) (dimension model) WGS tmp-dir-name)
                  nil)]
@@ -184,7 +185,7 @@
     cqueue
     (build-program!
      (program-with-source ctx (into (source model) (sampler-source model)))
-     (format "-cl-std=CL2.0 -DREAL=float -DWGS=%s -I%s/" WGS tmp-dir-name)
+     (format "-cl-std=CL2.0 -DREAL=float -DWGS=%d -I%s/" WGS tmp-dir-name)
      nil)
     (dimension model))))
 

@@ -5,7 +5,7 @@
                             ^long size ^long steps ^long walkers
                             ^long lag ^float acc-rate])
 
-(defrecord Histogram [limits pdf sorted-bins])
+(defrecord Histogram [limits pdf bin-ranks])
 
 (defprotocol Location
   (mean [x])
@@ -27,7 +27,7 @@
 (defprotocol Distribution
   (parameters [_]))
 
-;; ==================== Models ====================
+;; ==================== Models ======================================
 
 (defprotocol Model
   (params-size [this]))
@@ -51,14 +51,15 @@
 ;; ==================== Engines ====================
 (defprotocol DatasetEngine
   (means [engine x])
-  (variances [engine x])
-  (histogram [engine x])
-  (sort-data [engine x]))
+  (variances [engine x]))
 
 (defprotocol DistributionEngine
   (log-pdf [_ params x])
   (pdf [_ params x])
   (evidence [_ params x]))
+
+(defprotocol EstimateEngine
+  (histogram [engine x]))
 
 ;; ==================== Samplers ====================
 

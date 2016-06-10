@@ -10,8 +10,8 @@
              [toolbox :refer [count-work-groups enq-reduce enq-read-long]]]
             [uncomplicate.neanderthal
              [protocols :refer [data-accessor]]
-             [math :refer [sqrt]]
-             [core :refer [dim create-raw create-ge-matrix
+             [math :refer [sqrt floor]]
+             [core :refer [dim create-raw create-ge-matrix transfer
                            create scal! copy matrix? ncols]]
              [native :refer [sv]]
              [real :refer [sum nrm2]]
@@ -39,7 +39,12 @@
                      sum-reduction-kernel sum-reduce-kernel
                      scal-kernel
                      subtract-mean-kernel
-                     autocovariance-kernel]
+                     autocovariance-kernel
+                     min-max-reduction-kernel
+                     min-max-kernel
+                     histogram-kernel
+                     uint-to-real-kernel
+                     local-sort-kernel]
   Releaseable
   (release [_]
     (and
@@ -64,7 +69,12 @@
      (release sum-reduce-kernel)
      (release scal-kernel)
      (release subtract-mean-kernel)
-     (release autocovariance-kernel)))
+     (release autocovariance-kernel)
+     (release min-max-reduction-kernel)
+     (release min-max-kernel)
+     (release histogram-kernel)
+     (release uint-to-real-kernel)
+     (release local-sort-kernel)))
   MCMCStretch
   (move! [this]
     (set-arg! stretch-move-odd-kernel 8 step-counter)
@@ -152,12 +162,12 @@
     (let [available (* DIM (.entryWidth claccessor) walker-count)]
       (let-release [res (create-raw neanderthal-factory DIM n)]
         (loop [ofst 0 requested (* DIM (.entryWidth claccessor) (long n))]
-          (do (move-bare! this)
-              (if (<= requested available)
-                (enq-copy! cqueue cl-xs (buffer res) 0 ofst requested nil nil)
-                (do
-                  (enq-copy! cqueue cl-xs (buffer res) 0 ofst available nil nil)
-                  (recur (+ ofst available) (- requested available))))))
+          (move-bare! this)
+          (if (<= requested available)
+            (enq-copy! cqueue cl-xs (buffer res) 0 ofst requested nil nil)
+            (do
+              (enq-copy! cqueue cl-xs (buffer res) 0 ofst available nil nil)
+              (recur (+ ofst available) (- requested available)))))
         res)))
   MCMC
   (set-position! [this position]
@@ -220,7 +230,39 @@
         (set-args! scal-kernel 0 (.wrapPrim claccessor (/ means-count)) (buffer means))
         (enq-nd! cqueue scal-kernel (work-size-1d (* DIM (long n))))
         (assoc (acor this means)
-               :acc-rate (acc-rate this))))))
+               :acc-rate (acc-rate this)))))
+  EstimateEngine
+  (histogram [this n]
+    (let [cycles (floor (/ (double n) walker-count))
+          wgsn (min walker-count WGS)
+          wgsm (/ WGS wgsn)
+          histogram-worksize (work-size-2d DIM walker-count wgsm wgsn)
+          acc-size (* 2 Float/BYTES (max 1 (* DIM (count-work-groups wgsn walker-count))))];;TODO use claccessor
+      (with-release [cl-min-max (cl-buffer ctx acc-size :read-write)
+                     uint-res (cl-buffer ctx (* Integer/BYTES WGS DIM) :read-write)
+                     result (create-raw neanderthal-factory WGS DIM)
+                     limits (create-raw neanderthal-factory 2 DIM)
+                     bin-ranks (create-raw neanderthal-factory WGS DIM)]
+        (move-bare! this)
+        (set-arg! min-max-reduction-kernel 0 cl-min-max)
+        (set-args! min-max-kernel cl-min-max cl-xs)
+        (enq-reduce cqueue min-max-kernel min-max-reduction-kernel DIM walker-count wgsm wgsn)
+        (enq-copy! cqueue cl-min-max (buffer limits))
+        (enq-fill! cqueue uint-res (wrap-int 0))
+        (set-args! histogram-kernel
+                   (buffer limits) cl-xs
+                   (wrap-int (* DIM walker-count)) uint-res)
+        (dotimes [i cycles]
+          (enq-nd! cqueue histogram-kernel histogram-worksize)
+          (set-arg! histogram-kernel 1 cl-xs)
+          (move-bare! this))
+        (set-args! uint-to-real-kernel
+                   (.wrapPrim claccessor (/ WGS n)) (buffer limits)
+                   uint-res (buffer result))
+        (enq-nd! cqueue uint-to-real-kernel (work-size-2d WGS DIM))
+        (set-args! local-sort-kernel (buffer result) (buffer bin-ranks))
+        (enq-nd! cqueue local-sort-kernel (work-size-1d (* DIM WGS)))
+        (->Histogram (transfer limits) (transfer result) (transfer bin-ranks))))))
 
 (deftype GCNStretchFactory [ctx queue neanderthal-factory prog ^long DIM ^long WGS]
   Releaseable
@@ -275,7 +317,12 @@
              (kernel prog "sum_reduce_horizontal")
              (kernel prog "scal")
              (kernel prog "subtract_mean")
-             (kernel prog "autocovariance"))))
+             (kernel prog "autocovariance")
+             (kernel prog "min_max_reduction")
+             (kernel prog "min_max_reduce")
+             (kernel prog "histogram")
+             (kernel prog "uint_to_real")
+             (kernel prog "bitonic_local"))))
         (throw (IllegalArgumentException.
                 (format "Number of walkers (%d) must be a multiple of %d."
                         walker-count (* 2 WGS))))))))
@@ -285,7 +332,7 @@
       uniform-sample-src (slurp (io/resource "uncomplicate/bayadera/opencl/rng/uniform-sampler.cl"))
       stretch-common-src (slurp (io/resource "uncomplicate/bayadera/opencl/mcmc/amd-gcn-stretch-generic.cl"))
       stretch-move-src (slurp (io/resource "uncomplicate/bayadera/opencl/mcmc/amd-gcn-stretch-move.cl"))
-      compiler-options "-cl-std=CL2.0 -DLOGPDF=%s -DACCUMULATOR=float -DREAL=float -DPARAMS_SIZE=%d -DDIM=%d -DWGS=%d -I%s/"]
+      compiler-options "-cl-std=CL2.0 -DLOGPDF=%s -DACCUMULATOR=float -DREAL=float -DREAL2=float2 -DACCUMULATOR=float -DPARAMS_SIZE=%d -DDIM=%d -DWGS=%d -I%s/"]
 
   (defn gcn-stretch-factory
     ([ctx cqueue tmp-dir-name neanderthal-factory model WGS]
