@@ -1,11 +1,14 @@
 (ns ^{:author "Dragan Djuric"}
     uncomplicate.bayadera.protocols)
 
-(defrecord Autocorrelation [tau mean sigma
-                            ^long size ^long steps ^long walkers
-                            ^long lag ^float acc-rate])
+(defrecord Autocorrelation [tau mean sigma ^long steps ^long lag])
 
-(defrecord Estimate [limits histogram bin-ranks])
+(defrecord Diagnostics [^Autocorrelation autocorrelation
+                        ^double acceptance-rate
+                        ^long walker-count
+                        ^long iterations])
+
+(defrecord Histogram [limits pdf bin-ranks])
 
 (defprotocol Location
   (mean [x])
@@ -67,6 +70,7 @@
   (sample! [this n] [this seed params n]))
 
 (defprotocol MCMC
+  (diagnose [this])
   (set-position! [this position])
   (burn-in! [this n a])
   (run-sampler! [this n a]))

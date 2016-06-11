@@ -20,7 +20,7 @@
              :refer [binomial-likelihood cl-distribution-model]]
             [uncomplicate.bayadera.toolbox
              [processing :refer :all]
-             [plots :refer [render-sample render-estimate]]]
+             [plots :refer [render-sample render-histogram]]]
             [clojure.java.io :as io]))
 
 (def all-data (atom {}))
@@ -48,6 +48,8 @@
                      post-sample (dataset (sample post-sampler sample-count))
                      post-pdf (scal! (/ 1.0 (evidence post-dist prior-sample))
                                      (pdf post-dist post-sample))]
+        (println (p/diagnose prior-sampler))
+        (println (p/diagnose post-sampler))
         {:prior {:sample (transfer (submatrix (p/data prior-sample) 0 0 2 walker-count))
                  :pdf (transfer prior-pdf)
                  :histogram (p/histogram prior-sampler (* 10 walker-count))}
@@ -66,9 +68,9 @@
                                 (row (:sample data) 1)
                                 (:pdf data)))
            x-position y-position)
-  (q/image (show (render-estimate omega (:histogram data) 0 :rotate))
+  (q/image (show (render-histogram omega (:histogram data) 0 :rotate))
            (+ x-position 20 (width scatterplot)) y-position)
-  (q/image (show (render-estimate omega (:histogram data) 1))
+  (q/image (show (render-histogram omega (:histogram data) 1))
            x-position (+ y-position 20 (height scatterplot))))
 (defn draw []
   (when-not (= @all-data (:data @state))

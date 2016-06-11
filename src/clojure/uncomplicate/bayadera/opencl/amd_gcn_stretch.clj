@@ -27,7 +27,7 @@
 
 (deftype GCNStretch [ctx cqueue neanderthal-factory ^DataAccessor claccessor
                      ^long walker-count wsize ^long DIM ^long WGS
-                     ^ints step-counter
+                     ^ints step-counter iteration-counter diagnostics
                      cl-params cl-xs cl-s0 cl-s1
                      cl-logpdf-xs cl-logpdf-s0 cl-logpdf-s1
                      cl-accept cl-accept-acc
@@ -143,11 +143,13 @@
           (enq-read! cqueue cl-sub-acc (buffer d))
           (->Autocorrelation (fmap (double-fn /) d c0) mean-vec
                              (fmap! sqrt (scal! (/ 1.0 (* i-max n)) (copy d)))
-                             (* n walker-count) n walker-count lag 0.0))
+                             n lag))
         (throw (IllegalArgumentException.
                 (format (str "The autocorrelation time is too long relative to the variance."
                              "Number of steps (%d) must not be less than %d.")
                         n (* lag min-fac)))))))
+  (diagnose [this]
+    (or @diagnostics (->Diagnostics nil (acc-rate this) walker-count @iteration-counter)))
   RandomSampler
   (init! [this seed]
     (let [seed (wrap-int seed)]
@@ -171,34 +173,33 @@
         res)))
   MCMC
   (set-position! [this position]
-    (do
-      (if (matrix? position)
-        (let [cl-position (buffer position)]
-          (if (<= (long (size cl-xs)) (long (size cl-position)))
-            (enq-copy! cqueue cl-position cl-xs)
-            (throw (IllegalArgumentException. "Position buffer too short."))))
-        (let [seed (wrap-int position)]
-          (set-arg! init-walkers-kernel 0 seed)
-          (enq-nd! cqueue init-walkers-kernel
-                   (work-size-1d (* DIM (long (/ walker-count 4)))))))
-      (enq-nd! cqueue logpdf-kernel (work-size-1d walker-count))
-      this))
+    (if (matrix? position)
+      (let [cl-position (buffer position)]
+        (if (<= (long (size cl-xs)) (long (size cl-position)))
+          (enq-copy! cqueue cl-position cl-xs)
+          (throw (IllegalArgumentException. "Position buffer too short."))))
+      (let [seed (wrap-int position)]
+        (set-arg! init-walkers-kernel 0 seed)
+        (enq-nd! cqueue init-walkers-kernel
+                 (work-size-1d (* DIM (long (/ walker-count 4)))))))
+    (enq-nd! cqueue logpdf-kernel (work-size-1d walker-count))
+    this)
   (burn-in! [this n a]
-    (do
-      (aset step-counter 0 0)
-      (set-arg! stretch-move-odd-bare-kernel 5 a)
-      (set-arg! stretch-move-even-bare-kernel 5 a)
-      (dotimes [i (dec (long n))]
-        (move-bare! this))
-      (let [means-count (long (count-work-groups WGS (/ walker-count 2)))]
-        (with-release [cl-means-acc
-                       (.createDataSource claccessor (* DIM  means-count))]
-          (aset step-counter 0 0)
-          (enq-fill! cqueue cl-accept (int-array 1))
-          (set-args! stretch-move-odd-kernel 6 cl-means-acc a)
-          (set-args! stretch-move-even-kernel 6 cl-means-acc a)
-          (move! this)
-          (acc-rate this)))))
+    (aset step-counter 0 0)
+    (set-arg! stretch-move-odd-bare-kernel 5 a)
+    (set-arg! stretch-move-even-bare-kernel 5 a)
+    (dotimes [i (dec (long n))]
+      (move-bare! this))
+    (let [means-count (long (count-work-groups WGS (/ walker-count 2)))]
+      (with-release [cl-means-acc
+                     (.createDataSource claccessor (* DIM  means-count))]
+        (aset step-counter 0 0)
+        (enq-fill! cqueue cl-accept (int-array 1))
+        (set-args! stretch-move-odd-kernel 6 cl-means-acc a)
+        (set-args! stretch-move-even-kernel 6 cl-means-acc a)
+        (move! this)
+        (vswap! iteration-counter + n)
+        (acc-rate this))))
   (run-sampler! [this n a]
     (let [means-count (long (count-work-groups WGS (/ walker-count 2)))
           local-m (min means-count WGS)
@@ -221,10 +222,15 @@
         (set-args! sum-means-kernel 0 cl-acc cl-means-acc)
         (enq-reduce cqueue sum-means-kernel sum-reduction-kernel
                     means-count (* DIM (long n)) local-m local-n wgsm wgsn)
-        (set-args! scal-kernel 0 (.wrapPrim claccessor (/ means-count)) (buffer means))
+        (set-args! scal-kernel 0
+                   (.wrapPrim claccessor (/ means-count)) (buffer means))
         (enq-nd! cqueue scal-kernel (work-size-1d (* DIM (long n))))
-        (assoc (acor this means)
-               :acc-rate (acc-rate this)))))
+        (vswap! iteration-counter + n)
+        (vreset! diagnostics
+                 (->Diagnostics (acor this means)
+                                (acc-rate this)
+                                walker-count
+                                @iteration-counter)))))
   EstimateEngine
   (histogram [this n]
     (let [wgsm (min DIM (long (sqrt WGS)))
@@ -257,7 +263,8 @@
         (enq-nd! cqueue uint-to-real-kernel (work-size-2d WGS DIM))
         (set-args! local-sort-kernel (buffer result) (buffer bin-ranks))
         (enq-nd! cqueue local-sort-kernel (work-size-1d (* DIM WGS)))
-        (->Estimate (transfer limits) (transfer result) (transfer bin-ranks))))))
+        (vswap! iteration-counter + cycles)
+        (->Histogram (transfer limits) (transfer result) (transfer bin-ranks))))))
 
 (deftype GCNStretchFactory [ctx queue neanderthal-factory prog ^long DIM ^long WGS]
   Releaseable
@@ -290,7 +297,8 @@
             (enq-write! queue cl-limits (buffer host-limits))
             (->GCNStretch
              ctx queue neanderthal-factory claccessor
-             walker-count (work-size-1d (/ walker-count 2)) DIM WGS step-counter
+             walker-count (work-size-1d (/ walker-count 2)) DIM WGS
+             step-counter (volatile! 0) (volatile! nil)
              cl-params cl-xs cl-s0 cl-s1 cl-logpdf-xs cl-logpdf-s0 cl-logpdf-s1
              cl-accept cl-accept-acc
              (doto (kernel prog "stretch_move_accu")
