@@ -36,8 +36,7 @@
   (mcmc-logpdf [this])
   (logpdf [this])
   (dimension [this])
-  (lower [this])
-  (upper [this]))
+  (limits [this]))
 
 (defprotocol LikelihoodModel
   (loglik [this]))
@@ -79,7 +78,7 @@
   (acor [this sample]))
 
 (defprotocol MCMCFactory
-  (mcmc-sampler [this walkers params low high]))
+  (mcmc-sampler [this walkers params limits]))
 
 ;; ==================== Factories and Providers  ====================
 

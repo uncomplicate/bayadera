@@ -98,14 +98,14 @@
     (sqrt (uniform-variance a b))))
 
 (defn ^:private prepare-mcmc-sampler
-  [sampler-factory walkers params lower-limit upper-limit options]
+  [sampler-factory walkers params limits options]
   (let [{warm-up :warm-up
          iterations :iterations
          a :a
          :or {warm-up 512
               iterations 64
               a 2.0}} options
-        samp (mcmc-sampler sampler-factory walkers params lower-limit upper-limit)]
+        samp (mcmc-sampler sampler-factory walkers params limits)]
     (set-position! samp (rand-int Integer/MAX_VALUE))
     (init! samp (rand-int Integer/MAX_VALUE))
     (burn-in! samp warm-up (wrap-float a))
@@ -123,7 +123,7 @@
                       (* (long (processing-elements bayadera-factory)) 32))
           beta-model (model this)]
       (prepare-mcmc-sampler (beta-sampler bayadera-factory) walkers params
-                            (lower beta-model) (upper beta-model) options)))
+                            (limits beta-model) options)))
   (sampler [this]
     (sampler this nil))
   Distribution
@@ -153,7 +153,7 @@
     (let [walkers (or (:walkers options)
                       (* (long (processing-elements bayadera-factory)) 32))]
       (prepare-mcmc-sampler sampler-factory walkers params
-                            (lower dist-model) (upper dist-model) options)))
+                            (limits dist-model) options)))
   (sampler [this]
     (sampler this nil))
   Distribution

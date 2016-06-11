@@ -10,7 +10,7 @@
             [uncomplicate.neanderthal
              [core :refer [row transfer dot imax imin scal! col submatrix]]
              [real :refer [entry entry!]]
-             [native :refer [sv]]]
+             [native :refer [sv sge]]]
             [uncomplicate.bayadera
              [protocols :as p]
              [core :refer :all]
@@ -30,7 +30,7 @@
   (cl-distribution-model [(slurp (io/resource "uncomplicate/bayadera/opencl/distributions/beta.h"))
                           (slurp (io/resource "uncomplicate/bayadera/examples/dbda/ch09-1mint-1coin.h"))]
                          :name "ch09_1mint_1coin" :params-size 3 :dimension 2
-                         :lower (sv 0 0) :upper (sv 1 1)))
+                         :limits (sge 2 2 [0 1 0 1])))
 
 (defn analysis []
   (with-default-bayadera

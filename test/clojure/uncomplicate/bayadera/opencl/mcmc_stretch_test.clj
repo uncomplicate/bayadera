@@ -9,7 +9,7 @@
             [uncomplicate.neanderthal
              [core :refer [create-vector row ncols]]
              [real :refer [sum]]
-             [native :refer [sv]]
+             [native :refer [sv sge]]
              [opencl :refer [opencl-single]]]
             [uncomplicate.bayadera.protocols :refer :all]
             [uncomplicate.bayadera.opencl
@@ -28,10 +28,9 @@
                                         ctx cqueue neanderthal-factory
                                         gaussian-model)
                    cl-params (create-vector neanderthal-factory [200 1])
-                   lower (sv 190.0)
-                   upper (sv 210.0)
+                   limits (sge 2 1 [190.0 210.0])
                    engine (mcmc-sampler mcmc-engine-factory walker-count
-                                        cl-params lower upper)]
+                                        cl-params limits)]
       (facts
        "Test for MCMC stretch engine."
        (init! engine 1243)

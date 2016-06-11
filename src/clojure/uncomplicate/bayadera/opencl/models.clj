@@ -5,7 +5,7 @@
             [uncomplicate.neanderthal
              [core :as nc]
              [protocols :as np]
-             [native :refer [sv]]]
+             [native :refer [sge]]]
             [uncomplicate.bayadera
              [protocols :refer :all]]))
 
@@ -43,8 +43,7 @@
 
 (deftype CLPosteriorModel [name logpdf-name mcmc-logpdf-name
                            ^long dist-dimension ^long dist-params-size
-                           lower-limit upper-limit
-                           model-source likelihood-model]
+                           model-limits model-source likelihood-model]
   Releaseable
   (release [_]
     (release likelihood-model))
@@ -58,10 +57,8 @@
     mcmc-logpdf-name)
   (dimension [_]
     dist-dimension)
-  (lower [_]
-    lower-limit)
-  (upper [_]
-    upper-limit)
+  (limits [_]
+    model-limits)
   LikelihoodModel
   (loglik [_]
     (loglik likelihood-model))
@@ -86,13 +83,10 @@
 
 (deftype CLDistributionModel [name logpdf-name mcmc-logpdf-name
                               ^long dist-dimension ^long dist-params-size
-                              lower-limit upper-limit
-                              model-source sampler-kernels]
+                              model-limits model-source sampler-kernels]
   Releaseable
   (release [_]
-    (and
-     (release lower-limit)
-     (release upper-limit)))
+    (release model-limits))
   Model
   (params-size [_]
     dist-params-size)
@@ -103,10 +97,8 @@
     mcmc-logpdf-name)
   (dimension [_]
     dist-dimension)
-  (lower [_]
-    lower-limit)
-  (upper [_]
-    upper-limit)
+  (limits [_]
+    model-limits)
   CLModel
   (source [_]
     model-source)
@@ -118,11 +110,11 @@
 
 (defn cl-distribution-model
   [source & {:keys [name logpdf mcmc-logpdf dimension params-size
-                    lower upper sampler-source]
+                    limits sampler-source]
              :or {name (str (gensym "distribution"))
                   logpdf (format "%s_logpdf" name)
                   mcmc-logpdf logpdf dimension 1 params-size 1}}]
-  (->CLDistributionModel name logpdf mcmc-logpdf dimension params-size lower upper
+  (->CLDistributionModel name logpdf mcmc-logpdf dimension params-size limits
                          (if (sequential? source)
                            source
                            [source])
@@ -142,7 +134,7 @@
                               (long (params-size prior)))]
       (->CLPosteriorModel post-name post-logpdf post-mcmc-logpdf
                           (dimension prior) post-params-size
-                          (lower prior) (upper prior)
+                          (limits prior)
                           (conj (into [] (dedupe)
                                       (into (source prior) (source lik)))
                                 (format "%s\n%s"
@@ -167,26 +159,24 @@
 (def gaussian-model
   (cl-distribution-model (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/gaussian.h"))
                          :name "gaussian" :params-size 2
-                         :lower (sv (- Float/MAX_VALUE)) :upper (sv Float/MAX_VALUE)
+                         :limits (sge 2 1 [(- Float/MAX_VALUE) Float/MAX_VALUE])
                          :sampler-source
                          (slurp (io/resource "uncomplicate/bayadera/opencl/rng/gaussian-sampler.cl"))))
 (def uniform-model
   (cl-distribution-model (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/uniform.h"))
                          :name "uniform" :params-size 2
-                         :lower (- Float/MAX_VALUE) :upper (sv Float/MAX_VALUE)
+                         :limits (sge 2 1 [(- Float/MAX_VALUE) Float/MAX_VALUE])
                          :sampler-source
                          (slurp (io/resource "uncomplicate/bayadera/opencl/rng/uniform-sampler.cl"))))
 (def beta-model
   (cl-distribution-model (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/beta.h"))
                          :name "beta" :mcmc-logpdf "beta_mcmc_logpdf" :params-size 3
-                         :lower (sv 0.0) :upper (sv 1.0)))
-
-;; TODO support is from 0 to infinity
+                         :limits (sge 2 1 [0.0 1.0])))
 
 (def binomial-model
   (cl-distribution-model (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/binomial.h"))
                          :name "binomial" :mcmc-logpdf "binomial_mcmc_logpdf" :params-size 3
-                         :lower (sv 0.0) :upper (sv Float/MAX_VALUE)))
+                         :limits (sge 2 1 [0.0 Float/MAX_VALUE])))
 
 (def binomial-likelihood
   (cl-likelihood-model (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/binomial.h"))

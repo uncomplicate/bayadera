@@ -137,25 +137,24 @@ __kernel void stretch_move_bare(const uint seed,
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
 __kernel void init_walkers(const uint seed,
-                           __constant const float* lower,
-                           __constant const float* upper,
+                           __constant const float2* limits,
                            __global float* xs){
 
     const uint i = get_global_id(0) * 4;
-    const uint m0 = i % DIM;
-    const uint m1 = (i + 1) % DIM;
-    const uint m2 = (i + 2) % DIM;
-    const uint m3 = (i + 3) % DIM;
+    const float2 limits_m0 = limits[i % DIM];
+    const float2 limits_m1 = limits[(i + 1) % DIM];
+    const float2 limits_m2 = limits[(i + 2) % DIM];
+    const float2 limits_m3 = limits[(i + 3) % DIM];
 
     // Generate uniform(0,1) floats
     const philox4x32_key_t key = {{seed, 0xdecafaaa, 0xfacebead, 0x12345678}};
     const philox4x32_ctr_t cnt = {{get_global_id(0), 0xf00dcafe, 0xdeadbeef, 0xbeeff00d}};
     const float4 u = u01fpt_oo_4x32_24(((uint4*)philox4x32(cnt, key).v)[0]);
 
-    xs[i] = u.s0 * (upper[m0] - lower[m0]) + lower[m0];
-    xs[i + 1] = u.s1 * (upper[m1] - lower[m1]) + lower[m1];
-    xs[i + 2] = u.s2 * (upper[m2] - lower[m2]) + lower[m2];
-    xs[i + 3] = u.s3 * (upper[m3] - lower[m3]) + lower[m3];
+    xs[i] = u.s0 * (limits_m0.s1 - limits_m0.s0) + limits_m0.s0;
+    xs[i + 1] = u.s1 * (limits_m1.s1 - limits_m1.s0) + limits_m1.s0;
+    xs[i + 2] = u.s2 * (limits_m2.s1 - limits_m2.s0) + limits_m2.s0;
+    xs[i + 3] = u.s3 * (limits_m3.s1 - limits_m3.s0) + limits_m3.s0;
 }
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
