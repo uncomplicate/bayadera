@@ -70,11 +70,6 @@ __kernel void sum_reduce_horizontal (__global REAL* acc,
 }
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
-__kernel void scal (const REAL alpha, __global REAL* x) {
-    x[get_global_id(0)] *= alpha;
-}
-
-__attribute__((reqd_work_group_size(WGS, 1, 1)))
 __kernel void subtract_mean (__global REAL* means,
                              __global const REAL* mean) {
     const uint dim_id = get_global_id(0);

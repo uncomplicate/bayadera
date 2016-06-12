@@ -6,42 +6,39 @@ inline void work_group_reduction_accumulate (__global uint* accept,
                                              float* pacc,
                                              const uint step_counter) {
 
-    const uint local_size = get_local_size(0);
     const uint local_id = get_local_id(0);
 
-    uint paccept = accepted;
-
     __local uint laccept[WGS];
-    laccept[local_id] = paccept;
+    laccept[local_id] = accepted;
 
-    __local float lacc[WGS][DIM];
+    __local float lacc[DIM][WGS];
     for (uint j = 0; j < DIM; j++){
-        lacc[local_id][j] = pacc[j];
+        lacc[j][local_id] = pacc[j];
     }
 
     work_group_barrier(CLK_LOCAL_MEM_FENCE);
 
-    uint i = local_size;
+    uint i = get_local_size(0);
     while (i > 0) {
         i >>= 1;
         if (local_id < i) {
-            paccept += laccept[local_id + i];
-            laccept[local_id] = paccept;
+            laccept[local_id] += laccept[local_id + i];
             for (uint j = 0; j < DIM; j++) {
-                pacc[j] += lacc[local_id + i][j];
-                lacc[local_id][j] = pacc[j];
+                pacc[j] += lacc[j][local_id + i];
+                lacc[j][local_id] = pacc[j];
             }
 
         }
         work_group_barrier(CLK_LOCAL_MEM_FENCE);
     }
 
-    const uint group_id = get_group_id(0);
     if(local_id == 0) {
-        accept[group_id] += paccept;
+        uint id = get_group_id(0);
+        accept[id] += laccept[0];
+        id += get_num_groups(0) * step_counter * DIM;
         for (uint j = 0; j < DIM; j++) {
-            acc[get_num_groups(0) * step_counter * DIM + group_id + j * DIM]
-                += pacc[j] / (2.0f * local_size);
+            id += j * get_num_groups(0);
+            acc[id] += pacc[j];
         }
     }
 }
@@ -57,9 +54,6 @@ inline bool stretch_move(const uint seed,
                          const uint step_counter,
                          float* Y) {
 
-    const float a2 = a - 2.0f + 1.0f / a;
-    const float a1 = 2.0f * (1.0f - 1.0f / a);
-
     // Get the index of this walker Xk
     const uint k = get_global_id(0);
     const uint K = get_global_size(0);
@@ -70,7 +64,8 @@ inline bool stretch_move(const uint seed,
     const float4 u = u01fpt_oo_4x32_24(((uint4*)philox4x32(cnt, key).v)[0]);
 
     // Draw a sample from g(z) using the formula from [Christen 2007]
-    const float z = a2 * u.s1 * u.s1 + a1 * u.s1 + 1.0f / a;
+    const float z = (a - 2.0f + 1.0f / a) * u.s1 * u.s1
+        + (2.0f * (1.0f - 1.0f / a)) * u.s1 + 1.0f / a;
 
     // Draw a walker Xj's index at random from the complementary ensemble S(~i)(t)
     const uint j0 = (uint)(u.s0 * K * DIM);

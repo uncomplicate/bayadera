@@ -84,7 +84,7 @@
           (set-args! mean-kernel cl-acc (buffer data-matrix))
           (enq-reduce cqueue mean-kernel sum-reduction-kernel m n wgsm wgsn)
           (enq-copy! cqueue cl-acc (buffer res))
-          (scal! (/ 1.0 n) (transfer res))))))
+          (transfer (scal! (/ 1.0 n) res))))))
   (variances [this data-matrix]
     (let [m (mrows data-matrix)
           n (ncols data-matrix)
@@ -104,7 +104,7 @@
         (set-args! variance-kernel 0 cl-acc (buffer data-matrix) (buffer res-vec))
         (enq-reduce cqueue variance-kernel sum-reduction-kernel m n wgsm wgsn)
         (enq-copy! cqueue cl-acc (buffer res-vec))
-        (scal! (/ 1.0 n) (transfer res-vec)))))
+        (transfer (scal! (/ 1.0 n) res-vec)))))
   EstimateEngine
   (histogram [this data-matrix]
     (let [m (mrows data-matrix)

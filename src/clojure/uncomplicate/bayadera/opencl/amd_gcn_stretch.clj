@@ -27,7 +27,7 @@
 
 (deftype GCNStretch [ctx cqueue neanderthal-factory ^DataAccessor claccessor
                      ^long walker-count wsize ^long DIM ^long WGS
-                     ^ints step-counter iteration-counter diagnostics
+                     ^ints step-counter ^longs iteration-counter diagnostics
                      cl-params cl-xs cl-s0 cl-s1
                      cl-logpdf-xs cl-logpdf-s0 cl-logpdf-s1
                      cl-accept cl-accept-acc
@@ -37,7 +37,6 @@
                      sum-accept-reduction-kernel sum-accept-kernel
                      sum-means-kernel
                      sum-reduction-kernel sum-reduce-kernel
-                     scal-kernel
                      subtract-mean-kernel
                      autocovariance-kernel
                      min-max-reduction-kernel
@@ -67,7 +66,6 @@
      (release sum-means-kernel)
      (release sum-reduction-kernel)
      (release sum-reduce-kernel)
-     (release scal-kernel)
      (release subtract-mean-kernel)
      (release autocovariance-kernel)
      (release min-max-reduction-kernel)
@@ -100,7 +98,6 @@
       Double/NaN))
   (acor [_ sample-matrix]
     (let [n (ncols sample-matrix)
-          cl-sample (buffer sample-matrix)
           element-width (.entryWidth claccessor)
           min-fac 16
           MINLAG 4
@@ -108,42 +105,41 @@
           TAUMAX 16
           lag (max MINLAG (min (quot n min-fac) WGS))
           i-max (- n lag)
-          c0 (sv DIM)
-          d (sv DIM)
-          mean-vec (sv DIM)
           wgsm (min DIM WGS)
           wgsn (long (/ WGS wgsm))
           wg-count (count-work-groups wgsn n)]
       (if (<= (* lag min-fac) n)
-        (with-release [cl-acc (cl-buffer ctx (* DIM wg-count element-width) :read-write)
-                       cl-sub-acc (cl-sub-buffer cl-acc 0 (* DIM element-width))
-                       d-acc (cl-buffer ctx (* DIM wg-count element-width) :read-write)]
-          (set-arg! sum-reduction-kernel 0 cl-acc)
-          (set-args! sum-reduce-kernel 0 cl-acc cl-sample)
-          (enq-reduce cqueue sum-reduce-kernel sum-reduction-kernel
-                      DIM n wgsm wgsn)
-          (set-args! scal-kernel 0 (.wrapPrim claccessor (/ n)) cl-sub-acc)
-          (enq-nd! cqueue scal-kernel (work-size-1d (* DIM (long n))))
-          (enq-read! cqueue cl-sub-acc (buffer mean-vec))
-          (set-args! subtract-mean-kernel 0 cl-sample cl-sub-acc)
-          (enq-nd! cqueue subtract-mean-kernel (work-size-2d DIM n))
-          (enq-fill! cqueue cl-acc (int-array 1))
-          (enq-fill! cqueue d-acc (int-array 1))
-          (set-args! autocovariance-kernel 0 (wrap-int lag) cl-acc
-                     d-acc cl-sample (wrap-int i-max))
-          (enq-nd! cqueue autocovariance-kernel (work-size-1d n))
-          (set-arg! sum-reduction-kernel 0 cl-acc)
-          (set-args! sum-reduce-kernel 0 cl-acc cl-acc)
-          (enq-reduce cqueue sum-reduce-kernel sum-reduction-kernel
-                      DIM wg-count wgsm wgsn)
-          (enq-read! cqueue cl-sub-acc (buffer c0))
-          (set-arg! sum-reduce-kernel 1 d-acc)
-          (enq-reduce cqueue sum-reduce-kernel sum-reduction-kernel
-                      DIM wg-count wgsm wgsn)
-          (enq-read! cqueue cl-sub-acc (buffer d))
-          (->Autocorrelation (fmap (double-fn /) d c0) mean-vec
-                             (fmap! sqrt (scal! (/ 1.0 (* i-max n)) (copy d)))
-                             n lag))
+        (let-release [d (sv DIM)]
+          (with-release [c0 (sv DIM)
+                         cl-acc (cl-buffer ctx (* DIM wg-count element-width) :read-write)
+                         mean-vec (create-raw neanderthal-factory DIM)
+                         d-acc (cl-buffer ctx (* DIM wg-count element-width) :read-write)]
+            (set-arg! sum-reduction-kernel 0 cl-acc)
+            (set-args! sum-reduce-kernel 0 cl-acc (buffer sample-matrix))
+            (enq-reduce cqueue sum-reduce-kernel sum-reduction-kernel
+                        DIM n wgsm wgsn)
+            (enq-copy! cqueue cl-acc (buffer mean-vec))
+            (scal! (/ 1.0 n) mean-vec)
+            (set-args! subtract-mean-kernel 0
+                       (buffer sample-matrix) (buffer mean-vec))
+            (enq-nd! cqueue subtract-mean-kernel (work-size-2d DIM n))
+            (enq-fill! cqueue cl-acc (int-array 1))
+            (enq-fill! cqueue d-acc (int-array 1))
+            (set-args! autocovariance-kernel 0 (wrap-int lag) cl-acc
+                       d-acc (buffer sample-matrix) (wrap-int i-max))
+            (enq-nd! cqueue autocovariance-kernel (work-size-1d n))
+            (set-arg! sum-reduction-kernel 0 cl-acc)
+            (set-args! sum-reduce-kernel 0 cl-acc cl-acc)
+            (enq-reduce cqueue sum-reduce-kernel sum-reduction-kernel
+                        DIM wg-count wgsm wgsn)
+            (enq-read! cqueue cl-acc (buffer c0))
+            (set-arg! sum-reduce-kernel 1 d-acc)
+            (enq-reduce cqueue sum-reduce-kernel sum-reduction-kernel
+                        DIM wg-count wgsm wgsn)
+            (enq-read! cqueue cl-acc (buffer d))
+            (->Autocorrelation (fmap (double-fn /) d c0) (transfer mean-vec)
+                               (fmap! sqrt (scal! (/ 1.0 (* i-max n)) d))
+                               n lag)))
         (throw (IllegalArgumentException.
                 (format (str "The autocorrelation time is too long relative to the variance."
                              "Number of steps (%d) must not be less than %d.")
@@ -198,22 +194,22 @@
         (set-args! stretch-move-odd-kernel 6 cl-means-acc a)
         (set-args! stretch-move-even-kernel 6 cl-means-acc a)
         (move! this)
-        (vswap! iteration-counter + n)
         (acc-rate this))))
   (run-sampler! [this n a]
-    (let [means-count (long (count-work-groups WGS (/ walker-count 2)))
+    (let [n (long n)
+          means-count (long (count-work-groups WGS (/ walker-count 2)))
           local-m (min means-count WGS)
           local-n (long (/ WGS local-m))
           acc-count (long (count-work-groups local-m means-count))
           wgsn (min acc-count WGS)
           wgsm (long (/ WGS wgsn))]
-      (with-release [cl-means-acc (.createDataSource claccessor (* DIM  means-count (long n)))
-                     cl-acc (.createDataSource claccessor (* DIM acc-count (long n)))
+      (with-release [cl-means-acc (.createDataSource claccessor (* DIM  means-count n))
+                     cl-acc (.createDataSource claccessor (* DIM acc-count n))
                      means (create-ge-matrix
                             neanderthal-factory DIM n
-                            (cl-sub-buffer cl-acc 0 (* DIM (.entryWidth claccessor) (long n))))]
+                            (cl-sub-buffer cl-acc 0 (* DIM (.entryWidth claccessor) n)))]
         (aset step-counter 0 0)
-        (enq-fill! cqueue cl-means-acc (.wrapPrim claccessor 0))
+        (enq-fill! cqueue cl-means-acc (int-array 1))
         (set-args! stretch-move-odd-kernel 6 cl-means-acc a)
         (set-args! stretch-move-even-kernel 6 cl-means-acc a)
         (dotimes [i n]
@@ -221,21 +217,20 @@
         (set-arg! sum-reduction-kernel 0 cl-acc)
         (set-args! sum-means-kernel 0 cl-acc cl-means-acc)
         (enq-reduce cqueue sum-means-kernel sum-reduction-kernel
-                    means-count (* DIM (long n)) local-m local-n wgsm wgsn)
-        (set-args! scal-kernel 0
-                   (.wrapPrim claccessor (/ means-count)) (buffer means))
-        (enq-nd! cqueue scal-kernel (work-size-1d (* DIM (long n))))
-        (vswap! iteration-counter + n)
+                    means-count (* DIM n) local-m local-n wgsm wgsn)
+        (scal! (/ 0.5 (* WGS means-count)) means)
+        (aset iteration-counter 0 (+ (aget iteration-counter 0) n))
         (vreset! diagnostics
                  (->Diagnostics (acor this means)
                                 (acc-rate this)
                                 walker-count
-                                @iteration-counter)))))
+                                (aget iteration-counter 0))))))
   EstimateEngine
   (histogram [this n]
-    (let [wgsm (min DIM (long (sqrt WGS)))
+    (let [n (double n)
+          wgsm (min DIM (long (sqrt WGS)))
           wgsn (long (/ WGS wgsm))
-          cycles (floor (/ (double n) walker-count))
+          cycles (long (floor (/ n walker-count)))
           histogram-worksize (work-size-2d DIM walker-count 1 WGS)
           acc-size (* 2 (max 1 (* DIM (count-work-groups WGS walker-count))))]
       (with-release [cl-min-max (.createDataSource claccessor acc-size)
@@ -249,7 +244,7 @@
                     min-max-kernel min-max-reduction-kernel
                     DIM walker-count wgsm wgsn)
         (enq-copy! cqueue cl-min-max (buffer limits))
-        (.initialize claccessor uint-res)
+        (enq-fill! cqueue uint-res (int-array 1))
         (set-args! histogram-kernel
                    (buffer limits) cl-xs
                    (wrap-int (* DIM walker-count)) uint-res)
@@ -258,12 +253,12 @@
           (move-bare! this)
           (enq-nd! cqueue histogram-kernel histogram-worksize))
         (set-args! uint-to-real-kernel
-                   (.wrapPrim claccessor (/ WGS (long n))) (buffer limits)
+                   (.wrapPrim claccessor (/ WGS n)) (buffer limits)
                    uint-res (buffer result))
         (enq-nd! cqueue uint-to-real-kernel (work-size-2d WGS DIM))
         (set-args! local-sort-kernel (buffer result) (buffer bin-ranks))
         (enq-nd! cqueue local-sort-kernel (work-size-1d (* DIM WGS)))
-        (vswap! iteration-counter + cycles)
+        (aset iteration-counter 0 (+ (aget iteration-counter 0) cycles))
         (->Histogram (transfer limits) (transfer result) (transfer bin-ranks))))))
 
 (deftype GCNStretchFactory [ctx queue neanderthal-factory prog ^long DIM ^long WGS]
@@ -277,7 +272,7 @@
         (let [accept-count (count-work-groups WGS (/ walker-count 2))
               accept-acc-count (count-work-groups WGS accept-count)
               claccessor (data-accessor neanderthal-factory)
-              sub-bytesize (* DIM (/ walker-count 2) (.entryWidth claccessor))
+              sub-bytesize (* DIM (long (/ walker-count 2)) (.entryWidth claccessor))
               step-counter (int-array 1)
               cl-params (buffer params)]
           (let-release [cl-xs (.createDataSource claccessor (* DIM walker-count))
@@ -298,7 +293,7 @@
             (->GCNStretch
              ctx queue neanderthal-factory claccessor
              walker-count (work-size-1d (/ walker-count 2)) DIM WGS
-             step-counter (volatile! 0) (volatile! nil)
+             step-counter (long-array 1) (volatile! nil)
              cl-params cl-xs cl-s0 cl-s1 cl-logpdf-xs cl-logpdf-s0 cl-logpdf-s1
              cl-accept cl-accept-acc
              (doto (kernel prog "stretch_move_accu")
@@ -320,7 +315,6 @@
              (kernel prog "sum_means_vertical")
              (kernel prog "sum_reduction_horizontal")
              (kernel prog "sum_reduce_horizontal")
-             (kernel prog "scal")
              (kernel prog "subtract_mean")
              (kernel prog "autocovariance")
              (kernel prog "min_max_reduction")

@@ -49,10 +49,12 @@
                      post-pdf (scal! (/ 1.0 (evidence post-dist prior-sample))
                                      (pdf post-dist post-sample))]
         (println (p/diagnose prior-sampler))
+        (println (mean prior-sample))
         (println (p/diagnose post-sampler))
+        (println (sd post-sample))
         {:prior {:sample (transfer (submatrix (p/data prior-sample) 0 0 2 walker-count))
                  :pdf (transfer prior-pdf)
-                 :histogram (p/histogram prior-sampler (* 10 walker-count))}
+                 :histogram (p/histogram prior-sampler (* 1 walker-count))}
          :posterior {:sample (transfer (submatrix (p/data post-sample) 0 0 2 walker-count))
                      :pdf (transfer post-pdf)
                      :histogram (time (p/histogram post-sampler (* 100 walker-count)))}}))))
