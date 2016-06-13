@@ -30,7 +30,7 @@
          sigma 10.0]
      (with-release [dist (gaussian mu sigma)
                     gaussian-sampler (sampler dist)
-                    cl-sample (dataset (sample gaussian-sampler sample-count))]
+                    cl-sample (dataset (sample! gaussian-sampler sample-count))]
 
        (mean dist) => mu
        (sd dist) => sigma
@@ -45,7 +45,7 @@
          b 133.4]
      (with-release [dist (uniform a b)
                     uniform-sampler (sampler dist)
-                    cl-sample (dataset (sample uniform-sampler sample-count))
+                    cl-sample (dataset (sample! uniform-sampler sample-count))
                     cl-pdf (pdf dist cl-sample)]
 
        (entry (mean cl-sample) 0) => (roughly (mean dist))
@@ -60,7 +60,7 @@
      "Core functions for beta distribution."
      (with-release [dist (beta a b)
                     beta-sampler (time (sampler dist))
-                    cl-sample (dataset (sample beta-sampler sample-count))
+                    cl-sample (dataset (sample! beta-sampler sample-count))
                     cl-pdf (pdf dist cl-sample)
                     host-sample-data (transfer (p/data cl-sample))]
        (entry (mean cl-sample) 0) => (roughly100 (mean dist))
@@ -73,15 +73,15 @@
         z 3.0 N 5.0
         a1 (+ z a) b1 (+ (- N z) b)]
     (with-release [prior-dist (beta a b)
-                   prior-sample (dataset (sample (sampler prior-dist) sample-count))
+                   prior-sample (dataset (sample! (sampler prior-dist) sample-count))
                    post (posterior "post" binomial-likelihood prior-dist)
                    post-dist (post (binomial-lik-params N z))
                    post-sampler (time (sampler post-dist))
-                   post-sample (dataset (sample post-sampler sample-count))
+                   post-sample (dataset (sample! post-sampler sample-count))
                    post-pdf (pdf post-dist post-sample)
                    real-post (beta a1 b1)
                    real-sampler (sampler real-post)
-                   real-sample (dataset (sample real-sampler sample-count))
+                   real-sample (dataset (sample! real-sampler sample-count))
                    real-pdf (pdf real-post real-sample)]
       (let [prior-evidence (evidence post-dist prior-sample)]
         (facts

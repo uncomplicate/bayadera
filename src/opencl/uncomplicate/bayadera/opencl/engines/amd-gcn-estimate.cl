@@ -28,6 +28,7 @@ __kernel void histogram(__constant const REAL* limits,
     atomic_add(&res[WGS * dim_id + lid], hist[lid]);
 }
 
+__attribute__((reqd_work_group_size(WGS, 1, 1)))
 __kernel void uint_to_real(const REAL alpha,
                            __constant const REAL* limits,
                            __global const uint* data,

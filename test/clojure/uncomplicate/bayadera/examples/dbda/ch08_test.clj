@@ -29,12 +29,12 @@
           a 1 b 1
           z 15 N 50]
       (with-release [prior-dist (beta a b)
-                     prior-sample (dataset (sample (sampler prior-dist) sample-count))
+                     prior-sample (dataset (sample! (sampler prior-dist) sample-count))
                      prior-pdf (pdf prior-dist prior-sample)
                      post (posterior (posterior-model binomial-likelihood beta-model))
                      post-dist (post (binomial-lik-params N z) (beta-params a b))
                      post-sampler (time (sampler post-dist))
-                     post-sample (dataset (sample post-sampler sample-count))
+                     post-sample (dataset (sample! post-sampler sample-count))
                      post-pdf (scal! (/ 1.0 (evidence post-dist prior-sample))
                                      (pdf post-dist post-sample))]
 

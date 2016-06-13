@@ -3,7 +3,7 @@
 
 (defrecord Autocorrelation [tau mean sigma ^long steps ^long lag])
 
-(defrecord Diagnostics [^Autocorrelation autocorrelation
+(defrecord Diagnostics [autocorrelation
                         ^double acceptance-rate
                         ^long walker-count
                         ^long iterations])
@@ -51,9 +51,10 @@
   (posterior-model [prior name likelihood]))
 
 ;; ==================== Engines ====================
+
 (defprotocol DatasetEngine
-  (means [engine x])
-  (variances [engine x]))
+  (data-mean [engine data-matrix])
+  (data-variance [engine data-matrix]))
 
 (defprotocol DistributionEngine
   (log-pdf [_ params x])
@@ -61,13 +62,17 @@
   (evidence [_ params x]))
 
 (defprotocol EstimateEngine
-  (histogram [engine x]))
+  (histogram! [engine] [engine n])
+  (histogram [engine] [engine n])
+  (mean! [engine x])
+  (variance! [engine x]))
 
 ;; ==================== Samplers ====================
 
 (defprotocol RandomSampler
   (init! [this seed])
-  (sample! [this n] [this seed params n]))
+  (sample [this] [this n] [this seed params n])
+  (sample! [this] [this n]))
 
 (defprotocol MCMC
   (diagnose [this])

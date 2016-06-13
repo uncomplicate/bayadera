@@ -40,12 +40,12 @@
       (with-release [prior (distribution ch09-1mint-1coin-model)
                      prior-dist (prior (sv 2 2 100))
                      prior-sampler (sampler prior-dist)
-                     prior-sample (dataset (sample prior-sampler sample-count))
+                     prior-sample (dataset (sample! prior-sampler sample-count))
                      prior-pdf (pdf prior-dist prior-sample)
                      post (posterior "posterior_ch09" binomial-likelihood prior-dist)
                      post-dist (post (binomial-lik-params N z))
                      post-sampler (time (sampler post-dist))
-                     post-sample (dataset (sample post-sampler sample-count))
+                     post-sample (dataset (sample! post-sampler sample-count))
                      post-pdf (scal! (/ 1.0 (evidence post-dist prior-sample))
                                      (pdf post-dist post-sample))]
         (println (p/diagnose prior-sampler))
@@ -54,10 +54,10 @@
         (println (sd post-sample))
         {:prior {:sample (transfer (submatrix (p/data prior-sample) 0 0 2 walker-count))
                  :pdf (transfer prior-pdf)
-                 :histogram (p/histogram prior-sampler (* 1 walker-count))}
+                 :histogram (histogram! prior-sampler (* 1 walker-count))}
          :posterior {:sample (transfer (submatrix (p/data post-sample) 0 0 2 walker-count))
                      :pdf (transfer post-pdf)
-                     :histogram (time (p/histogram post-sampler (* 100 walker-count)))}}))))
+                     :histogram (time (histogram! post-sampler (* 100 walker-count)))}}))))
 
 (defn setup []
   (reset! state

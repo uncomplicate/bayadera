@@ -109,15 +109,6 @@
 (defn sd [x]
   (p/sd x))
 
-(defn sampler
-  ([dist]
-   (p/sampler dist))
-  ([dist options]
-   (p/sampler dist options)))
-
-(defn sample [sampler n]
-  (p/sample! sampler n))
-
 (defn pdf [dist xs]
   (p/pdf (p/engine dist) (p/parameters dist) (p/data xs)))
 
@@ -129,3 +120,41 @@
 
 ;;(defn pdf* ^double [dist ^double x]
 ;;  (p/pdf* dist x))
+
+;; ================= Estimation ===============================================
+
+(defn sampler
+  ([dist]
+   (p/sampler dist))
+  ([dist options]
+   (p/sampler dist options)))
+
+(defn sample!
+  ([sampler]
+   (p/sample! sampler))
+  ([sampler n]
+   (p/sample! sampler n)))
+
+(defn sample
+  ([sampler]
+   (p/sample sampler))
+  ([sampler n]
+   (p/sample sampler n)))
+
+(defn histogram!
+  ([estimator]
+   (p/histogram! estimator))
+  ([estimator x]
+   (p/histogram! estimator x)))
+
+(defn histogram
+  ([estimator]
+   (p/histogram estimator)))
+
+(defn mean! [engine x]
+  (p/mean! engine x))
+
+(defn variance! [engine x]
+  (p/variance! engine x))
+
+;; ============================================================================

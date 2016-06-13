@@ -156,6 +156,18 @@
       (enq-fill! cqueue cl-accept (int-array 1))
       (aset step-counter 0 0)
       this))
+  (sample [this]
+    (sample this walker-count))
+  (sample [this n]
+    (if (<= n walker-count)
+      (let-release [res (create-raw neanderthal-factory DIM n)]
+        (enq-copy! cqueue cl-xs (buffer res))
+        res)
+      (throw (IllegalArgumentException.
+              (format "For number of samples greater than %d, use sample! method."
+                      walker-count)) )))
+  (sample! [this]
+    (sample! this walker-count))
   (sample! [this n]
     (let [available (* DIM (.entryWidth claccessor) walker-count)]
       (let-release [res (create-raw neanderthal-factory DIM n)]
@@ -226,7 +238,12 @@
                                 walker-count
                                 (aget iteration-counter 0))))))
   EstimateEngine
-  (histogram [this n]
+  (histogram [this]
+    (histogram! this walker-count))
+  (histogram! [this]
+    (move-bare! this)
+    (histogram! this walker-count))
+  (histogram! [this n]
     (let [n (double n)
           wgsm (min DIM (long (sqrt WGS)))
           wgsn (long (/ WGS wgsm))
@@ -258,7 +275,7 @@
         (enq-nd! cqueue uint-to-real-kernel (work-size-2d WGS DIM))
         (set-args! local-sort-kernel (buffer result) (buffer bin-ranks))
         (enq-nd! cqueue local-sort-kernel (work-size-1d (* DIM WGS)))
-        (aset iteration-counter 0 (+ (aget iteration-counter 0) cycles))
+        (aset iteration-counter 0 (+ (aget iteration-counter 0) (inc cycles)))
         (->Histogram (transfer limits) (transfer result) (transfer bin-ranks))))))
 
 (deftype GCNStretchFactory [ctx queue neanderthal-factory prog ^long DIM ^long WGS]
@@ -329,10 +346,10 @@
 (let [reduction-src (slurp (io/resource "uncomplicate/clojurecl/kernels/reduction.cl"))
       kernels-src (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/dist-kernels.cl"))
       uniform-sample-src (slurp (io/resource "uncomplicate/bayadera/opencl/rng/uniform-sampler.cl"))
-      estimate-src (slurp (io/resource "uncomplicate/bayadera/opencl/engines/estimate.cl"))
-      stretch-common-src (slurp (io/resource "uncomplicate/bayadera/opencl/mcmc/amd-gcn-stretch-generic.cl"))
-      stretch-move-src (slurp (io/resource "uncomplicate/bayadera/opencl/mcmc/amd-gcn-stretch-move.cl"))
-      compiler-options "-cl-std=CL2.0 -DLOGPDF=%s -DACCUMULATOR=float -DREAL=float -DREAL2=float2 -DACCUMULATOR=float -DPARAMS_SIZE=%d -DDIM=%d -DWGS=%d -I%s/"]
+      estimate-src (slurp (io/resource "uncomplicate/bayadera/opencl/engines/amd-gcn-estimate.cl"))
+      stretch-common-src (slurp (io/resource "uncomplicate/bayadera/opencl/engines/amd-gcn-stretch-generic.cl"))
+      stretch-move-src (slurp (io/resource "uncomplicate/bayadera/opencl/engines/amd-gcn-stretch-move.cl"))
+      compiler-options "-cl-std=CL2.0 -DLOGPDF=%s -DACCUMULATOR=float -DREAL=float -DREAL2=float2 -DPARAMS_SIZE=%d -DDIM=%d -DWGS=%d -I%s/"]
 
   (defn gcn-stretch-factory
     ([ctx cqueue tmp-dir-name neanderthal-factory model WGS]

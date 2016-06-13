@@ -25,7 +25,7 @@
   (release [_]
     (release prog))
   RandomSampler
-  (sample! [this seed cl-params n]
+  (sample [this seed cl-params n]
     (let-release [res (create-raw (np/factory cl-params) DIM n)]
       (with-release [sample-kernel (kernel prog "sample")]
         (set-args! sample-kernel 0 (buffer cl-params) (wrap-int seed) (buffer res))
@@ -70,7 +70,7 @@
   (release [_]
     (release prog))
   DatasetEngine
-  (means [this data-matrix]
+  (data-mean [this data-matrix]
     (let [m (mrows data-matrix)
           n (ncols data-matrix)
           wgsn (min n WGS)
@@ -85,7 +85,7 @@
           (enq-reduce cqueue mean-kernel sum-reduction-kernel m n wgsm wgsn)
           (enq-copy! cqueue cl-acc (buffer res))
           (transfer (scal! (/ 1.0 n) res))))))
-  (variances [this data-matrix]
+  (data-variance [this data-matrix]
     (let [m (mrows data-matrix)
           n (ncols data-matrix)
           wgsn (min n WGS)
@@ -142,7 +142,7 @@
 
 (let [dataset-src [(slurp (io/resource "uncomplicate/clojurecl/kernels/reduction.cl"))
                    (slurp (io/resource "uncomplicate/bayadera/opencl/dataset/amd-gcn.cl"))
-                   (slurp (io/resource "uncomplicate/bayadera/opencl/engines/estimate.cl"))]]
+                   (slurp (io/resource "uncomplicate/bayadera/opencl/engines/amd-gcn-estimate.cl"))]]
 
   (defn gcn-dataset-engine
     ([ctx cqueue ^long WGS]

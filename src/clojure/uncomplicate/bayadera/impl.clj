@@ -29,20 +29,32 @@
     data-matrix)
   Location
   (mean [this]
-    (means dataset-eng data-matrix))
+    (data-mean dataset-eng data-matrix))
   Spread
   (variance [this]
-    (variances dataset-eng data-matrix))
+    (data-variance dataset-eng data-matrix))
   (sd [this]
-    (fmap! sqrt (variance this))))
+    (fmap! sqrt (variance this)))
+  EstimateEngine
+  (histogram [this]
+    (histogram! this data-matrix)))
 
-(deftype DirectSampler [samp-engine params]
+(deftype DirectSampler [samp-engine params sample-count ^ints fseed]
   Releaseable
   (release [_]
     true)
   RandomSampler
-  (sample! [_ n]
-    (sample! samp-engine (rand-int Integer/MAX_VALUE) params n)))
+  (init! [_ seed]
+    (aset fseed 0 seed))
+  (sample [_ n]
+    (sample samp-engine (aget fseed 0) params n))
+  (sample [this]
+    (sample this sample-count))
+  (sample! [this n]
+    (init! this (rand-int Integer/MAX_VALUE))
+    (sample this n))
+  (sample! [this]
+    (sample! this sample-count)))
 
 ;; ==================== Distributions ====================
 
@@ -53,7 +65,9 @@
     (release params))
   SamplerProvider
   (sampler [_]
-    (->DirectSampler (gaussian-sampler bayadera-factory) params))
+    (->DirectSampler (gaussian-sampler bayadera-factory) params
+                     (processing-elements bayadera-factory)
+                     (int-array 1)))
   Distribution
   (parameters [_]
     params)
@@ -78,7 +92,9 @@
     (release params))
   SamplerProvider
   (sampler [_]
-    (->DirectSampler (uniform-sampler bayadera-factory) params))
+    (->DirectSampler (uniform-sampler bayadera-factory) params
+                     (processing-elements bayadera-factory)
+                     (int-array 1)))
   Distribution
   (parameters [_]
     params)

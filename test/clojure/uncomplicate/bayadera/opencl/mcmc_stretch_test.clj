@@ -37,6 +37,6 @@
        (set-position! engine 123)
        (< 0.45 (time (burn-in! engine 512 a)) 0.5)  => true
        (init! engine 567)
-       (time (:tau (run-sampler! engine 67 a))) => (sv 5.5218153)
+       (time (:tau (:autocorrelation (run-sampler! engine 67 a)))) => (sv 5.5218153)
        (with-release [xs (sample! engine walker-count)]
          (/ (sum (row xs 0)) (ncols xs)) => (roughly 200.0))))))
