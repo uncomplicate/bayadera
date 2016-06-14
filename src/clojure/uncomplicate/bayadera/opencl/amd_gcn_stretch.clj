@@ -9,12 +9,10 @@
              [core :refer :all]
              [toolbox :refer [count-work-groups enq-reduce enq-read-long]]]
             [uncomplicate.neanderthal
-             [protocols :refer [data-accessor]]
+             [protocols :refer [data-accessor factory]]
              [math :refer [sqrt floor]]
              [core :refer [dim create-raw create-ge-matrix transfer
                            create scal! copy matrix? ncols]]
-             [native :refer [sv]]
-             [real :refer [sum nrm2]]
              [block :refer [buffer]]]
             [uncomplicate.bayadera.protocols :refer :all]
             [uncomplicate.bayadera.opencl
@@ -30,7 +28,7 @@
                      ^ints step-counter ^longs iteration-counter diagnostics
                      cl-params cl-xs cl-s0 cl-s1
                      cl-logpdf-xs cl-logpdf-s0 cl-logpdf-s1
-                     cl-accept cl-accept-acc
+                     cl-accept cl-accept-acc cl-acc
                      stretch-move-odd-kernel stretch-move-even-kernel
                      stretch-move-odd-bare-kernel stretch-move-even-bare-kernel
                      init-walkers-kernel logpdf-kernel
@@ -43,36 +41,40 @@
                      min-max-kernel
                      histogram-kernel
                      uint-to-real-kernel
-                     local-sort-kernel]
+                     local-sort-kernel
+                     mean-kernel
+                     variance-kernel]
   Releaseable
   (release [_]
-    (and
-     (release cl-xs)
-     (release cl-s0)
-     (release cl-s1)
-     (release cl-logpdf-xs)
-     (release cl-logpdf-s0)
-     (release cl-logpdf-s1)
-     (release cl-accept)
-     (release cl-accept-acc)
-     (release stretch-move-odd-kernel)
-     (release stretch-move-even-kernel)
-     (release stretch-move-odd-bare-kernel)
-     (release stretch-move-even-bare-kernel)
-     (release init-walkers-kernel)
-     (release logpdf-kernel)
-     (release sum-accept-reduction-kernel)
-     (release sum-accept-kernel)
-     (release sum-means-kernel)
-     (release sum-reduction-kernel)
-     (release sum-reduce-kernel)
-     (release subtract-mean-kernel)
-     (release autocovariance-kernel)
-     (release min-max-reduction-kernel)
-     (release min-max-kernel)
-     (release histogram-kernel)
-     (release uint-to-real-kernel)
-     (release local-sort-kernel)))
+    (and (release cl-xs)
+         (release cl-s0)
+         (release cl-s1)
+         (release cl-logpdf-xs)
+         (release cl-logpdf-s0)
+         (release cl-logpdf-s1)
+         (release cl-accept)
+         (release cl-accept-acc)
+         (release cl-acc)
+         (release stretch-move-odd-kernel)
+         (release stretch-move-even-kernel)
+         (release stretch-move-odd-bare-kernel)
+         (release stretch-move-even-bare-kernel)
+         (release init-walkers-kernel)
+         (release logpdf-kernel)
+         (release sum-accept-reduction-kernel)
+         (release sum-accept-kernel)
+         (release sum-means-kernel)
+         (release sum-reduction-kernel)
+         (release sum-reduce-kernel)
+         (release subtract-mean-kernel)
+         (release autocovariance-kernel)
+         (release min-max-reduction-kernel)
+         (release min-max-kernel)
+         (release histogram-kernel)
+         (release uint-to-real-kernel)
+         (release local-sort-kernel)
+         (release mean-kernel)
+         (release variance-kernel)))
   MCMCStretch
   (move! [this]
     (set-arg! stretch-move-odd-kernel 8 step-counter)
@@ -98,7 +100,6 @@
       Double/NaN))
   (acor [_ sample-matrix]
     (let [n (ncols sample-matrix)
-          element-width (.entryWidth claccessor)
           min-fac 16
           MINLAG 4
           WINMULT 16
@@ -109,11 +110,11 @@
           wgsn (long (/ WGS wgsm))
           wg-count (count-work-groups wgsn n)]
       (if (<= (* lag min-fac) n)
-        (let-release [d (sv DIM)]
-          (with-release [c0 (sv DIM)
-                         cl-acc (cl-buffer ctx (* DIM wg-count element-width) :read-write)
+        (let-release [d (create-raw (factory claccessor) DIM)]
+          (with-release [c0 (create-raw (factory claccessor) DIM)
+                         cl-acc (.createDataSource claccessor (* DIM wg-count))
                          mean-vec (create-raw neanderthal-factory DIM)
-                         d-acc (cl-buffer ctx (* DIM wg-count element-width) :read-write)]
+                         d-acc (.createDataSource claccessor (* DIM wg-count))]
             (set-arg! sum-reduction-kernel 0 cl-acc)
             (set-args! sum-reduce-kernel 0 cl-acc (buffer sample-matrix))
             (enq-reduce cqueue sum-reduce-kernel sum-reduction-kernel
@@ -159,7 +160,7 @@
   (sample [this]
     (sample this walker-count))
   (sample [this n]
-    (if (<= n walker-count)
+    (if (<= (long n) walker-count)
       (let-release [res (create-raw neanderthal-factory DIM n)]
         (enq-copy! cqueue cl-xs (buffer res))
         res)
@@ -240,9 +241,6 @@
   EstimateEngine
   (histogram [this]
     (histogram! this walker-count))
-  (histogram! [this]
-    (move-bare! this)
-    (histogram! this walker-count))
   (histogram! [this n]
     (let [n (double n)
           wgsm (min DIM (long (sqrt WGS)))
@@ -276,7 +274,27 @@
         (set-args! local-sort-kernel (buffer result) (buffer bin-ranks))
         (enq-nd! cqueue local-sort-kernel (work-size-1d (* DIM WGS)))
         (aset iteration-counter 0 (+ (aget iteration-counter 0) (inc cycles)))
-        (->Histogram (transfer limits) (transfer result) (transfer bin-ranks))))))
+        (->Histogram (transfer limits) (transfer result) (transfer bin-ranks)))))
+  Location
+  (mean [_]
+    (let-release [res-vec (create-raw (factory claccessor) DIM)]
+      (set-arg! sum-reduction-kernel 0 cl-acc)
+      (enq-reduce cqueue mean-kernel sum-reduction-kernel DIM walker-count 1 WGS)
+      (enq-read! cqueue cl-acc (buffer res-vec))
+      (scal! (/ 1.0 walker-count) res-vec)))
+  Spread
+  (variance [_]
+    (let-release [res-vec (create-raw neanderthal-factory DIM)]
+      (set-arg! sum-reduction-kernel 0 cl-acc)
+      (enq-reduce cqueue mean-kernel sum-reduction-kernel DIM walker-count 1 WGS)
+      (enq-copy! cqueue cl-acc (buffer res-vec))
+      (scal! (/ 1.0 walker-count) res-vec)
+      (set-arg! variance-kernel 2 (buffer res-vec))
+      (enq-reduce cqueue variance-kernel sum-reduction-kernel DIM walker-count 1 WGS)
+      (enq-copy! cqueue cl-acc (buffer res-vec))
+      (scal! (/ 1.0 walker-count) (transfer res-vec))))
+  (sd [_]
+    (fmap! sqrt (variance this))))
 
 (deftype GCNStretchFactory [ctx queue neanderthal-factory prog ^long DIM ^long WGS]
   Releaseable
@@ -286,7 +304,8 @@
   (mcmc-sampler [_ walker-count params host-limits]
     (let [walker-count (long walker-count)]
       (if (and (<= (* 2 WGS) walker-count) (zero? (rem walker-count (* 2 WGS))))
-        (let [accept-count (count-work-groups WGS (/ walker-count 2))
+        (let [acc-count (* DIM (count-work-groups WGS walker-count))
+              accept-count (count-work-groups WGS (/ walker-count 2))
               accept-acc-count (count-work-groups WGS accept-count)
               claccessor (data-accessor neanderthal-factory)
               sub-bytesize (* DIM (long (/ walker-count 2)) (.entryWidth claccessor))
@@ -305,14 +324,15 @@
                                              :read-write)
                         cl-accept-acc (cl-buffer ctx (* Long/BYTES accept-acc-count)
                                                  :read-write)
-                        cl-limits (.createDataSource claccessor (* DIM 2))]
+                        cl-limits (.createDataSource claccessor (* DIM 2))
+                        cl-acc (.createDataSource claccessor acc-count)]
             (enq-write! queue cl-limits (buffer host-limits))
             (->GCNStretch
              ctx queue neanderthal-factory claccessor
              walker-count (work-size-1d (/ walker-count 2)) DIM WGS
              step-counter (long-array 1) (volatile! nil)
              cl-params cl-xs cl-s0 cl-s1 cl-logpdf-xs cl-logpdf-s0 cl-logpdf-s1
-             cl-accept cl-accept-acc
+             cl-accept cl-accept-acc cl-acc
              (doto (kernel prog "stretch_move_accu")
                (set-args! 1 cl-params cl-s1 cl-s0 cl-logpdf-s0 cl-accept))
              (doto (kernel prog "stretch_move_accu")
@@ -338,7 +358,11 @@
              (kernel prog "min_max_reduce")
              (kernel prog "histogram")
              (kernel prog "uint_to_real")
-             (kernel prog "bitonic_local"))))
+             (kernel prog "bitonic_local")
+             (doto (kernel prog "mean_reduce")
+               (set-args! 0 cl-acc cl-xs))
+             (doto (kernel prog "variance_reduce")
+               (set-args! 0 cl-acc cl-xs)))))
         (throw (IllegalArgumentException.
                 (format "Number of walkers (%d) must be a multiple of %d."
                         walker-count (* 2 WGS))))))))

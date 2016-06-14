@@ -141,7 +141,6 @@
         (->Histogram (transfer limits) (transfer result) (transfer bin-ranks))))))
 
 (let [dataset-src [(slurp (io/resource "uncomplicate/clojurecl/kernels/reduction.cl"))
-                   (slurp (io/resource "uncomplicate/bayadera/opencl/dataset/amd-gcn.cl"))
                    (slurp (io/resource "uncomplicate/bayadera/opencl/engines/amd-gcn-estimate.cl"))]]
 
   (defn gcn-dataset-engine

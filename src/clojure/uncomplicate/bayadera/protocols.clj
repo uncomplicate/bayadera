@@ -62,10 +62,8 @@
   (evidence [_ params x]))
 
 (defprotocol EstimateEngine
-  (histogram! [engine] [engine n])
-  (histogram [engine] [engine n])
-  (mean! [engine x])
-  (variance! [engine x]))
+  (histogram! [engine n])
+  (histogram [engine] [engine x]))
 
 ;; ==================== Samplers ====================
 

@@ -37,7 +37,7 @@
     (fmap! sqrt (variance this)))
   EstimateEngine
   (histogram [this]
-    (histogram! this data-matrix)))
+    (histogram this data-matrix)))
 
 (deftype DirectSampler [samp-engine params sample-count ^ints fseed]
   Releaseable

@@ -50,25 +50,6 @@ __kernel void sum_means_vertical (__global REAL* acc,
     }
 }
 
-__kernel void sum_reduction_horizontal (__global REAL* acc) {
-    uint i = get_global_size(0) * get_global_id(1) + get_global_id(0);
-    uint iacc = get_global_size(0) * get_group_id(1) + get_global_id(0);
-    REAL sum = work_group_reduction_sum_2(1, acc[i]);
-    if (get_local_id(1) == 0) {
-        acc[iacc] = sum;
-    }
-}
-
-__kernel void sum_reduce_horizontal (__global REAL* acc,
-                                     __global REAL* data) {
-    uint i = get_global_size(0) * get_global_id(1) + get_global_id(0);
-    uint iacc = get_global_size(0) * get_group_id(1) + get_global_id(0);
-    REAL sum = work_group_reduction_sum_2(1, data[i]);
-    if (get_local_id(1) == 0) {
-        acc[iacc] = sum;
-    }
-}
-
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
 __kernel void subtract_mean (__global REAL* means,
                              __global const REAL* mean) {

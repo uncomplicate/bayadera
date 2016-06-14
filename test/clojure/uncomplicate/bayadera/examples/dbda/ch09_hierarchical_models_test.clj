@@ -51,7 +51,11 @@
         (println (p/diagnose prior-sampler))
         (println (mean prior-sample))
         (println (p/diagnose post-sampler))
-        (println (sd post-sample))
+        (println (variance prior-sample))
+        (println (mean prior-sample))
+        (println (mean prior-sampler))
+        (println (variance prior-sample))
+        (println (variance prior-sampler))
         {:prior {:sample (transfer (submatrix (p/data prior-sample) 0 0 2 walker-count))
                  :pdf (transfer prior-pdf)
                  :histogram (histogram! prior-sampler (* 1 walker-count))}

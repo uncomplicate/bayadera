@@ -118,8 +118,8 @@
 (defn evidence [dist xs]
   (p/evidence (p/engine dist) (p/parameters dist) (p/data xs)))
 
-;;(defn pdf* ^double [dist ^double x]
-;;  (p/pdf* dist x))
+;;(defn pdf1 ^double [dist ^double x]
+;;  (p/pdf1 dist x))
 
 ;; ================= Estimation ===============================================
 
@@ -142,19 +142,11 @@
    (p/sample sampler n)))
 
 (defn histogram!
-  ([estimator]
-   (p/histogram! estimator))
-  ([estimator x]
-   (p/histogram! estimator x)))
+  ([estimator n]
+   (p/histogram! estimator n)))
 
 (defn histogram
   ([estimator]
    (p/histogram estimator)))
-
-(defn mean! [engine x]
-  (p/mean! engine x))
-
-(defn variance! [engine x]
-  (p/variance! engine x))
 
 ;; ============================================================================
