@@ -293,7 +293,7 @@
       (enq-reduce cqueue variance-kernel sum-reduction-kernel DIM walker-count 1 WGS)
       (enq-copy! cqueue cl-acc (buffer res-vec))
       (scal! (/ 1.0 walker-count) (transfer res-vec))))
-  (sd [_]
+  (sd [this]
     (fmap! sqrt (variance this))))
 
 (deftype GCNStretchFactory [ctx queue neanderthal-factory prog ^long DIM ^long WGS]

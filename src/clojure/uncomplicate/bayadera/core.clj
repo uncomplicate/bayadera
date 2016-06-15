@@ -1,7 +1,7 @@
 (ns ^{:author "Dragan Djuric"}
     uncomplicate.bayadera.core
-  (:require [uncomplicate.commons.core :refer [release with-release let-release]]
-            [uncomplicate.fluokitten.core :refer [fmap!]]
+  (:require [uncomplicate.commons.core :refer [release with-release let-release double-fn]]
+            [uncomplicate.fluokitten.core :refer [fmap! foldmap]]
             [uncomplicate.neanderthal
              [protocols :as np]
              [math :refer [sqrt]]
@@ -102,6 +102,9 @@
 
 (defn mean [x]
   (p/mean x))
+
+#_(defn mode [x]
+  (p/mode x))
 
 (defn variance [x]
   (p/variance x))

@@ -5,7 +5,8 @@
             [uncomplicate.neanderthal
              [protocols :as np]
              [math :refer [sqrt]]
-             [core :refer [transfer]]
+             [core :refer [transfer dim]]
+             [real :refer [entry]]
              [native :refer [sv]]]
             [uncomplicate.bayadera
              [protocols :as p]
@@ -23,16 +24,22 @@
 
 (defn bin-mapper
   (^IFn$LD [^long bin-count ^double lower ^double upper]
+   (bin-mapper bin-count 0.5 lower upper))
+  (^IFn$LD [^long bin-count ^double offset ^double lower ^double upper]
    (let [bin-width (/ (- upper lower) bin-count)]
      (fn
        (^double [^long i]
-        (+ lower (* bin-width i)))
-       (^long []
-        bin-count))))
-  (^IFn$LD [^long bin-count ^double stride ^double lower ^double upper]
-   (let [bin-width (/ (- upper lower) bin-count)]
-     (fn
-       (^double [^long i]
-        (+ lower (* bin-width (+ i stride))))
+        (+ lower (* bin-width (+ i offset))))
        (^long []
         bin-count)))))
+
+(defn hdi-rank-index
+  ([bin-rank pdf]
+   (hdi-rank 0.95 bin-rank pdf))
+  ([^double mass bin-rank pdf]
+   (let [n (dim bin-rank)
+         density (* mass n)]
+     (loop [i 0 acc 0.0]
+       (if (and (< i n) (< acc density))
+         (recur (inc i) (+ acc (entry pdf (entry bin-rank i))))
+         (dec i))))))

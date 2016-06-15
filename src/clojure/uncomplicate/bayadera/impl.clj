@@ -45,7 +45,7 @@
     true)
   RandomSampler
   (init! [_ seed]
-    (aset fseed 0 seed))
+    (aset fseed 0 (int seed)))
   (sample [_ n]
     (sample samp-engine (aget fseed 0) params n))
   (sample [this]

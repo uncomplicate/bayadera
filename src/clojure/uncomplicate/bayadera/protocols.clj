@@ -12,7 +12,8 @@
 
 (defprotocol Location
   (mean [x])
-  (median [x]))
+  (median [x])
+  (mode [x]))
 
 (defprotocol Spread
   (total-range [x])

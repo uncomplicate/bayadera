@@ -49,9 +49,7 @@
                      post-pdf (scal! (/ 1.0 (evidence post-dist prior-sample))
                                      (pdf post-dist post-sample))]
         (println (p/diagnose prior-sampler))
-        (println (mean prior-sample))
         (println (p/diagnose post-sampler))
-        (println (variance prior-sample))
         (println (mean prior-sample))
         (println (mean prior-sampler))
         (println (variance prior-sample))
