@@ -10,7 +10,7 @@
              [toolbox :refer [count-work-groups enq-reduce enq-read-long]]]
             [uncomplicate.neanderthal
              [protocols :refer [data-accessor factory]]
-             [math :refer [sqrt floor]]
+             [math :refer [sqrt ceil]]
              [core :refer [dim create-raw create-ge-matrix transfer
                            create scal! copy matrix? ncols]]
              [block :refer [buffer]]]
@@ -240,12 +240,12 @@
                                 (aget iteration-counter 0))))))
   EstimateEngine
   (histogram [this]
-    (histogram! this walker-count))
-  (histogram! [this n]
-    (let [n (double n)
+    (histogram! this 1))
+  (histogram! [this cycles]
+    (let [cycles (long cycles)
+          n (* cycles walker-count)
           wgsm (min DIM (long (sqrt WGS)))
           wgsn (long (/ WGS wgsm))
-          cycles (long (floor (/ n walker-count)))
           histogram-worksize (work-size-2d DIM walker-count 1 WGS)
           acc-size (* 2 (max 1 (* DIM (count-work-groups WGS walker-count))))]
       (with-release [cl-min-max (.createDataSource claccessor acc-size)

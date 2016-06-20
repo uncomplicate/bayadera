@@ -1,11 +1,15 @@
-inline float ch09_1mint_1coin_logpdf(__constant const float* params, float* x) {
-    const float a = params[0];
-    const float b = params[1];
-    const float k = params[2];
-    const float omega = x[0];
-    const float theta = x[1];
-    const float ak = omega * (k - 2) + 1;
-    const float bk = (1 - omega) * (k - 2) + 1;
-    return beta_log(ak, bk, theta) - lbeta(ak, bk)
-        + beta_log(a, b, omega) - lbeta(a, b);
+inline REAL ch09_1mint_1coin_logpdf(__constant const REAL* params, REAL* x) {
+    const REAL a = params[0];
+    const REAL b = params[1];
+    const REAL k = params[2];
+    const REAL theta = x[0];
+    const REAL omega = x[1];
+    const REAL ak = omega * (k - 2) + 1;
+    const REAL bk = (1 - omega) * (k - 2) + 1;
+    const bool valid = (0.0f <= omega) && (omega <= 1.0f) && (0.0f <= theta) && (theta <= 1.0f);
+    return valid ?
+        beta_log(ak, bk, theta) - lbeta(ak, bk)
+        + beta_log(a, b, omega) - lbeta(a, b)
+        : -INFINITY;
+
 }

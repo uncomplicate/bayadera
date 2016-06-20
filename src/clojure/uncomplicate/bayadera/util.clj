@@ -35,7 +35,7 @@
 
 (defn hdi-rank-index
   ([bin-rank pdf]
-   (hdi-rank 0.95 bin-rank pdf))
+   (hdi-rank-index 0.95 bin-rank pdf))
   ([^double mass bin-rank pdf]
    (let [n (dim bin-rank)
          density (* mass n)]
