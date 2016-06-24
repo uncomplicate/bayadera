@@ -1,17 +1,19 @@
 (ns ^{:author "Dragan Djuric"}
     uncomplicate.bayadera.impl
   (:require [clojure.java.io :as io]
-            [uncomplicate.commons.core :refer [Releaseable release wrap-float]]
+            [uncomplicate.commons.core :refer [Releaseable release wrap-float wrap-int]]
             [uncomplicate.fluokitten.core :refer [op fmap!]]
             [uncomplicate.neanderthal
              [protocols :as np]
-             [math :refer [sqrt]]
+             [math :refer [sqrt abs]]
              [core :refer [ecount transfer]]
              [native :refer [sge]]]
             [uncomplicate.bayadera
              [protocols :refer :all]
              [math :refer [log-beta]]
-             [distributions :refer :all]])
+             [distributions :refer :all]
+             [util :refer [srand-int]]
+             [mcmc :as mcmc]])
   (:import [clojure.lang IFn]))
 
 (def ^:private INVALID_PARAMS_MESSAGE
@@ -51,7 +53,7 @@
   (sample [this]
     (sample this sample-count))
   (sample! [this n]
-    (init! this (rand-int Integer/MAX_VALUE))
+    (init! this (aset fseed 0 (inc (aget fseed 0))))
     (sample this n))
   (sample! [this]
     (sample! this sample-count)))
@@ -64,10 +66,12 @@
   (release [_]
     (release params))
   SamplerProvider
-  (sampler [_]
+  (sampler [_ options]
     (->DirectSampler (gaussian-sampler bayadera-factory) params
                      (processing-elements bayadera-factory)
-                     (int-array 1)))
+                     (wrap-int (or (:seed options) (srand-int)))))
+  (sampler [this]
+    (sampler this nil))
   Distribution
   (parameters [_]
     params)
@@ -91,10 +95,12 @@
   (release [_]
     (release params))
   SamplerProvider
-  (sampler [_]
+  (sampler [_ options]
     (->DirectSampler (uniform-sampler bayadera-factory) params
                      (processing-elements bayadera-factory)
-                     (int-array 1)))
+                     (wrap-int (or (:seed options) (srand-int)))))
+  (sampler [this]
+    (sampler this nil))
   Distribution
   (parameters [_]
     params)
@@ -113,22 +119,6 @@
   (sd [_]
     (sqrt (uniform-variance a b))))
 
-(defn ^:private prepare-mcmc-sampler
-  [sampler-factory walkers params limits options]
-  (let [{warm-up :warm-up
-         iterations :iterations
-         a :a
-         :or {warm-up 512
-              iterations 64
-              a 2.0}} options
-        samp (mcmc-sampler sampler-factory walkers params limits)]
-    (set-position! samp (rand-int Integer/MAX_VALUE))
-    (init! samp (rand-int Integer/MAX_VALUE))
-    (burn-in! samp warm-up (wrap-float a))
-    (init! samp (rand-int Integer/MAX_VALUE))
-    (run-sampler! samp iterations (wrap-float a))
-    samp))
-
 (deftype BetaDistribution [bayadera-factory dist-eng params ^double a ^double b]
   Releaseable
   (release [_]
@@ -137,9 +127,13 @@
   (sampler [this options]
     (let [walkers (or (:walkers options)
                       (* (long (processing-elements bayadera-factory)) 32))
-          beta-model (model this)]
-      (prepare-mcmc-sampler (beta-sampler bayadera-factory) walkers params
-                            (limits beta-model) options)))
+          samp (mcmc-sampler (beta-sampler bayadera-factory) walkers params
+                             (limits (model this)))
+          seed (int (or (:seed options) (srand-int)))]
+      (init-position! samp seed)
+      (init! samp (inc seed))
+      (burn-in! samp (max 0 (long (or (:warm-up options) 128))) 8.0)
+      samp))
   (sampler [this]
     (sampler this nil))
   Distribution
@@ -168,8 +162,9 @@
   (sampler [_ options]
     (let [walkers (or (:walkers options)
                       (* (long (processing-elements bayadera-factory)) 32))]
-      (prepare-mcmc-sampler sampler-factory walkers params
-                            (limits dist-model) options)))
+      (init!
+       (mcmc-sampler sampler-factory walkers params (limits dist-model))
+       (or (:seed options) (srand-int)))))
   (sampler [this]
     (sampler this nil))
   Distribution

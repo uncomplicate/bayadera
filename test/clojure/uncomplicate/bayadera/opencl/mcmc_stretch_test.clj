@@ -21,8 +21,7 @@
                cqueue (command-queue ctx dev)]
 
   (let [walker-count (* 2 256 44)
-        a (wrap-float 8.0)
-        run-cnt 140]
+        a 8.0]
     (with-release [neanderthal-factory (opencl-single ctx cqueue)
                    mcmc-engine-factory (gcn-stretch-factory
                                         ctx cqueue neanderthal-factory
@@ -33,10 +32,10 @@
                                         cl-params limits)]
       (facts
        "Test for MCMC stretch engine."
+       (init-position! engine 123)
        (init! engine 1243)
-       (set-position! engine 123)
-       (< 0.45 (time (burn-in! engine 512 a)) 0.5)  => true
-       (init! engine 567)
-       (time (:tau (:autocorrelation (run-sampler! engine 67 a)))) => (sv 5.5218153)
+       (burn-in! engine 512 a)
+       (< 0.45 (acc-rate! engine a) 0.5)  => true
+       (:tau (:autocorrelation (run-sampler! engine 67 a))) => (sv 2.5531332)
        (with-release [xs (sample! engine walker-count)]
          (/ (sum (row xs 0)) (ncols xs)) => (roughly 200.0))))))

@@ -12,6 +12,7 @@
             [uncomplicate.bayadera
              [protocols :as p]
              [core :refer :all]
+             [mcmc :refer [fit!]]
              [opencl :refer [with-default-bayadera]]]
             [uncomplicate.bayadera.opencl.models
              :refer [binomial-likelihood beta-model]]
@@ -33,11 +34,11 @@
                      prior-pdf (pdf prior-dist prior-sample)
                      post (posterior (posterior-model binomial-likelihood beta-model))
                      post-dist (post (binomial-lik-params N z) (beta-params a b))
-                     post-sampler (time (sampler post-dist))
+                     post-sampler (time (doto (sampler post-dist) (fit!)))
                      post-sample (dataset (sample! post-sampler sample-count))
                      post-pdf (scal! (/ 1.0 (evidence post-dist prior-sample))
                                      (pdf post-dist post-sample))]
-
+        (println (uncomplicate.bayadera.mcmc/info post-sampler))
         {:prior {:sample (transfer (row (p/data prior-sample) 0))
                  :pdf (transfer prior-pdf)}
          :posterior {:sample (transfer (row (p/data post-sample) 0))

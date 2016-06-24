@@ -5,12 +5,14 @@
             [uncomplicate.fluokitten.core :refer [fmap!]]
             [uncomplicate.neanderthal
              [math :refer [log exp]]
-             [core :refer [dim sum nrm2 copy dot scal! transfer entry row]]
+             [core :refer [dim nrm2 copy dot scal! transfer entry row]]
+             [real :refer [sum]]
              [native :refer [sge]]]
             [uncomplicate.bayadera
              [protocols :as p]
              [core :refer :all]
              [distributions :refer [beta-pdf]]
+             [mcmc :refer [fit!]]
              [impl :refer :all]
              [math :refer [log-beta]]]
             [uncomplicate.bayadera.opencl :refer [with-default-bayadera]]
@@ -18,7 +20,7 @@
              :refer [binomial-likelihood beta-model]]))
 
 (defmacro roughly100 [exp]
-  `(let [v# ~exp]
+  `(let [v# (double ~exp)]
      (roughly v# (/ v# 100.0)) ))
 
 (with-default-bayadera
@@ -49,8 +51,8 @@
                     cl-pdf (pdf dist cl-sample)]
 
        (entry (mean cl-sample) 0) => (roughly (mean dist))
-       (entry (sd cl-sample) 0) => (roughly (sd dist) (/ (sd dist) 100))
-       (/ (sum cl-pdf) (dim cl-pdf)) => (roughly (/ 1.0 (- b a))))))
+       (entry (sd cl-sample) 0) => (roughly100 (sd dist))
+       (/ (sum cl-pdf) sample-count) => (roughly (/ 1.0 (- b a))))))
 
   (let [sample-count (* 256 44 94)
         a 2.0
@@ -59,10 +61,11 @@
     (facts
      "Core functions for beta distribution."
      (with-release [dist (beta a b)
-                    beta-sampler (time (sampler dist))
+                    beta-sampler (sampler dist)
                     cl-sample (dataset (sample! beta-sampler sample-count))
                     cl-pdf (pdf dist cl-sample)
                     host-sample-data (transfer (p/data cl-sample))]
+       (entry (mean beta-sampler) 0) => (roughly100 (mean dist))
        (entry (mean cl-sample) 0) => (roughly100 (mean dist))
        (entry (sd cl-sample) 0) => (roughly100 (sd dist))
        (sum cl-pdf) => (roughly (sum (fmap! beta-pdf (row host-sample-data 0))))))))
@@ -76,19 +79,20 @@
                    prior-sample (dataset (sample! (sampler prior-dist) sample-count))
                    post (posterior "post" binomial-likelihood prior-dist)
                    post-dist (post (binomial-lik-params N z))
-                   post-sampler (time (sampler post-dist))
+                   post-sampler (doto (sampler post-dist) (fit!))
                    post-sample (dataset (sample! post-sampler sample-count))
                    post-pdf (pdf post-dist post-sample)
                    real-post (beta a1 b1)
                    real-sampler (sampler real-post)
                    real-sample (dataset (sample! real-sampler sample-count))
                    real-pdf (pdf real-post real-sample)]
+
       (let [prior-evidence (evidence post-dist prior-sample)]
         (facts
          "Core functions for beta-bernoulli distribution."
          prior-evidence => (roughly (exp (- (log-beta a1 b1) (log-beta a b)))
                                     (/ prior-evidence 100.0))
          (sum (scal! (/ prior-evidence) post-pdf))
-         => (roughly (sum real-pdf) (/ (sum real-pdf) 100.0))
+         => (roughly100 (sum real-pdf))
          (entry (mean post-sample) 0) => (roughly (mean real-post))
          (entry (sd post-sample) 0) => (roughly100 (sd real-post)))))))

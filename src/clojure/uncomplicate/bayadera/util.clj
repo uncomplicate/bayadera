@@ -7,12 +7,19 @@
              [math :refer [sqrt]]
              [core :refer [transfer dim]]
              [real :refer [entry]]
-             [native :refer [sv]]]
-            [uncomplicate.bayadera
-             [protocols :as p]
-             [impl :refer :all]
-             [math :refer [log-beta]]])
-  (:import [clojure.lang IFn$DD IFn$DDDD IFn$LD]))
+             [native :refer [sv]]])
+  (:import [java.security SecureRandom]
+           [java.nio ByteBuffer]
+           [clojure.lang IFn$DD IFn$DDDD IFn$LD]))
+
+(let [random (SecureRandom.)]
+  (defn srand-buffer [^long n]
+    (let [b (ByteBuffer/allocate n)]
+      (.nextBytes random (.array b))
+      b)))
+
+(defn srand-int []
+  (.getInt ^ByteBuffer (srand-buffer 4) 0))
 
 (defn range-mapper
   (^IFn$DD [^double start1 ^double end1 ^double start2 ^double end2]

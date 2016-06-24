@@ -1,13 +1,6 @@
 (ns ^{:author "Dragan Djuric"}
     uncomplicate.bayadera.protocols)
 
-(defrecord Autocorrelation [tau mean sigma ^long steps ^long lag])
-
-(defrecord Diagnostics [autocorrelation
-                        ^double acceptance-rate
-                        ^long walker-count
-                        ^long iterations])
-
 (defrecord Histogram [limits pdf bin-ranks])
 
 (defprotocol Location
@@ -74,16 +67,21 @@
   (sample! [this] [this n]))
 
 (defprotocol MCMC
-  (diagnose [this])
-  (set-position! [this position])
+  (info [this])
+  (init-position! [this position])
   (burn-in! [this n a])
+  (anneal! [this schedule n a])
+  (acc-rate! [this a])
   (run-sampler! [this n a]))
 
 (defprotocol MCMCStretch
+  (init-move! [this cl-means-acc a])
   (move! [this])
   (move-bare! [this])
-  (acc-rate [this])
+  (set-temperature! [this t])
   (acor [this sample]))
+
+(defrecord Autocorrelation [tau mean sigma ^long steps ^long lag])
 
 (defprotocol MCMCFactory
   (mcmc-sampler [this walkers params limits]))

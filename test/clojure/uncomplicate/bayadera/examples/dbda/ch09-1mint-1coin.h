@@ -6,7 +6,7 @@ inline REAL ch09_1mint_1coin_logpdf(__constant const REAL* params, REAL* x) {
     const REAL omega = x[1];
     const REAL ak = omega * (k - 2) + 1;
     const REAL bk = (1 - omega) * (k - 2) + 1;
-    const bool valid = (0.0f <= omega) && (omega <= 1.0f) && (0.0f <= theta) && (theta <= 1.0f);
+    const bool valid = (0.0f < omega) && (omega < 1.0f) && (0.0f < theta) && (theta < 1.0f);
     return valid ?
         beta_log(ak, bk, theta) - lbeta(ak, bk)
         + beta_log(a, b, omega) - lbeta(a, b)

@@ -10,7 +10,8 @@
             [uncomplicate.bayadera
              [protocols :as p]
              [impl :refer :all]
-             [math :refer [log-beta]]]))
+             [math :refer [log-beta]]
+             [util :refer [srand-int]]]))
 
 (def ^:dynamic *bayadera-factory*)
 
@@ -41,7 +42,7 @@
    (with-release [params (gaussian-params mu sigma)]
      (->GaussianDistribution factory (p/gaussian-engine factory)
                              (transfer (np/factory factory) params)
-                              mu sigma))))
+                             mu sigma))))
 
 (defn uniform-params [^double a ^double b]
   (sv a b))
@@ -118,7 +119,7 @@
 (defn log-pdf [dist xs]
   (p/log-pdf (p/engine dist) (p/parameters dist) (p/data xs)))
 
-(defn evidence [dist xs]
+(defn evidence ^double [dist xs]
   (p/evidence (p/engine dist) (p/parameters dist) (p/data xs)))
 
 ;;(defn pdf1 ^double [dist ^double x]
@@ -143,6 +144,12 @@
    (p/sample sampler))
   ([sampler n]
    (p/sample sampler n)))
+
+(defn init!
+  ([samp seed]
+   (p/init! samp seed))
+  ([samp]
+   (p/init! samp (srand-int))))
 
 (defn histogram!
   ([estimator n]

@@ -51,7 +51,9 @@ inline bool stretch_move(const uint seed,
                          REAL *X,
                          REAL* logpdf_X,
                          const REAL a,
+                         const REAL beta,
                          const uint step_counter,
+                         const uint odd_or_even,
                          REAL* Y) {
 
     // Get the index of this walker Xk
@@ -60,7 +62,7 @@ inline bool stretch_move(const uint seed,
 
     // Generate uniform(0,1) floats
     const philox4x32_key_t key = {{seed, 0xdecafbad, 0xfacebead, 0x12345678}};
-    const philox4x32_ctr_t cnt = {{k, step_counter, 0xdeadbeef, 0xbeeff00d}};
+    const philox4x32_ctr_t cnt = {{k, step_counter, odd_or_even, 0xbeeff00d}};
     const float4 u = u01fpt_oo_4x32_24(((uint4*)philox4x32(cnt, key).v)[0]);
 
     // Draw a sample from g(z) using the formula from [Christen 2007]
@@ -78,7 +80,7 @@ inline bool stretch_move(const uint seed,
 
     const REAL logpdf_y = LOGPDF(params, Y);
     const REAL q = (isfinite(logpdf_y)) ?
-        pown(z, DIM - 1) * native_exp(logpdf_y - logpdf_X[k]) : 0.0f;
+        pown(z, DIM - 1) * native_exp(beta * (logpdf_y - logpdf_X[k])) : 0.0f;
 
     const bool accepted = u.s2 <= q;
 
@@ -94,6 +96,7 @@ inline bool stretch_move(const uint seed,
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
 __kernel void stretch_move_accu(const uint seed,
+                                const uint odd_or_even,
                                 __constant const REAL* params
                                 __attribute__ ((max_constant_size(PARAMS_SIZE))),
                                 __global const REAL* Scompl,
@@ -105,7 +108,7 @@ __kernel void stretch_move_accu(const uint seed,
                                 const uint step_counter) {
 
     REAL Y[DIM];
-    bool accepted = stretch_move(seed, params, Scompl, X, logpdf_X, a, step_counter, Y);
+    bool accepted = stretch_move(seed, params, Scompl, X, logpdf_X, a, 1.0f, step_counter, odd_or_even, Y);
 
     if (!accepted){
         const uint k0 = get_global_id(0) * DIM;
@@ -118,16 +121,18 @@ __kernel void stretch_move_accu(const uint seed,
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
 __kernel void stretch_move_bare(const uint seed,
+                                const uint odd_or_even,
                                 __constant const REAL* params
                                 __attribute__ ((max_constant_size(PARAMS_SIZE))),
                                 __global const REAL* Scompl,
                                 __global REAL* X,
                                 __global REAL* logpdf_X,
                                 const REAL a,
+                                const REAL beta,
                                 const uint step_counter) {
 
     REAL Y[DIM];
-    bool accepted = stretch_move(seed, params, Scompl, X, logpdf_X, a, step_counter, Y);
+    bool accepted = stretch_move(seed, params, Scompl, X, logpdf_X, a, beta, step_counter, odd_or_even, Y);
 }
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
