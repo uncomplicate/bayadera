@@ -18,5 +18,5 @@ inline REAL binomial_logpdf(__constant const REAL* params, const REAL* x) {
 
 inline REAL binomial_loglik(__constant const REAL* params, const REAL* p) {
     const bool valid = (0.0f < p[0]) && (p[0] < 1.0f);
-    return valid ? binomial_log(params[0], p[0], params[1]) : -INFINITY;
+    return valid ? binomial_log(params[0], p[0], params[1]) : NAN;
 }

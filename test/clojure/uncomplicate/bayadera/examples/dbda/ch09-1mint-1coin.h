@@ -10,6 +10,6 @@ inline REAL ch09_1mint_1coin_logpdf(__constant const REAL* params, REAL* x) {
     return valid ?
         beta_log(ak, bk, theta) - lbeta(ak, bk)
         + beta_log(a, b, omega) - lbeta(a, b)
-        : -INFINITY;
+        : NAN;
 
 }

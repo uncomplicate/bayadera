@@ -13,9 +13,11 @@ inline REAL beta_log(const REAL a, const REAL b, const REAL x) {
 // ============= With params ========================================
 
 inline REAL beta_mcmc_logpdf(__constant const REAL* params, REAL* x) {
-    return beta_log(params[0], params[1], x[0]);
+    const bool valid = (0.0f <= x[0]) && (x[0] <= 1.0f);
+    return valid ? beta_log(params[0], params[1], x[0]) : NAN;
 }
 
 inline REAL beta_logpdf(__constant const REAL* params, REAL* x) {
-    return beta_log(params[0], params[1], x[0]) - params[2];
+    const bool valid = (0.0f <= x[0]) && (x[0] <= 1.0f);
+    return valid ? beta_log(params[0], params[1], x[0]) - params[2] : NAN;
 }

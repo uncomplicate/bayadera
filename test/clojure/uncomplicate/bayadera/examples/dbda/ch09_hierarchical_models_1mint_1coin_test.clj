@@ -45,7 +45,7 @@
                      prior-pdf (pdf prior-dist prior-sample)
                      post (posterior "posterior_ch09" binomial-likelihood prior-dist)
                      post-dist (post (binomial-lik-params N z))
-                     post-sampler (time (doto (sampler post-dist) (fit! )))
+                     post-sampler (time (doto (sampler post-dist) (fit! {:a 3.66})))
                      post-sample (dataset (sample! post-sampler sample-count))
                      post-pdf (scal! (/ 1.0 (evidence post-dist prior-sample))
                                      (pdf post-dist post-sample))]
