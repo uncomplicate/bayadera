@@ -1,16 +1,19 @@
-(ns ^{:author "Dragan Djuric"}
+ (ns ^{:author "Dragan Djuric"}
     uncomplicate.bayadera.util
   (:require [uncomplicate.commons.core :refer [release with-release let-release]]
             [uncomplicate.fluokitten.core :refer [fmap!]]
             [uncomplicate.neanderthal
              [protocols :as np]
              [math :refer [sqrt]]
-             [core :refer [transfer dim]]
-             [real :refer [entry]]
-             [native :refer [sv]]])
+             [core :refer [transfer dim subvector col]]
+             [real :refer [entry entry!]]
+             [native :refer [sv]]
+             [block :refer [buffer]]])
   (:import [java.security SecureRandom]
            [java.nio ByteBuffer]
-           [clojure.lang IFn$DD IFn$DDDD IFn$LD]))
+           [java.util Arrays]
+           [clojure.lang IFn$DD IFn$DDDD IFn$LD]
+           [uncomplicate.bayadera.protocols Histogram]))
 
 (let [random (SecureRandom.)]
   (defn srand-buffer [^long n]
@@ -40,13 +43,52 @@
        (^long []
         bin-count)))))
 
-(defn hdi-rank-index
+(defn hdi-rank-count
   ([bin-rank pdf]
-   (hdi-rank-index 0.95 bin-rank pdf))
+   (hdi-rank-count 0.95 bin-rank pdf))
   ([^double mass bin-rank pdf]
    (let [n (dim bin-rank)
          density (* mass n)]
      (loop [i 0 acc 0.0]
        (if (and (< i n) (< acc density))
          (recur (inc i) (+ acc (entry pdf (entry bin-rank i))))
-         (dec i))))))
+         i)))))
+
+(defn hdi-bins
+  [bin-rank ^long hdi-cnt]
+  (let [hdi-array (float-array hdi-cnt)]
+    (.get (.asFloatBuffer ^ByteBuffer (buffer (subvector bin-rank 0 hdi-cnt))) hdi-array)
+    (Arrays/sort hdi-array)
+    (loop [i 1
+           last-bin (aget hdi-array 0)
+           regions (transient [last-bin])]
+      (if (< i hdi-cnt)
+        (let [bin (aget hdi-array i)]
+          (recur (inc i) bin
+                 (if (< 1.0 (- bin last-bin))
+                   (conj! (conj! regions last-bin) bin)
+                   regions)))
+        (persistent! (conj! regions (aget hdi-array (dec hdi-cnt))))))))
+
+(defn hdi-regions [limits bin-rank ^long hdi-cnt]
+  (let [lower (entry limits 0)
+        upper (entry limits 1)
+        bin-width (/ (- upper lower) (dim bin-rank))
+        hdi-vector (hdi-bins bin-rank hdi-cnt)
+        cnt (long (/ (count hdi-vector) 2))]
+    (loop [i 0 regions (transient [])]
+      (if (< i cnt)
+        (recur (+ i 2)
+               (conj! (conj! regions (+ lower (* bin-width (double (hdi-vector i)))))
+                      (+ lower (* bin-width (inc (double (hdi-vector (inc i))))))))
+
+        (persistent! regions)))))
+
+(defn hdi
+  ([^Histogram histogram ^double mass ^long index]
+   (let [limits (col (.limits histogram) index)
+         bin-rank (col (.bin-ranks histogram) index)
+         pdf (col (.pdf histogram) index)]
+     (hdi-regions limits bin-rank (hdi-rank-count mass bin-rank pdf))))
+  ([histogram ^long index]
+   (hdi histogram 0.95 index)))

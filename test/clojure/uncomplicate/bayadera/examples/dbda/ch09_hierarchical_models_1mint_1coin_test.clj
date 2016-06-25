@@ -14,7 +14,7 @@
             [uncomplicate.bayadera
              [protocols :as p]
              [core :refer :all]
-             [util :refer [bin-mapper]]
+             [util :refer [bin-mapper hdi]]
              [opencl :refer [with-default-bayadera]]
              [mcmc :refer [fit! info anneal! burn-in! acc-rate! run-sampler!]]]
             [uncomplicate.bayadera.opencl.models
@@ -40,7 +40,7 @@
           z 9 N 12]
       (with-release [prior (distribution ch09-1mint-1coin-model)
                      prior-dist (prior (sv 2 2 100))
-                     prior-sampler (time (doto (sampler prior-dist) (fit!)))
+                     prior-sampler (time (doto (sampler prior-dist) (fit! {:a 2.68})))
                      prior-sample (dataset (sample! prior-sampler sample-count))
                      prior-pdf (pdf prior-dist prior-sample)
                      post (posterior "posterior_ch09" binomial-likelihood prior-dist)
@@ -49,13 +49,16 @@
                      post-sample (dataset (sample! post-sampler sample-count))
                      post-pdf (scal! (/ 1.0 (evidence post-dist prior-sample))
                                      (pdf post-dist post-sample))]
+        (let [post-histogram (time (histogram! post-sampler 100))]
+          (println (hdi post-histogram 0))
 
-        {:prior {:sample (transfer (submatrix (p/data prior-sample) 0 0 2 walker-count))
-                 :pdf (transfer prior-pdf)
-                 :histogram (histogram! prior-sampler 100)}
-         :posterior {:sample (transfer (submatrix (p/data post-sample) 0 0 2 walker-count))
-                     :pdf (transfer post-pdf)
-                     :histogram (time (histogram! post-sampler 100))}}))))
+
+          {:prior {:sample (transfer (submatrix (p/data prior-sample) 0 0 2 walker-count))
+                   :pdf (transfer prior-pdf)
+                   :histogram (histogram! prior-sampler 100)}
+           :posterior {:sample (transfer (submatrix (p/data post-sample) 0 0 2 walker-count))
+                       :pdf (transfer post-pdf)
+                       :histogram post-histogram}})))))
 
 (defn setup []
   (reset! state
