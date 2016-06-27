@@ -7,7 +7,7 @@
              [math :refer [sqrt]]
              [core :refer [transfer dim subvector col]]
              [real :refer [entry entry!]]
-             [native :refer [sv]]
+             [native :refer [sge]]
              [block :refer [buffer]]])
   (:import [java.security SecureRandom]
            [java.nio ByteBuffer]
@@ -75,14 +75,12 @@
         upper (entry limits 1)
         bin-width (/ (- upper lower) (dim bin-rank))
         hdi-vector (hdi-bins bin-rank hdi-cnt)
-        cnt (long (/ (count hdi-vector) 2))]
-    (loop [i 0 regions (transient [])]
-      (if (< i cnt)
-        (recur (+ i 2)
-               (conj! (conj! regions (+ lower (* bin-width (double (hdi-vector i)))))
-                      (+ lower (* bin-width (inc (double (hdi-vector (inc i))))))))
-
-        (persistent! regions)))))
+        cnt (long (/ (count hdi-vector) 2))
+        regions (sge 2 cnt)]
+    (dotimes [i cnt]
+      (entry! regions 0 i (+ lower (* bin-width (double (hdi-vector (* 2 i))))))
+      (entry! regions 1 i (+ lower (* bin-width (inc (double (hdi-vector (inc (* 2 i)))))))))
+    regions))
 
 (defn hdi
   ([^Histogram histogram ^double mass ^long index]

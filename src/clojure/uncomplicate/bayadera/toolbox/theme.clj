@@ -76,11 +76,13 @@
 
 (defrecord Style [^RGBColor color ^float weight])
 (defrecord Theme [^Style frame ^Style ticks ^Style labels ^Style grid
-                  ^Style data ^Colormap colormap])
+                  ^Style sidelines ^Style data ^Colormap colormap])
 
 (let [frame-style (->Style (hsb-color 200 50 60) 1)
       data-style (->Style (hsb-color 320 100 100) 2)
       grid-style (->Style (hsb-color 60 30 10) 1)
-      label-style (->Style (hsb-color 180 40 100) 10)]
+      label-style (->Style (hsb-color 180 40 100) 10)
+      sidelines-style (->Style (hsb-color 130 43 77) 4)]
   (def cyberpunk-theme
-    (->Theme frame-style frame-style label-style grid-style data-style (cube-helix))))
+    (->Theme frame-style frame-style label-style grid-style
+             sidelines-style data-style (cube-helix))))

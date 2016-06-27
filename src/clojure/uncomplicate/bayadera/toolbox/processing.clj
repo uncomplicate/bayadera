@@ -116,13 +116,20 @@
      (.endDraw g)
      g)))
 
-(defn vertical-lines! [^PGraphics g x-axis y-axis marks]
+(defn x-sidelines! [^PGraphics g x-axis y-axis xs]
   (let [map-x (axis-mapper x-axis 0 (dec (.width g)))
-        map-y (axis-mapper y-axis (dec (.height g)) 0)
-        y-0 (map-y 0)]
+        y0 (dec (.height g))]
     (.beginDraw g)
-    (doseq [[x y] marks]
-      (.line g (map-x x) y-0 (map-x x) (map-y y)))
+    (dotimes [i (xs)]
+      (.line g (map-x (xs 0 i)) y0 (map-x (xs 1 i)) y0))
+    (.endDraw g)
+    g))
+
+(defn y-sidelines! [^PGraphics g x-axis y-axis ys]
+  (let [map-y (axis-mapper y-axis (dec (.height g)) 0)]
+    (.beginDraw g)
+    (dotimes [i (ys)]
+      (.line g 0 (map-y (ys 0 i)) 0 (map-y (ys 1 i))))
     (.endDraw g)
     g))
 
@@ -176,21 +183,24 @@
       (bars! y-grid y-axis (* y-density grid-density))
       this))
   (render-data [this options]
-    (let [{:keys [x y z x-axis y-axis style vertical-marks]
+    (let [{:keys [x y z x-axis y-axis style x-sidelines y-sidelines]
            :or {x-axis (axis -1.0 1.0)
                 y-axis (axis -1.0 1.0)
-                style (.data theme)
-                vertical-marks []}} options]
+                style (.data theme)}} options]
       (clear! g-data)
       (style! g-data style)
       (if z
         (points! g-data (.colormap theme) x-axis y-axis x y z)
         (points! g-data x-axis y-axis x y))
-      (style! g-data (.ticks theme))
-      (vertical-lines! g-data x-axis y-axis vertical-marks)
+      (style! g-data (.sidelines theme))
+      (when x-sidelines
+        (x-sidelines! g-data x-axis y-axis x-sidelines))
+      (when y-sidelines
+        (y-sidelines! g-data x-axis y-axis y-sidelines))
+
       this))
   (show [this]
-    (show this {}))
+    (show this nil))
   (show [this options]
     (let [{:keys [frame left-ticks right-ticks top-ticks bottom-ticks
                   left-labels right-labels top-labels bottom-labels
