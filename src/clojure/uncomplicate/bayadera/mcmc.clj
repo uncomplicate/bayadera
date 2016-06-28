@@ -53,7 +53,7 @@
   ([samp]
    (anneal! samp (* 256 (long (p/dimension (p/model samp)))) 2.0)))
 
-(defn fit!
+(defn mix!
   ([samp options]
    (let [{step :step
           run-step :run-step
@@ -100,7 +100,7 @@
                     (run-sampler! samp step a))
              ac))))))
   ([samp]
-   (fit! samp nil)))
+   (mix! samp nil)))
 
 (defn info [samp]
   (p/info samp))

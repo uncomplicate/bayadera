@@ -16,7 +16,7 @@
              [core :refer :all]
              [util :refer [bin-mapper hdi]]
              [opencl :refer [with-default-bayadera]]
-             [mcmc :refer [fit! info anneal! burn-in! acc-rate! run-sampler!]]]
+             [mcmc :refer [mix! info anneal! burn-in! acc-rate! run-sampler!]]]
             [uncomplicate.bayadera.opencl.models
              :refer [cl-likelihood-model cl-distribution-model]]
             [uncomplicate.bayadera.toolbox
@@ -46,16 +46,16 @@
           z1 4 N1 5]
       (with-release [prior (distribution multiple-coins-prior)
                      prior-dist-5 (prior (sv 2 2 5))
-                     prior-sampler-5 (time (doto (sampler prior-dist-5) (fit!)))
+                     prior-sampler-5 (time (doto (sampler prior-dist-5) (mix!)))
                      prior-dist-75 (prior (sv 2 2 75))
-                     prior-sampler-75 (time (doto (sampler prior-dist-75) (fit!)))
+                     prior-sampler-75 (time (doto (sampler prior-dist-75) (mix!)))
                      post-model (posterior-model multiple-coins-likelihood multiple-coins-prior)
                      post (posterior post-model)
                      post-dist-5 (post (sv N0 z0 N1 z1 2 2 5))
-                     post-sampler-5 (time (doto (sampler post-dist-5) (fit!)))
+                     post-sampler-5 (time (doto (sampler post-dist-5) (mix!)))
                      post-sample-5 (dataset (sample post-sampler-5))
                      post-dist-75 (post (sv N0 z0 N1 z1 2 2 75))
-                     post-sampler-75 (time (doto (sampler post-dist-75) (fit!)))
+                     post-sampler-75 (time (doto (sampler post-dist-75) (mix!)))
                      post-sample-75 (dataset (sample post-sampler-75))]
 
         (println "Bayes Factor p(D|k=5)/p(D|k=75) = "

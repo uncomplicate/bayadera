@@ -16,7 +16,7 @@
              [core :refer :all]
              [util :refer [bin-mapper hdi]]
              [opencl :refer [with-default-bayadera]]
-             [mcmc :refer [fit! info anneal! burn-in! acc-rate! run-sampler!]]]
+             [mcmc :refer [mix! info anneal! burn-in! acc-rate! run-sampler!]]]
             [uncomplicate.bayadera.opencl.models
              :refer [binomial-likelihood cl-distribution-model]]
             [uncomplicate.bayadera.toolbox
@@ -40,12 +40,12 @@
           z 9 N 12]
       (with-release [prior (distribution single-coin-model)
                      prior-dist (prior (sv 2 2 100))
-                     prior-sampler (time (doto (sampler prior-dist) (fit! {:a 2.68})))
+                     prior-sampler (time (doto (sampler prior-dist) (mix! {:a 2.68})))
                      prior-sample (dataset (sample! prior-sampler sample-count))
                      prior-pdf (pdf prior-dist prior-sample)
                      post (posterior "posterior" binomial-likelihood prior-dist)
                      post-dist (post (binomial-lik-params N z))
-                     post-sampler (time (doto (sampler post-dist) (fit! {:a 3.66})))
+                     post-sampler (time (doto (sampler post-dist) (mix! {:a 3.66})))
                      post-sample (dataset (sample! post-sampler sample-count))
                      post-pdf (scal! (/ 1.0 (evidence post-dist prior-sample))
                                      (pdf post-dist post-sample))]
