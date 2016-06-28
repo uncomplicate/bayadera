@@ -53,8 +53,14 @@
                      post (posterior post-model)
                      post-dist-5 (post (sv N0 z0 N1 z1 2 2 5))
                      post-sampler-5 (time (doto (sampler post-dist-5) (fit!)))
+                     post-sample-5 (dataset (sample post-sampler-5))
                      post-dist-75 (post (sv N0 z0 N1 z1 2 2 75))
-                     post-sampler-75 (time (doto (sampler post-dist-75) (fit!)))]
+                     post-sampler-75 (time (doto (sampler post-dist-75) (fit!)))
+                     post-sample-75 (dataset (sample post-sampler-75))]
+
+        (println "Bayes Factor p(D|k=5)/p(D|k=75) = "
+                 (/ (evidence post-dist-5 post-sample-5)
+                    (evidence post-dist-75 post-sample-75)))
 
         {:prior-5 (histogram! prior-sampler-5 75)
          :prior-75 (histogram! prior-sampler-75 75)
