@@ -47,19 +47,19 @@
       (with-release [prior (distribution multiple-coins-prior)
                      prior-dist-5 (prior (sv 2 2 5))
                      prior-sampler-5 (time (doto (sampler prior-dist-5) (fit!)))
-                     prior-dist-100 (prior (sv 2 2 100))
-                     prior-sampler-100 (time (doto (sampler prior-dist-100) (fit!)))
+                     prior-dist-75 (prior (sv 2 2 75))
+                     prior-sampler-75 (time (doto (sampler prior-dist-75) (fit!)))
                      post-model (posterior-model multiple-coins-likelihood multiple-coins-prior)
                      post (posterior post-model)
                      post-dist-5 (post (sv N0 z0 N1 z1 2 2 5))
                      post-sampler-5 (time (doto (sampler post-dist-5) (fit!)))
-                     post-dist-100 (post (sv N0 z0 N1 z1 2 2 100))
-                     post-sampler-100 (time (doto (sampler post-dist-100) (fit!)))]
+                     post-dist-75 (post (sv N0 z0 N1 z1 2 2 75))
+                     post-sampler-75 (time (doto (sampler post-dist-75) (fit!)))]
 
-        {:prior-5 (histogram! prior-sampler-5 100)
-         :prior-100 (histogram! prior-sampler-100 100)
-         :posterior-5 (time (histogram! post-sampler-5 100))
-         :posterior-100 (time (histogram! post-sampler-100 100))}))))
+        {:prior-5 (histogram! prior-sampler-5 75)
+         :prior-75 (histogram! prior-sampler-75 75)
+         :posterior-5 (time (histogram! post-sampler-5 75))
+         :posterior-75 (time (histogram! post-sampler-75 75))}))))
 
 (defn setup []
   (reset! state
@@ -80,8 +80,8 @@
     (q/background 0)
     (draw-plots (:plots @state) (:prior-5 @all-data) 0 0)
     (draw-plots (drop 3 (:plots @state)) (:posterior-5 @all-data) 0 320)
-    (draw-plots (drop 6 (:plots @state)) (:prior-100 @all-data) 0 640)
-    (draw-plots (drop 9 (:plots @state)) (:posterior-100 @all-data) 0 960)))
+    (draw-plots (drop 6 (:plots @state)) (:prior-75 @all-data) 0 640)
+    (draw-plots (drop 9 (:plots @state)) (:posterior-75 @all-data) 0 960)))
 
 (defn display-sketch []
   (q/defsketch diagrams
