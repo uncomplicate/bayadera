@@ -63,7 +63,7 @@
           (set-arg! sum-reduction-kernel 0 cl-acc)
           (enq-reduce cqueue evidence-kernel sum-reduction-kernel n WGS)
           (/ (enq-read-double cqueue cl-acc) n)))
-      1.0)))
+      Double/NaN)))
 
 (deftype GCNDataSetEngine [ctx cqueue prog ^long WGS]
   Releaseable

@@ -1,5 +1,5 @@
 (ns ^{:author "Dragan Djuric"}
-    uncomplicate.bayadera.examples.dbda.ch08-test
+    uncomplicate.bayadera.examples.dbda.ch08.complete-example-test
   (:require [midje.sweet :refer :all]
             [quil.core :as q]
             [quil.applet :as qa]
@@ -8,7 +8,7 @@
              [fun-mode :refer [fun-mode]]]
             [uncomplicate.commons.core :refer [with-release]]
             [uncomplicate.neanderthal.core
-             :refer [row transfer scal!]]
+             :refer [row native scal!]]
             [uncomplicate.bayadera
              [protocols :as p]
              [core :refer :all]
@@ -18,6 +18,7 @@
              :refer [binomial-likelihood beta-model]]
             [uncomplicate.bayadera.toolbox
              [processing :refer :all]
+             [scaling :refer [axis vector-axis]]
              [plots :refer [render-sample]]]
             [clojure.java.io :as io]))
 
@@ -39,10 +40,10 @@
                      post-pdf (scal! (/ 1.0 (evidence post-dist prior-sample))
                                      (pdf post-dist post-sample))]
         (println (uncomplicate.bayadera.mcmc/info post-sampler))
-        {:prior {:sample (transfer (row (p/data prior-sample) 0))
-                 :pdf (transfer prior-pdf)}
-         :posterior {:sample (transfer (row (p/data post-sample) 0))
-                     :pdf (transfer post-pdf)}}))))
+        {:prior {:sample (native (row (p/data prior-sample) 0))
+                 :pdf (native prior-pdf)}
+         :posterior {:sample (native (row (p/data post-sample) 0))
+                     :pdf (native post-pdf)}}))))
 
 (defn setup []
   (reset! plots
@@ -54,9 +55,9 @@
   (when-not (= @all-data (:data @plots))
     (swap! plots assoc :data @all-data)
     (q/background 0)
-    (q/image (show (render-sample (:prior @plots)
-                                  (:sample (:prior @all-data))
-                                  (:pdf (:prior @all-data)))) 0 0)
+    (q/image (show (render (:prior @plots)
+                           {:x-axis (axis 0 1) :x (:sample (:prior @all-data))
+                            :y-axis (axis 0 2) :y (:pdf (:prior @all-data))})) 0 0)
     (q/image (show (render-sample (:posterior @plots)
                                   (:sample (:posterior @all-data))
                                   (:pdf (:posterior @all-data)))) 0 720)))
