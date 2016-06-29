@@ -3,9 +3,7 @@
   (:require [midje.sweet :refer :all]
             [quil.core :as q]
             [quil.applet :as qa]
-            [quil.middlewares
-             [pause-on-error :refer [pause-on-error]]
-             [fun-mode :refer [fun-mode]]]
+            [quil.middlewares.pause-on-error :refer [pause-on-error]]
             [uncomplicate.commons.core :refer [with-release let-release wrap-float]]
             [uncomplicate.neanderthal
              [core :refer [row native dot imax imin scal! col submatrix]]
@@ -62,10 +60,10 @@
                  (/ (evidence post-dist-5 post-sample-5)
                     (evidence post-dist-75 post-sample-75)))
 
-        {:prior-5 (histogram! prior-sampler-5 75)
-         :prior-75 (histogram! prior-sampler-75 75)
-         :posterior-5 (time (histogram! post-sampler-5 75))
-         :posterior-75 (time (histogram! post-sampler-75 75))}))))
+        {:prior-5 (histogram prior-sampler-5)
+         :prior-75 (histogram prior-sampler-75)
+         :posterior-5 (time (histogram post-sampler-5))
+         :posterior-75 (time (histogram post-sampler-75))}))))
 
 (defn setup []
   (reset! state

@@ -80,7 +80,6 @@
          dimension (long (p/dimension (p/model samp)))
          step (* (long step) dimension)
          run-step (* (long run-step) dimension)]
-     (init-position! samp position)
      (anneal! samp schedule step a)
      (burn-in! samp step a)
      (let [a (loop [i 0 acc-rate (acc-rate! samp a) a a]

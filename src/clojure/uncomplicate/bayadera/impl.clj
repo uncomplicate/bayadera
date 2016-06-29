@@ -162,9 +162,9 @@
   (sampler [_ options]
     (let [walkers (or (:walkers options)
                       (* (long (processing-elements bayadera-factory)) 32))]
-      (init!
-       (mcmc-sampler sampler-factory walkers params (limits dist-model))
-       (or (:seed options) (srand-int)))))
+      (doto (mcmc-sampler sampler-factory walkers params (limits dist-model))
+        (init! (or (:seed options) (srand-int)))
+        (init-position! (or (:position options) (srand-int))))))
   (sampler [this]
     (sampler this nil))
   Distribution

@@ -27,7 +27,8 @@
           :output-dir "docs/codox"}
 
   :profiles {:dev {:dependencies [[midje "1.8.3"]
-                                  [criterium "0.4.4"]]
+                                  [criterium "0.4.4"]
+                                  [org.clojure/data.csv "0.1.3"]]
                    :plugins [[lein-midje "3.1.3"]
                              [codox "0.9.4"]]
                    :global-vars {*warn-on-reflection* true
