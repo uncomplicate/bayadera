@@ -73,7 +73,18 @@
         ;;(println (time (acc-rate! post-sampler 1.2)))
         (println (time (run-sampler! post-sampler 64 1.2)))
         (println (info post-sampler))
-        (time (histogram! post-sampler 320))))))
+        (let [hist (histogram! post-sampler 320)]
+          (println "------------------------------------------")
+          (println (uncomplicate.neanderthal.core/asum (col (:pdf hist) 28)))
+          (println (uncomplicate.neanderthal.core/asum (col (:pdf hist) 29)))
+          (println "------------------------------------------")
+          (println "limits omega: "(col (:limits hist) 28))
+          (println "hdi omega: " (hdi hist 28))
+          (println "------------------------------------------")
+          (println "limits kappa-2" (col (:limits hist) 29))
+          (println "hdi kappa-2" (hdi hist 29))
+          (println "------------------------------------------")
+          hist)))))
 
 (defn setup []
   (reset! state

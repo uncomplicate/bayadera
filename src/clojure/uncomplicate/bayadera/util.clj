@@ -6,7 +6,7 @@
              [protocols :as np]
              [math :refer [sqrt]]
              [core :refer [transfer dim subvector col]]
-             [real :refer [entry entry!]]
+             [real :refer [entry entry! asum]]
              [native :refer [sge]]
              [block :refer [buffer]]])
   (:import [java.security SecureRandom]
@@ -48,7 +48,7 @@
    (hdi-rank-count 0.95 bin-rank pdf))
   ([^double mass bin-rank pdf]
    (let [n (dim bin-rank)
-         density (* mass n)]
+         density (* mass (asum pdf))]
      (loop [i 0 acc 0.0]
        (if (and (< i n) (< acc density))
          (recur (inc i) (+ acc (entry pdf (entry bin-rank i))))

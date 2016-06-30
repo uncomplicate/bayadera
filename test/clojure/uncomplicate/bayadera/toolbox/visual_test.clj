@@ -7,7 +7,7 @@
              [math :refer [log exp]]
              [core :refer [dim copy imax imin]]
              [real :refer [entry]]
-             [native :refer [sv]]]
+             [native :refer [sv sge]]]
             [uncomplicate.bayadera.toolbox
              [processing :refer [plot2d render show]]
              [scaling :refer [vector-axis]]]
@@ -25,7 +25,9 @@
                  (render {:x-axis (vector-axis rand-vect)
                           :y-axis (vector-axis pdf-vect)
                           :x rand-vect
-                          :y pdf-vect})
+                          :y pdf-vect
+                          :y-sidelines (sge 2 1 [1.0 8.0])
+                          :x-sidelines (sge 2 3 [1.3 1.8 3.5 4.2 5.0 9.0])})
                  show)
              0 0)))
 
@@ -33,6 +35,6 @@
   (q/defsketch diagrams
     :renderer :opengl
     :size :fullscreen
-    :display 3
+    :display 2
     :setup setup
     :middleware [pause-on-error]))
