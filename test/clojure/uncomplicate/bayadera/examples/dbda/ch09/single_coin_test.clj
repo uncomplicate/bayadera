@@ -3,7 +3,7 @@
   (:require [midje.sweet :refer :all]
             [quil.core :as q]
             [quil.applet :as qa]
-            [quil.middlewares.pause-on-error:refer [pause-on-error]]
+            [quil.middlewares.pause-on-error :refer [pause-on-error]]
             [uncomplicate.commons.core :refer [with-release let-release wrap-float]]
             [uncomplicate.neanderthal
              [core :refer [row native dot imax imin scal! col submatrix]]

@@ -12,7 +12,7 @@
              [protocols :as p]
              [core :refer :all]
              [distributions :refer [beta-pdf]]
-             [mcmc :refer [fit!]]
+             [mcmc :refer [mix!]]
              [impl :refer :all]
              [math :refer [log-beta]]]
             [uncomplicate.bayadera.opencl :refer [with-default-bayadera]]
@@ -79,7 +79,7 @@
                    prior-sample (dataset (sample! (sampler prior-dist) sample-count))
                    post (posterior "post" binomial-likelihood prior-dist)
                    post-dist (post (binomial-lik-params N z))
-                   post-sampler (doto (sampler post-dist) (fit!))
+                   post-sampler (doto (sampler post-dist) (mix!))
                    post-sample (dataset (sample! post-sampler sample-count))
                    post-pdf (pdf post-dist post-sample)
                    real-post (beta a1 b1)
