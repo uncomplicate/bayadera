@@ -135,8 +135,7 @@
       (->CLPosteriorModel post-name post-logpdf post-mcmc-logpdf
                           (dimension prior) post-params-size
                           (limits prior)
-                          (conj (into [] (dedupe)
-                                      (into (source prior) (source lik)))
+                          (conj (vec (distinct (into (source prior) (source lik))))
                                 (format "%s\n%s"
                                         (format post-source post-logpdf
                                                 (loglik lik) (logpdf prior)
@@ -162,6 +161,11 @@
                          :limits (sge 2 1 [(- Float/MAX_VALUE) Float/MAX_VALUE])
                          :sampler-source
                          (slurp (io/resource "uncomplicate/bayadera/opencl/rng/gaussian-sampler.cl"))))
+
+(defn gaussian-likelihood [n]
+  (cl-likelihood-model (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/gaussian.h"))
+                       :name "gaussian" :params-size n))
+
 (def uniform-model
   (cl-distribution-model (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/uniform.h"))
                          :name "uniform" :params-size 2
