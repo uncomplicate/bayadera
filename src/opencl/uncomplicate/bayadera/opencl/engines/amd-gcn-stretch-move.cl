@@ -1,10 +1,10 @@
 #include "Random123/philox.h"
 
-inline void work_group_reduction_accumulate (__global uint* accept,
-                                             const uint accepted,
-                                             __global REAL* acc,
-                                             REAL* pacc,
-                                             const uint step_counter) {
+void work_group_reduction_accumulate (__global uint* accept,
+                                      const uint accepted,
+                                      __global REAL* acc,
+                                      REAL* pacc,
+                                      const uint step_counter) {
 
     const uint local_id = get_local_id(0);
 
@@ -45,16 +45,16 @@ inline void work_group_reduction_accumulate (__global uint* accept,
 
 // =============================================================================
 
-inline bool stretch_move(const uint seed,
-                         __constant const REAL *params,
-                         const REAL *Scompl,
-                         REAL *X,
-                         REAL* logpdf_X,
-                         const REAL a,
-                         const REAL beta,
-                         const uint step_counter,
-                         const uint odd_or_even,
-                         REAL* Y) {
+bool stretch_move(const uint seed,
+                  __constant const REAL *params,
+                  const REAL *Scompl,
+                  REAL *X,
+                  REAL* logpdf_X,
+                  const REAL a,
+                  const REAL beta,
+                  const uint step_counter,
+                  const uint odd_or_even,
+                  REAL* Y) {
 
     // Get the index of this walker Xk
     const uint k = get_global_id(0);
@@ -151,10 +151,11 @@ __kernel void init_walkers(const uint seed,
     const philox4x32_ctr_t cnt = {{get_global_id(0), 0xf00dcafe, 0xdeadbeef, 0xbeeff00d}};
     const float4 u = u01fpt_oo_4x32_24(((uint4*)philox4x32(cnt, key).v)[0]);
 
-    xs[i] = u.s0 * (limits_m0.s1 - limits_m0.s0) + limits_m0.s0;
-    xs[i + 1] = u.s1 * (limits_m1.s1 - limits_m1.s0) + limits_m1.s0;
-    xs[i + 2] = u.s2 * (limits_m2.s1 - limits_m2.s0) + limits_m2.s0;
-    xs[i + 3] = u.s3 * (limits_m3.s1 - limits_m3.s0) + limits_m3.s0;
+    xs[i] = u.s0 * limits_m0.s1 + (1.0f - u.s0) * limits_m0.s0;
+    xs[i + 1] = u.s1 * limits_m1.s1 + (1.0f - u.s1) * limits_m1.s0;
+    xs[i + 2] = u.s2 * limits_m2.s1 + (1.0f - u.s2) * limits_m2.s0;
+    xs[i + 3] = u.s3 * limits_m3.s1 + (1.0f - u.s3) * limits_m3.s0;
+
 }
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))

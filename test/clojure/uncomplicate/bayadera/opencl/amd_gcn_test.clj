@@ -7,7 +7,8 @@
             [clojure.java.io :as io]
             [uncomplicate.clojurecl.core :refer :all]
             [uncomplicate.neanderthal
-             [core :refer [dim create-ge-matrix row col imax submatrix entry ncols transfer cols]]
+             [core :refer [dim create-ge-matrix row col imax submatrix entry
+                           ncols transfer cols]]
              [real :refer [sum]]
              [native :refer [sv]]
              [block :refer [buffer]]

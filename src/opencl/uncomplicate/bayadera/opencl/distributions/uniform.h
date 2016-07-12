@@ -9,6 +9,6 @@ inline REAL uniform_log(REAL lower, REAL upper, REAL x) {
 
 // ============= With params ========================================
 
-inline REAL uniform_logpdf(__constant REAL* params, REAL* x) {
+REAL uniform_logpdf(__constant REAL* params, REAL* x) {
     return uniform_log(params[0], params[1], x[0]);
 }

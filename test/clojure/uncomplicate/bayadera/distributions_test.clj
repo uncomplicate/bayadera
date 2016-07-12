@@ -15,3 +15,8 @@
  "Gamma Distribution"
  (gamma-pdf 3.3 3 5.77) => (roughly (erlang-pdf (/ 1 3.3) 3 5.77))
  (gamma-cdf 4.57 5 13.33) => (erlang-cdf (/ 1 4.57) 5 13.33))
+
+(facts
+ "Student's t distribution"
+ (t-pdf 2.45 2.34) => (roughly 0.047657)
+ (- (t-cdf 2.45 3.12) (t-cdf 2.45 2.34)) => (roughly 0.02602))

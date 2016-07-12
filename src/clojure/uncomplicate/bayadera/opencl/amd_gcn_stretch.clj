@@ -201,21 +201,20 @@
         res)))
   MCMC
   (init-position! [this position]
-    (if (number? position)
-      (let [seed (wrap-int position)]
-        (set-arg! init-walkers-kernel 0 seed)
+    (let [cl-position (.cl-xs ^GCNStretch position)]
+      (enq-copy! cqueue cl-position cl-xs)
+      (enq-nd! cqueue logpdf-kernel (work-size-1d walker-count))
+      (aset iteration-counter 0 0)
+      this))
+  (init-position! [this seed limits]
+    (let [seed (wrap-int seed)]
+      (with-release [cl-limits (transfer neanderthal-factory limits)]
+        (set-args! init-walkers-kernel 0 seed (buffer cl-limits))
         (enq-nd! cqueue init-walkers-kernel
-                 (work-size-1d (* DIM (long (/ walker-count 4))))))
-      (let [cl-position (.cl-xs ^GCNStretch position)]
-        (when (< (long (size cl-position)) (long (size cl-xs)))
-          (let [seed (wrap-int (srand-int))]
-            (set-arg! init-walkers-kernel 0 seed)
-            (enq-nd! cqueue init-walkers-kernel
-                     (work-size-1d (* DIM (long (/ walker-count 4)))))))
-        (enq-copy! cqueue cl-position cl-xs)))
-    (enq-nd! cqueue logpdf-kernel (work-size-1d walker-count))
-    (aset iteration-counter 0 0)
-    this)
+                 (work-size-1d (* DIM (long (/ walker-count 4)))))
+        (enq-nd! cqueue logpdf-kernel (work-size-1d walker-count))
+        (aset iteration-counter 0 0)
+        this)))
   (burn-in! [this n a]
     (let [a (.wrapPrim claccessor a)]
       (set-arg! stretch-move-odd-bare-kernel 6 a)
@@ -338,7 +337,7 @@
   (release [_]
     (release prog))
   MCMCFactory
-  (mcmc-sampler [_ walker-count params host-limits]
+  (mcmc-sampler [_ walker-count params]
     (let [walker-count (long walker-count)]
       (if (and (<= (* 2 WGS) walker-count) (zero? (rem walker-count (* 2 WGS))))
         (let [acc-count (* DIM (count-work-groups WGS walker-count))
@@ -360,9 +359,7 @@
                                              :read-write)
                         cl-accept-acc (cl-buffer ctx (* Long/BYTES accept-acc-count)
                                                  :read-write)
-                        cl-limits (.createDataSource claccessor (* DIM 2))
                         cl-acc (.createDataSource claccessor acc-count)]
-            (enq-write! queue cl-limits (buffer host-limits))
             (->GCNStretch
              ctx queue neanderthal-factory claccessor
              walker-count (work-size-1d (/ walker-count 2))
@@ -379,7 +376,7 @@
              (doto (kernel prog "stretch_move_bare")
                (set-args! 1 (wrap-int 4444) cl-params cl-s0 cl-s1 cl-logpdf-s1))
              (doto (kernel prog "init_walkers")
-               (set-args! 1 cl-limits cl-xs))
+               (set-arg! 2 cl-xs))
              (doto (kernel prog "logpdf")
                (set-args! 0 cl-params cl-xs cl-logpdf-xs))
              (doto (kernel prog "sum_accept_reduction")

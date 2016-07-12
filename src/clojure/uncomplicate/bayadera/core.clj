@@ -10,7 +10,7 @@
             [uncomplicate.bayadera
              [protocols :as p]
              [impl :refer :all]
-             [math :refer [log-beta]]
+             [distributions :refer [beta-log-scale gamma-log-scale t-log-scale]]
              [util :refer [srand-int]]]))
 
 (def ^:dynamic *bayadera-factory*)
@@ -32,6 +32,17 @@
 
 ;; =============================================================================
 
+(defn uniform-params [^double a ^double b]
+  (sv a b))
+
+(defn uniform
+  ([^double a ^double b]
+   (uniform *bayadera-factory* a b))
+  ([factory ^double a ^double b]
+   (with-release [params (uniform-params a b)]
+     (->UniformDistribution factory (p/uniform-engine factory)
+                            (transfer (np/factory factory) params) a b))))
+
 (defn gaussian-params [^double mu ^double sigma]
   (sv mu sigma))
 
@@ -44,19 +55,27 @@
                              (transfer (np/factory factory) params)
                              mu sigma))))
 
-(defn uniform-params [^double a ^double b]
-  (sv a b))
+(defn t-params
+  ([^double nu ^double mu ^double sigma]
+   (sv nu mu sigma (t-log-scale nu sigma)))
+  ([^double nu]
+   (t-params nu 0.0 1.0)))
 
-(defn uniform
-  ([^double a ^double b]
-   (uniform *bayadera-factory* a b))
-  ([factory ^double a ^double b]
-   (with-release [params (uniform-params a b)]
-     (->UniformDistribution factory (p/uniform-engine factory)
-                            (transfer (np/factory factory) params) a b))))
+(defn t
+  ([^double nu ^double mu ^double sigma]
+   (t *bayadera-factory* nu mu sigma))
+  ([^double nu]
+   (t nu 0.0 1.0))
+  ([factory ^double nu ^double mu ^double sigma]
+   (with-release [params (t-params nu mu sigma)]
+     (->TDistribution factory (p/t-engine factory)
+                             (transfer (np/factory factory) params)
+                             nu mu sigma)))
+  ([factory ^double nu]
+   (t factory nu 0.0 1.0)))
 
 (defn beta-params [^double a ^double b]
-  (sv a b (log-beta a b)))
+  (sv a b (beta-log-scale a b)))
 
 (defn beta
   ([^double a ^double b]
@@ -66,8 +85,31 @@
      (->BetaDistribution factory (p/beta-engine factory)
                          (transfer (np/factory factory) params) a b))))
 
+(defn gamma-params [^double theta ^double k]
+  (sv theta k (gamma-log-scale theta k)))
+
+(defn gamma
+  ([^double theta ^double k]
+   (beta *bayadera-factory* theta k))
+  ([factory ^double theta ^double k]
+   (with-release [params (gamma-params theta k)]
+     (->BetaDistribution factory (p/gamma-engine factory)
+                         (transfer (np/factory factory) params) theta k))))
+
 (defn binomial-lik-params [^double n ^double k]
   (sv n k))
+
+(defn exponential-params [^double lambda]
+  (sv lambda))
+
+(defn exponential
+  ([^double lambda]
+   (exponential *bayadera-factory* lambda))
+  ([factory ^double lambda]
+   (with-release [params (exponential-params lambda)]
+     (->ExponentialDistribution factory (p/exponential-engine factory)
+                                (transfer (np/factory factory) params)
+                                lambda))))
 
 ;; =============================================================================
 

@@ -194,31 +194,46 @@
 (defrecord GCNBayaderaFactory [ctx cqueue tmp-dir-name
                                ^long compute-units ^long WGS
                                dataset-eng neanderthal-factory
-                               gaussial-model gaussian-eng gaussian-samp
                                uniform-model uniform-eng uniform-samp
+                               gaussian-model gaussian-eng gaussian-samp
+                               t-model t-eng t-samp
                                beta-model beta-eng beta-samp
+                               gamma-model gamma-eng gamma-samp
+                               exponential-model exponential-eng exponential-samp
                                binomial-model binomial-eng binomial-samp]
   Releaseable
   (release [_]
     (and (release dataset-eng)
          (release neanderthal-factory)
-         (release gaussian-eng)
-         (release gaussian-samp)
          (release uniform-eng)
          (release uniform-samp)
+         (release gaussian-eng)
+         (release gaussian-samp)
+         (release t-eng)
+         (release t-samp)
          (release beta-eng)
          (release beta-samp)
+         (release gamma-eng)
+         (release gamma-samp)
+         (release exponential-eng)
+         (release exponential-samp)
          (release binomial-eng)
          (release binomial-samp)))
   DistributionEngineFactory
-  (gaussian-engine [_]
-    gaussian-eng)
   (uniform-engine [_]
     uniform-eng)
   (binomial-engine [_]
     binomial-eng)
+  (gaussian-engine [_]
+    gaussian-eng)
+  (t-engine [_]
+    t-eng)
   (beta-engine [_]
     beta-eng)
+  (gamma-engine [_]
+    gamma-eng)
+  (exponential-engine [_]
+    exponential-eng)
   (distribution-engine [_ model]
     (with-philox tmp-dir-name
       (gcn-distribution-engine ctx cqueue tmp-dir-name model WGS)))
@@ -226,14 +241,20 @@
     (with-philox tmp-dir-name
       (gcn-posterior-engine ctx cqueue tmp-dir-name model WGS)))
   SamplerFactory
-  (gaussian-sampler [_]
-    gaussian-samp)
   (uniform-sampler [_]
     uniform-samp)
   (binomial-sampler [_]
     binomial-samp)
+  (gaussian-sampler [_]
+    gaussian-samp)
+  (t-sampler [_]
+    t-samp)
   (beta-sampler [_]
     beta-samp)
+  (gamma-sampler [_]
+    gamma-samp)
+  (exponential-sampler [_]
+    exponential-samp)
   (mcmc-factory [_ model]
     (with-philox tmp-dir-name
       (gcn-stretch-factory ctx cqueue tmp-dir-name
@@ -257,16 +278,27 @@
         compute-units WGS
         (gcn-dataset-engine ctx cqueue WGS)
         neanderthal-factory
-        gaussian-model
-        (gcn-distribution-engine ctx cqueue tmp-dir-name gaussian-model WGS)
-        (gcn-direct-sampler ctx cqueue tmp-dir-name gaussian-model WGS)
         uniform-model
         (gcn-distribution-engine ctx cqueue tmp-dir-name uniform-model WGS)
         (gcn-direct-sampler ctx cqueue tmp-dir-name uniform-model WGS)
+        gaussian-model
+        (gcn-distribution-engine ctx cqueue tmp-dir-name gaussian-model WGS)
+        (gcn-direct-sampler ctx cqueue tmp-dir-name gaussian-model WGS)
+        t-model
+        (gcn-distribution-engine ctx cqueue tmp-dir-name t-model WGS)
+        (gcn-stretch-factory ctx cqueue tmp-dir-name neanderthal-factory
+                             t-model WGS)
         beta-model
         (gcn-distribution-engine ctx cqueue tmp-dir-name beta-model WGS)
         (gcn-stretch-factory ctx cqueue tmp-dir-name neanderthal-factory
                              beta-model WGS)
+        gamma-model
+        (gcn-distribution-engine ctx cqueue tmp-dir-name gamma-model WGS)
+        (gcn-stretch-factory ctx cqueue tmp-dir-name neanderthal-factory
+                             gamma-model WGS)
+        exponential-model
+        (gcn-distribution-engine ctx cqueue tmp-dir-name exponential-model WGS)
+        (gcn-direct-sampler ctx cqueue tmp-dir-name exponential-model WGS)
         binomial-model
         (gcn-distribution-engine ctx cqueue tmp-dir-name binomial-model WGS)
         (gcn-stretch-factory ctx cqueue tmp-dir-name neanderthal-factory

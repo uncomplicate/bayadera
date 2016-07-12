@@ -27,15 +27,14 @@
                                         ctx cqueue neanderthal-factory
                                         gaussian-model)
                    cl-params (create-vector neanderthal-factory [200 1])
-                   limits (sge 2 1 [190.0 210.0])
-                   engine (mcmc-sampler mcmc-engine-factory walker-count
-                                        cl-params limits)]
+                   limits (sge 2 1 [180.0 220.0])
+                   engine (mcmc-sampler mcmc-engine-factory walker-count cl-params)]
       (facts
        "Test for MCMC stretch engine."
-       (init-position! engine 123)
+       (init-position! engine 123 limits)
        (init! engine 1243)
-       (burn-in! engine 512 a)
+       (burn-in! engine 5120 a)
        (< 0.45 (acc-rate! engine a) 0.5)  => true
-       (:tau (:autocorrelation (run-sampler! engine 67 a))) => (sv 2.5531332)
+       (:tau (:autocorrelation (run-sampler! engine 67 a))) => (sv 7.1493382453)
        (with-release [xs (sample! engine walker-count)]
          (/ (sum (row xs 0)) (ncols xs)) => (roughly 200.0))))))

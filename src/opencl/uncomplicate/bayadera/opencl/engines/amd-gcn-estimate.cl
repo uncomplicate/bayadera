@@ -42,7 +42,7 @@ __kernel void uint_to_real(const REAL alpha,
 
 // ================ Max reduction ==============================================
 
-inline REAL2 work_group_reduction_min_max_2 (const uint orientation, const REAL2 val) {
+REAL2 work_group_reduction_min_max_2 (const uint orientation, const REAL2 val) {
 
     uint local_row = get_local_id(1 - orientation);
     uint local_col = get_local_id(orientation);
@@ -98,31 +98,31 @@ __kernel void min_max_reduce (__global REAL2* acc, __global const REAL* a) {
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
 __kernel void bitonic_local(__global const REAL* in, __global REAL* out) {
-  const uint gid = get_global_id(0);
-  const uint lid = get_local_id(0);
+    const uint gid = get_global_id(0);
+    const uint lid = get_local_id(0);
 
-  REAL2 value = (REAL2)((REAL)lid, in[gid]);
-  __local REAL2 aux[WGS];
-  aux[lid] = value;
+    REAL2 value = (REAL2)((REAL)lid, in[gid]);
+    __local REAL2 aux[WGS];
+    aux[lid] = value;
 
-  work_group_barrier(CLK_LOCAL_MEM_FENCE);
+    work_group_barrier(CLK_LOCAL_MEM_FENCE);
 
-  for (uint length = 1; length < WGS; length <<= 1) {
-      const bool direction = ((lid & (length << 1)) != 0);
-      for (int inc = length; inc > 0; inc >>= 1) {
-          const int j = lid ^ inc;
-          const REAL2 other_value = aux[j];
-          const bool smaller = (value.y < other_value.y)
-              || (other_value.y == value.y && j < lid);
-          const bool swap = smaller ^ (j < lid) ^ direction;
-          value = (swap) ? other_value : value;
-          work_group_barrier(CLK_LOCAL_MEM_FENCE);
-          aux[lid] = value;
-          work_group_barrier(CLK_LOCAL_MEM_FENCE);
-      }
-  }
+    for (uint length = 1; length < WGS; length <<= 1) {
+        const bool direction = ((lid & (length << 1)) != 0);
+        for (int inc = length; inc > 0; inc >>= 1) {
+            const int j = lid ^ inc;
+            const REAL2 other_value = aux[j];
+            const bool smaller = (value.y < other_value.y)
+                || (other_value.y == value.y && j < lid);
+            const bool swap = smaller ^ (j < lid) ^ direction;
+            value = (swap) ? other_value : value;
+            work_group_barrier(CLK_LOCAL_MEM_FENCE);
+            aux[lid] = value;
+            work_group_barrier(CLK_LOCAL_MEM_FENCE);
+        }
+    }
 
-  out[gid] = value.x;
+    out[gid] = value.x;
 
 }
 

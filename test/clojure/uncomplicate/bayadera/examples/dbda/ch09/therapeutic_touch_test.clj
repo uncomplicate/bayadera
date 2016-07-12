@@ -33,11 +33,7 @@
   (cl-distribution-model [(slurp (io/resource "uncomplicate/bayadera/opencl/distributions/beta.h"))
                           (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/gamma.h"))
                           (slurp (io/resource "uncomplicate/bayadera/examples/dbda/ch09/therapeutic-touch.h"))]
-                         :name "touch" :params-size 4 :dimension (+ subjects 2)
-                         :limits (sge 2 (+ subjects 2)
-                                      (op (take (+ 2 (* subjects 2))
-                                                (interleave (repeat 0) (repeat 1)))
-                                          [0 50]))))
+                         :name "touch" :params-size 4 :dimension (+ subjects 2)))
 
 (def touch-likelihood
   (cl-likelihood-model [(slurp (io/resource "uncomplicate/bayadera/opencl/distributions/binomial.h"))
@@ -55,23 +51,17 @@
 
 (defn analysis []
   (with-default-bayadera
-    (let [walker-count (* 256 44 2)]
-      (with-release [prior (distribution touch-prior)
+    (let [walker-count (* 256 44)]
+      (with-release [limits  (sge 2 (+ subjects 2)
+                                        (op (take (+ 2 (* subjects 2))
+                                                  (interleave (repeat 0) (repeat 1)))
+                                            [0 30]))
+                     prior (distribution touch-prior)
                      prior-dist (prior (sv 1 1 1.105125 1.105125))
                      post (posterior "touch" touch-likelihood prior-dist)
                      post-dist (post (sv (take (* subjects 2) params)))
-                     post-sampler (sampler post-dist {:walkers walker-count})]
-        ;;(println (time (mix! post-sampler {:step 256 :max-iterations 10000})))
-        (time (do (anneal! post-sampler 5000 1.3) (uncomplicate.clojurecl.core/finish!)))
-        (println (acc-rate! post-sampler 1.4))
-        (time (do (burn-in! post-sampler 1000 1.3) (uncomplicate.clojurecl.core/finish!)) )
-        (println (acc-rate! post-sampler 1.3))
-        (time (do (anneal! post-sampler 1000 1.2) (uncomplicate.clojurecl.core/finish!)))
-        (println (acc-rate! post-sampler 1.2))
-        ;;(time (do (anneal! post-sampler 100 1.05) (uncomplicate.clojurecl.core/finish!)))
-        (time (do (burn-in! post-sampler 200 1.2) (uncomplicate.clojurecl.core/finish!)))
-        ;;(println (time (acc-rate! post-sampler 1.2)))
-        (println (time (run-sampler! post-sampler 64 1.2)))
+                     post-sampler (sampler post-dist {:walkers walker-count :limits limits})]
+        (println (time (mix! post-sampler {:refining 20})))
         (println (info post-sampler))
         (histogram! post-sampler 320)))))
 

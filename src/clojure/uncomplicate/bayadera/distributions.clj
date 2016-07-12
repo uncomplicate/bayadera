@@ -9,7 +9,8 @@
             [uncomplicate.bayadera.math
              :refer [log-factorial factorial log-binco log-multico
                      log-beta log-gamma gamma erf incomplete-gamma-l
-                     regularized-beta regularized-gamma-q]]))
+                     regularized-beta regularized-gamma-q]])
+  (:import [org.apache.commons.math3.distribution TDistribution]))
 
 (defn probability? [^double p]
   (<= 0 p 1))
@@ -280,6 +281,64 @@
     ^double [^double mu ^double sigma ^double x]
     (* 0.5 (+ 1.0 (erf (/ (- x mu) sigma sqrt2))))))
 
+;; ==================== Student's t distribution ================
+
+(defn t-log-unscaled
+  (^double [^double nu ^double x]
+   (- (* 0.5 (inc nu) (log (inc (/ (* x x) nu))))))
+  (^double [^double nu ^double mu ^double sigma ^double x]
+   (t-log-unscaled nu (/ (- x mu) sigma))))
+
+(let [log-sqrt-pi (log (sqrt Math/PI))]
+
+  (defn t-log-scale
+    (^double [^double nu]
+     (- (log-gamma (* 0.5 (inc nu)))
+        (* 0.5 (log nu)) log-sqrt-pi (log-gamma (* 0.5 nu))))
+    (^double [^double nu ^double sigma]
+     (- (t-log-scale nu) (log sigma)))))
+
+(defn t-log-pdf
+  (^double [^double nu ^double x]
+   (+ (t-log-unscaled nu x) (t-log-scale nu)))
+  (^double [^double nu ^double mu ^double sigma ^double x]
+   (+ (t-log-unscaled nu mu sigma x) (t-log-scale nu sigma))))
+
+(defn t-pdf
+  (^double [^double nu ^double x]
+   (exp (t-log-pdf nu x)))
+  (^double [^double nu ^double mu ^double sigma ^double x]
+   (exp (t-log-pdf nu mu sigma x))))
+
+(defn t-mean
+  (^double [^double nu]
+   (t-mean nu 0.0))
+  (^double [^double nu ^double mu]
+   (if (< 1.0 nu) mu Double/NaN)))
+
+(defn t-variance
+  (^double [^double nu]
+   (t-variance nu 1.0))
+  (^double [^double nu ^double sigma]
+   (cond
+     (< 2.0 nu) (* sigma sigma (/ nu (- nu 2.0)))
+     (and (< 1.0 nu) (<= nu 2)) Double/POSITIVE_INFINITY
+     :default Double/NaN)))
+
+(defn t-cdf
+  (^double [^double nu ^double x]
+   (t-cdf nu 0.0 1.0 x))
+  (^double [^double nu ^double mu ^double sigma ^double x]
+   (if (= mu x)
+     0.5
+     (let [nusigma2 (* nu sigma sigma)
+           x-mu (- x mu)]
+       (if (< x mu)
+         (* 0.5 (regularized-beta (/ nusigma2 (+ nusigma2 (* x-mu x-mu)))
+                                  (* 0.5 nu) 0.5))
+         (* 0.5 (+ 1.0 (regularized-beta (/ (* x-mu x-mu) (+ nusigma2 (* x-mu x-mu)))
+                                         0.5 (* 0.5 nu)))))))))
+
 ;; ==================== Beta Distribution ================
 
 (defn beta-check-args
@@ -294,7 +353,7 @@
   ^double [^double a ^double b ^double x]
   (+ (* (dec a) (log x)) (* (dec b) (log (- 1.0 x)))))
 
-(defn beta-log-scale-factor
+(defn beta-log-scale
   ^double [^double a ^double b]
   (- (log-beta a b)))
 
@@ -324,13 +383,13 @@
   ^double [^double theta ^double k ^double x]
   (- (* (dec k) (log x)) (/ x theta)))
 
-(defn gamma-log-scale-factor
+(defn gamma-log-scale
   ^double [^double theta ^double k]
   (- (+ (log-gamma k) (* k (log theta)))))
 
 (defn gamma-log-pdf
   ^double [^double theta ^double k ^double x]
-  (+ (gamma-log-unscaled theta k x) (gamma-log-scale-factor theta k)))
+  (+ (gamma-log-unscaled theta k x) (gamma-log-scale theta k)))
 
 (defn gamma-pdf
   ^double [^double theta ^double k ^double x]

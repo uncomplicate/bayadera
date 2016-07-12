@@ -166,6 +166,15 @@
   (cl-likelihood-model (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/gaussian.h"))
                        :name "gaussian" :params-size n))
 
+(def t-model
+  (cl-distribution-model (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/t.h"))
+                         :name "t" :params-size 4
+                         :limits (sge 2 1 [(- Float/MAX_VALUE) Float/MAX_VALUE])))
+
+(defn t-likelihood [n]
+  (cl-likelihood-model (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/t.h"))
+                       :name "t" :params-size n))
+
 (def uniform-model
   (cl-distribution-model (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/uniform.h"))
                          :name "uniform" :params-size 2
@@ -176,6 +185,18 @@
   (cl-distribution-model (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/beta.h"))
                          :name "beta" :mcmc-logpdf "beta_mcmc_logpdf" :params-size 3
                          :limits (sge 2 1 [0.0 1.0])))
+
+(def exponential-model
+  (cl-distribution-model (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/exponential.h"))
+                         :name "exponential" :params-size 1
+                         :limits (sge 2 1 [Float/MIN_VALUE Float/MAX_VALUE])
+                         :sampler-source
+                         (slurp (io/resource "uncomplicate/bayadera/opencl/rng/exponential-sampler.cl"))))
+
+(def gamma-model
+  (cl-distribution-model (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/gamma.h"))
+                         :name "gamma" :params-size 2
+                         :limits (sge 2 1 [0.0 Float/MAX_VALUE])))
 
 (def binomial-model
   (cl-distribution-model (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/binomial.h"))

@@ -2,7 +2,8 @@
     uncomplicate.bayadera.mcmc
   (:require [uncomplicate.neanderthal
              [core :refer [iamax]]
-             [real :refer [entry]]]
+             [real :refer [entry]]
+             [math :refer [pow sqrt abs]]]
             [uncomplicate.bayadera
              [protocols :as p]
              [util :refer [srand-int]]]))
@@ -10,8 +11,8 @@
 (defn init-position!
   ([samp position]
    (p/init-position! samp position))
-  ([samp]
-   (p/init-position! samp (srand-int))))
+  ([samp seed limits]
+   (p/init-position! samp seed limits)))
 
 (defn acc-rate!
   (^double [samp a]
@@ -35,11 +36,11 @@
   ([samp]
    (p/run-sampler! samp (* 64 (long (p/dimension (p/model samp)))) 2.0)))
 
-(defn ^:private sqrt-n [^double temp]
+(defn sqrt-n [^double temp]
   (fn ^double [^long i]
     (Math/sqrt (- temp i))))
 
-(defn ^:private minus-n [^double temp]
+(defn minus-n [^double temp]
   (fn ^double [^long i]
     (- temp i)))
 
@@ -56,48 +57,44 @@
 (defn mix!
   ([samp options]
    (let [{step :step
-          run-step :run-step
-          max-iterations :max-iterations
           position :position
           schedule :cooling-schedule
           a :a
+          refining :refining
           min-acc :min-acc-rate
           max-acc :max-acc-rate
-          acor-mult :acor-mult
           :or {step 64
-               run-step 64
-               max-iterations 1048576
                schedule minus-n
                position (srand-int)
                a 2.0
-               min-acc 0.3
-               max-acc 0.5
-               acor-mult 10.0}} options
+               refining 0
+               min-acc 0.2
+               max-acc 0.5}} options
          a (double a)
+         refining (long refining)
          min-acc (double min-acc)
          max-acc (double max-acc)
-         max-iterations (long max-iterations)
+         target-acc (/ (+ max-acc min-acc) 2.0)
          dimension (long (p/dimension (p/model samp)))
-         step (* (long step) dimension)
-         run-step (* (long run-step) dimension)]
-     (anneal! samp schedule step a)
-     (burn-in! samp step a)
-     (let [a (loop [i 0 acc-rate (acc-rate! samp a) a a]
-               (if (and (< i max-iterations) (not (< min-acc acc-rate max-acc)))
-                 (let [new-a (/ (* a acc-rate) (if (< acc-rate min-acc) min-acc max-acc))]
-                   (anneal! samp schedule step new-a)
-                   (burn-in! samp step new-a)
-                   (recur (+ i step) (acc-rate! samp a) new-a))
-                 a))]
-       (burn-in! samp step a)
-       (loop [i 0 step run-step ac (run-sampler! samp step a)]
-         (let [tau (:tau (:autocorrelation ac))
-               tau-fraction (/ (double step) (double acor-mult)
-                               (entry tau (iamax tau)))]
-           (if (and (< i max-iterations) (< tau-fraction 1.0))
-             (recur (+ i step) (inc (long (/ step tau-fraction)))
-                    (run-sampler! samp step a))
-             ac))))))
+         step (long step)]
+     (anneal! samp schedule (* step (pow dimension 0.8)) a)
+     (let [a (loop [i 0 a a]
+               (let [acc-rate (acc-rate! samp a)]
+                 (cond
+                   (< step i) a
+                   (< acc-rate min-acc)
+                   (recur (inc i) (inc (* (dec a) (/ acc-rate target-acc))))
+                   (< max-acc acc-rate)
+                   (recur (inc i) (* a (/ acc-rate target-acc)))
+                   :default a)))]
+       (burn-in! samp (* step (pow dimension 0.8)) a)
+       (loop [i 0 diff (abs (- target-acc (acc-rate! samp a)))]
+         (when (< i refining)
+           (burn-in! samp (* step (pow dimension 0.8)) a)
+           (let [new-diff  (abs (- target-acc (acc-rate! samp a)))]
+             (when (< new-diff diff)
+               (recur (inc i) new-diff)))))
+       (run-sampler! samp step a))))
   ([samp]
    (mix! samp nil)))
 

@@ -28,8 +28,7 @@
 (def single-coin-model
   (cl-distribution-model [(slurp (io/resource "uncomplicate/bayadera/opencl/distributions/beta.h"))
                           (slurp (io/resource "uncomplicate/bayadera/examples/dbda/ch09/single-coin.h"))]
-                         :name "single_coin" :params-size 3 :dimension 2
-                         :limits (sge 2 2 [0 1 0 1])))
+                         :name "single_coin" :params-size 3 :dimension 2))
 
 (defn analysis []
   (with-default-bayadera
@@ -38,7 +37,10 @@
           z 9 N 12]
       (with-release [prior (distribution single-coin-model)
                      prior-dist (prior (sv 2 2 100))
-                     prior-sampler (time (doto (sampler prior-dist) (mix! {:a 2.68})))
+                     prior-sampler (time (doto
+                                             (sampler prior-dist
+                                                      {:limits (sge 2 2 [0 1 0 1])})
+                                           (mix! {:a 2.68})))
                      prior-sample (dataset (sample! prior-sampler sample-count))
                      prior-pdf (pdf prior-dist prior-sample)
                      post (posterior "posterior" binomial-likelihood prior-dist)

@@ -1,5 +1,5 @@
-inline void work_group_reduction_sum_ulong (__global ulong* acc,
-                                            const ulong value) {
+void work_group_reduction_sum_ulong (__global ulong* acc,
+                                     const ulong value) {
 
     const uint local_size = get_local_size(0);
     const uint local_id = get_local_id(0);
@@ -60,10 +60,10 @@ __kernel void subtract_mean (__global REAL* means,
     means[dim_size * n_id + dim_id] -= mean[dim_id];
 }
 
-inline REAL2 work_group_reduction_autocovariance (__global REAL* c0acc,
-                                                   __global REAL* dacc,
-                                                   const REAL x2,
-                                                   const REAL xacc) {
+REAL2 work_group_reduction_autocovariance (__global REAL* c0acc,
+                                           __global REAL* dacc,
+                                           const REAL x2,
+                                           const REAL xacc) {
 
     const uint local_size = get_local_size(0);
     const uint local_id = get_local_id(0);

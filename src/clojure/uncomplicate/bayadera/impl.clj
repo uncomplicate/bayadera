@@ -1,7 +1,9 @@
 (ns ^{:author "Dragan Djuric"}
     uncomplicate.bayadera.impl
   (:require [clojure.java.io :as io]
-            [uncomplicate.commons.core :refer [Releaseable release wrap-float wrap-int]]
+            [uncomplicate.commons.core
+             :refer [Releaseable release with-release let-release
+                     wrap-float wrap-int]]
             [uncomplicate.fluokitten.core :refer [op fmap!]]
             [uncomplicate.neanderthal
              [protocols :as np]
@@ -119,6 +121,45 @@
   (sd [_]
     (sqrt (uniform-variance a b))))
 
+(deftype TDistribution [bayadera-factory dist-eng params
+                        ^double nu ^double mu ^double sigma]
+  Releaseable
+  (release [_]
+    (release params))
+  SamplerProvider
+  (sampler [this options]
+    (let [walkers (or (:walkers options)
+                      (* (long (processing-elements bayadera-factory)) 32))
+          std (sqrt (t-variance nu sigma))
+          m (t-mean nu mu)
+          seed (int (or (:seed options) (srand-int)))]
+      (with-release [limits (sge 2 1 [(- m (* 10 std)) (+ m (* 10 std))])]
+        (let-release [samp (mcmc-sampler (t-sampler bayadera-factory)
+                                         walkers params)]
+          (init-position! samp seed limits)
+          (init! samp (inc seed))
+          (burn-in! samp (max 0 (long (or (:warm-up options) 128))) 8.0)
+          samp))))
+  (sampler [this]
+    (sampler this nil))
+  Distribution
+  (parameters [_]
+    params)
+  EngineProvider
+  (engine [_]
+    dist-eng)
+  ModelProvider
+  (model [_]
+    (model dist-eng))
+  Location
+  (mean [_]
+    (t-mean nu mu))
+  Spread
+  (variance [_]
+    (t-variance nu sigma))
+  (sd [_]
+    (sqrt (t-variance nu sigma))))
+
 (deftype BetaDistribution [bayadera-factory dist-eng params ^double a ^double b]
   Releaseable
   (release [_]
@@ -127,13 +168,14 @@
   (sampler [this options]
     (let [walkers (or (:walkers options)
                       (* (long (processing-elements bayadera-factory)) 32))
-          samp (mcmc-sampler (beta-sampler bayadera-factory) walkers params
-                             (limits (model this)))
           seed (int (or (:seed options) (srand-int)))]
-      (init-position! samp seed)
-      (init! samp (inc seed))
-      (burn-in! samp (max 0 (long (or (:warm-up options) 128))) 8.0)
-      samp))
+      (with-release [limits (sge 2 1 [0 1])]
+        (let-release [samp (mcmc-sampler (beta-sampler bayadera-factory)
+                                         walkers params)]
+          (init-position! samp seed limits)
+          (init! samp (inc seed))
+          (burn-in! samp (max 0 (long (or (:warm-up options) 128))) 8.0)
+          samp))))
   (sampler [this]
     (sampler this nil))
   Distribution
@@ -154,6 +196,72 @@
   (sd [_]
     (sqrt (beta-variance a b))))
 
+(deftype GammaDistribution [bayadera-factory dist-eng params ^double theta ^double k]
+  Releaseable
+  (release [_]
+    (release params))
+  SamplerProvider
+  (sampler [this options]
+    (let [walkers (or (:walkers options)
+                      (* (long (processing-elements bayadera-factory)) 32))
+          seed (int (or (:seed options) (srand-int)))]
+      (with-release [limits (sge 2 1 [0 (+ (gamma-mean theta k)
+                                           (* 2 (sqrt (gamma-variance theta k))))])]
+        (let-release [samp (mcmc-sampler (gamma-sampler bayadera-factory)
+                                         walkers params)]
+          (init-position! samp seed limits)
+          (init! samp (inc seed))
+          (burn-in! samp (max 0 (long (or (:warm-up options) 128))) 8.0)
+          samp))))
+  (sampler [this]
+    (sampler this nil))
+  Distribution
+  (parameters [_]
+    params)
+  EngineProvider
+  (engine [_]
+    dist-eng)
+  ModelProvider
+  (model [_]
+    (model dist-eng))
+  Location
+  (mean [_]
+    (gamma-mean theta k))
+  Spread
+  (variance [_]
+    (gamma-variance theta k))
+  (sd [_]
+    (sqrt (gamma-variance theta k))))
+
+(deftype ExponentialDistribution [bayadera-factory dist-eng params ^double lambda]
+  Releaseable
+  (release [_]
+    (release params))
+  SamplerProvider
+  (sampler [_ options]
+    (->DirectSampler (exponential-sampler bayadera-factory) params
+                     (processing-elements bayadera-factory)
+                     (wrap-int (or (:seed options) (srand-int)))))
+  (sampler [this]
+    (sampler this nil))
+  Distribution
+  (parameters [_]
+    params)
+  EngineProvider
+  (engine [_]
+    dist-eng)
+  ModelProvider
+  (model [_]
+    (model dist-eng))
+  Location
+  (mean [_]
+    (exponential-mean lambda))
+  Spread
+  (variance [_]
+    (exponential-variance lambda))
+  (sd [_]
+    (sqrt (exponential-variance lambda))))
+
 (deftype DistributionImpl [bayadera-factory dist-eng sampler-factory params dist-model]
   Releaseable
   (release [_]
@@ -162,9 +270,13 @@
   (sampler [_ options]
     (let [walkers (or (:walkers options)
                       (* (long (processing-elements bayadera-factory)) 32))]
-      (doto (mcmc-sampler sampler-factory walkers params (limits dist-model))
-        (init! (or (:seed options) (srand-int)))
-        (init-position! (or (:position options) (srand-int))))))
+      (let-release [samp (mcmc-sampler sampler-factory walkers params)]
+        (init! samp (or (:seed options) (srand-int)))
+        (when-let [limits (:limits options)]
+          (init-position! samp (srand-int) limits))
+        (when-let [positions (:positions options)]
+          (init-position! samp positions))
+        samp)))
   (sampler [this]
     (sampler this nil))
   Distribution
