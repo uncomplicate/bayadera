@@ -4,7 +4,7 @@
             [uncomplicate.neanderthal
              [core :refer [asum]]
              [math :refer [exp round? pow magnitude]]])
-  (:import [org.apache.commons.math3.special Gamma Beta]))
+  (:import [org.apache.commons.math3.special Gamma Beta Erf]))
 
 (defn log-gamma
   "Natural logarithm of the Gamma function:
@@ -109,52 +109,12 @@
   ^double [xks]
   (exp (log-multico xks)))
 
-(let [cheb-coef (double-array [-1.3026537197817094
-                               6.4196979235649026E-1
-                               1.9476473204185836E-2
-                               -9.561514786808631E-3
-                               -9.46595344482036E-4
-                               3.66839497852761E-4
-                               4.2523324806907E-5
-                               -2.0278578112534E-5
-                               -1.624290004647E-6
-                               1.303655835580E-6
-                               1.5626441722E-8
-                               -8.5238095915E-8
-                               6.529054439E-9
-                               5.059343495E-9
-                               -9.91364156E-10
-                               -2.27365122E-10
-                               9.6467911E-11
-                               2.394038E-12
-                               -6.886027E-12
-                               8.94487E-13
-                               3.13092E-13
-                               -1.12708E-13
-                               3.81E-16
-                               7.106E-15
-                               -1.523E-15
-                               -9.4E-17
-                               1.21E-16
-                               -2.8E-17])
-      erfc* (fn ^double [^double x]
-              (let [t (/ 2.0 (+ 2.0 x))
-                    ty (- (* 4.0 t) 2.0)]
-                (loop [i 27 d 0.0 dd 0.0]
-                  (if (= 0 i)
-                    (* t (exp (+ (- (* x x))
-                                 (* 0.5 (- (* ty d) 1.3026537197817094))
-                                 (- dd))))
-                    (recur (dec i) (+ (aget cheb-coef i) (* ty d) (- dd)) d)))))]
+(defn erfc
+  "The complementary error function: erfc(x) = 1 - erf(x)"
+  ^double [^double x]
+  (Erf/erfc x))
 
-  (defn erfc
-    "The complementary error function: erfc(x) = 1 - erf(x)"
-    ^double [^double x]
-    (if (<= 0.0 x)
-      (erfc* x)
-      (- 2.0 (double (erfc* (- x))))))
-
-  (defn erf
-    "Error function: erf(x) = 2/√π 0∫x e-t2dt"
-    ^double [^double x]
-    (- 1.0 (erfc x))))
+(defn erf
+  "Error function: erf(x) = 2/√π 0∫x e-t2dt"
+  ^double [^double x]
+  (Erf/erf x))

@@ -1,5 +1,5 @@
 (ns ^{:author "Dragan Djuric"}
-    uncomplicate.bayadera.examples.dbda.ch09.smart-drug-normal-test
+    uncomplicate.bayadera.examples.dbda.ch16.smart-drug-normal-test
   (:require [midje.sweet :refer :all]
             [quil.core :as q]
             [quil.applet :as qa]
@@ -7,14 +7,13 @@
             [uncomplicate.commons.core :refer [with-release let-release wrap-float]]
             [uncomplicate.fluokitten.core :refer [op]]
             [uncomplicate.neanderthal
-             [core :refer [row native dot imax imin scal! col submatrix transfer dim]]
+             [core :refer [dim]]
              [real :refer [entry entry!]]
              [math :refer [sqrt]]
              [native :refer [sv sge]]]
             [uncomplicate.bayadera
              [protocols :as p]
              [core :refer :all]
-             [util :refer [bin-mapper hdi]]
              [opencl :refer [with-default-bayadera]]
              [mcmc :refer [mix! info]]]
             [uncomplicate.bayadera.opencl.models

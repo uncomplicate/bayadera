@@ -1,5 +1,5 @@
 (ns ^{:author "Dragan Djuric"}
-    uncomplicate.bayadera.examples.dbda.ch09.smart-drug-student-t-test
+    uncomplicate.bayadera.examples.dbda.ch16.smart-drug-student-t-test
   (:require [midje.sweet :refer :all]
             [quil.core :as q]
             [quil.applet :as qa]
@@ -7,16 +7,15 @@
             [uncomplicate.commons.core :refer [with-release let-release wrap-float]]
             [uncomplicate.fluokitten.core :refer [op]]
             [uncomplicate.neanderthal
-             [core :refer [row native dot imax imin scal! col submatrix transfer dim]]
+             [core :refer [dim]]
              [real :refer [entry entry!]]
              [math :refer [sqrt]]
              [native :refer [sv sge]]]
             [uncomplicate.bayadera
              [protocols :as p]
              [core :refer :all]
-             [util :refer [bin-mapper hdi]]
              [opencl :refer [with-default-bayadera]]
-             [mcmc :refer [mix! info anneal! acc-rate! burn-in!]]]
+             [mcmc :refer [mix!]]]
             [uncomplicate.bayadera.opencl.models
              :refer [t-likelihood cl-distribution-model]]
             [uncomplicate.bayadera.toolbox
@@ -60,18 +59,15 @@
                                               prior-dist)
                    smart-drug-dist (smart-drug-post (:smart-drug params))
                    smart-drug-sampler (sampler smart-drug-dist
-                                               {:limits (sge 2 3 [0 20 80 120 0 40])})
+                                               {:limits (sge 2 3 [0 30 80 120 0 40])})
                    placebo-post (posterior "placebo"
                                            (t-likelihood (dim (:placebo params)))
                                            prior-dist)
                    placebo-dist (placebo-post (:placebo params))
                    placebo-sampler (sampler placebo-dist
-                                            {:limits (sge 2 3 [0 20 80 120 0 40])})]
+                                            {:limits (sge 2 3 [0 30 80 120 0 40])})]
       (println (time (mix! smart-drug-sampler {:step 256})))
-      (println (info smart-drug-sampler))
       (println (time (mix! placebo-sampler {:step 256})))
-      (println (info placebo-sampler))
-      (println (info placebo-sampler))
       {:smart-drug (histogram! smart-drug-sampler 10)
        :placebo (histogram! placebo-sampler 10)})))
 
@@ -91,8 +87,8 @@
     (q/image (show (render-histogram (:smart-drug-nu @state) (:smart-drug @all-data) 0)) 0 0)
     (q/image (show (render-histogram (:smart-drug-mean @state) (:smart-drug @all-data) 1)) 0 520)
     (q/image (show (render-histogram (:smart-drug-std @state) (:smart-drug @all-data) 2)) 0 1040)
-    (q/image (show (render-histogram (:placebo-mean @state) (:placebo @all-data) 1)) 520 0)
-    (q/image (show (render-histogram (:placebo-std @state) (:placebo @all-data) 2)) 520 520)))
+    (q/image (show (render-histogram (:placebo-mean @state) (:placebo @all-data) 1)) 520 520)
+    (q/image (show (render-histogram (:placebo-std @state) (:placebo @all-data) 2)) 520 1040)))
 
 (defn display-sketch []
   (q/defsketch diagrams
