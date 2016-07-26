@@ -269,7 +269,7 @@
   SamplerProvider
   (sampler [_ options]
     (let [walkers (or (:walkers options)
-                      (* (long (processing-elements bayadera-factory)) 32))]
+                      (* (long (processing-elements bayadera-factory)) 2))]
       (let-release [samp (mcmc-sampler sampler-factory walkers params)]
         (init! samp (or (:seed options) (srand-int)))
         (when-let [limits (:limits options)]

@@ -40,6 +40,11 @@
   (fn ^double [^long i]
     (Math/sqrt (- temp i))))
 
+(defn pow-n [^double power]
+  (fn [^double temp]
+    (fn ^double [^long i]
+      (Math/pow (- temp i) power))))
+
 (defn minus-n [^double temp]
   (fn ^double [^long i]
     (- temp i)))
@@ -57,6 +62,7 @@
 (defn mix!
   ([samp options]
    (let [{step :step
+          dimension-power :dimension-power
           position :position
           schedule :cooling-schedule
           a :a
@@ -64,6 +70,7 @@
           min-acc :min-acc-rate
           max-acc :max-acc-rate
           :or {step 64
+               dimension-power 0.8
                schedule minus-n
                position (srand-int)
                a 2.0
@@ -76,8 +83,9 @@
          max-acc (double max-acc)
          target-acc (/ (+ max-acc min-acc) 2.0)
          dimension (long (p/dimension (p/model samp)))
+         dimension-power (double dimension-power)
          step (long step)]
-     (anneal! samp schedule (* step (pow dimension 0.8)) a)
+     (anneal! samp schedule (* step (pow dimension dimension-power)) a)
      (let [a (loop [i 0 a a]
                (let [acc-rate (acc-rate! samp a)]
                  (cond
@@ -87,14 +95,16 @@
                    (< max-acc acc-rate)
                    (recur (inc i) (* a (/ acc-rate target-acc)))
                    :default a)))]
-       (burn-in! samp (* step (pow dimension 0.8)) a)
-       (loop [i 0 diff (abs (- target-acc (acc-rate! samp a)))]
+       (burn-in! samp (* step (pow dimension dimension-power)) a)
+       (burn-in! samp step 2.0)
+       {:a a :acc-rate (acc-rate! samp a) :acc-rate-2.0 (acc-rate! samp)}
+       #_(loop [i 0 diff (abs (- target-acc (acc-rate! samp a)))]
          (when (< i refining)
            (burn-in! samp (* step (pow dimension 0.8)) a)
            (let [new-diff  (abs (- target-acc (acc-rate! samp a)))]
              (when (< new-diff diff)
                (recur (inc i) new-diff)))))
-       (run-sampler! samp step a))))
+       #_(run-sampler! samp step a))))
   ([samp]
    (mix! samp nil)))
 
