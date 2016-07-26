@@ -1,11 +1,12 @@
 (ns ^{:author "Dragan Djuric"}
-    uncomplicate.bayadera.examples.dbda.ch16.robust-linear-regression-test
+    uncomplicate.bayadera.examples.dbda.ch17.robust-linear-regression-test
   (:require [midje.sweet :refer :all]
             [quil.core :as q]
             [quil.applet :as qa]
             [quil.middlewares.pause-on-error :refer [pause-on-error]]
             [uncomplicate.commons.core :refer [with-release let-release wrap-float]]
             [uncomplicate.fluokitten.core :refer [op]]
+            [uncomplicate.clojurecl.core :refer [finish!]]
             [uncomplicate.neanderthal
              [core :refer [dim]]
              [real :refer [entry entry!]]
@@ -16,7 +17,7 @@
              [core :refer :all]
              [util :refer [bin-mapper hdi]]
              [opencl :refer [with-default-bayadera]]
-             [mcmc :refer [mix!]]]
+             [mcmc :refer [mix! burn-in!]]]
             [uncomplicate.bayadera.opencl.models
              :refer [cl-distribution-model cl-likelihood-model]]
             [uncomplicate.bayadera.toolbox
@@ -56,16 +57,17 @@
 (defn analysis []
   (with-default-bayadera
     (with-release [prior (distribution rlr-prior)
-                   prior-dist (prior (sv 10 -100 100 0 10 0.001 1000))
-                   prior-sampler (sampler prior-dist {:limits (sge 2 4 [1 20 -400 100 -20 20 0.001 1000])})
+                   prior-dist (prior (sv 10 -100 100 5 10 0.001 1000))
+                   prior-sampler (sampler prior-dist {:limits (sge 2 4 [1 20 -400 100 0 20 0.01 100])})
                    post-30 (posterior "rlr_30" (rlr-likelihood (dim params-30)) prior-dist)
                    post-30-dist (post-30 params-30)
-                   post-30-sampler (sampler post-30-dist {:limits (sge 2 4 [1 20 -400 100 -20 20 0.001 1000])})
+                   post-30-sampler (sampler post-30-dist {:limits (sge 2 4 [1 20 -400 100 0 20 0.01 100])})
                    post-300 (posterior "rlr_300" (rlr-likelihood (dim params-300)) prior-dist)
                    post-300-dist (post-300 params-300)
-                   post-300-sampler (sampler post-300-dist {:limits (sge 2 4 [1 20 -400 100 -20 20 0.001 1000])})]
-      (println (time (mix! post-30-sampler {:step 256 :refining 20})))
-      (println (time (mix! post-300-sampler {:step 256 :refining 20})))
+                   post-300-sampler (sampler post-300-dist {:limits (sge 2 4 [1 10 -400 100 0 20 0.01 100])})]
+      (println (time (mix! post-30-sampler {:step 256})))
+      (println (time (mix! post-300-sampler {:step 256})))
+      (println (time (do (burn-in! post-300-sampler 500 4) (finish!))))
       [(histogram! post-30-sampler 100)
        (histogram! post-300-sampler 100)])))
 

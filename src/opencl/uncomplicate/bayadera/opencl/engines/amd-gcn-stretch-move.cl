@@ -1,46 +1,30 @@
 #include "Random123/philox.h"
 
-void work_group_reduction_accumulate (__global uint* accept,
-                                      const uint accepted,
-                                      __global REAL* acc,
-                                      REAL* pacc,
-                                      const uint step_counter) {
+inline uint work_group_reduction_uint (const uint value) {
 
-    const uint local_id = get_local_id(0);
+    uint local_id = get_local_id(0);
 
-    __local uint laccept[WGS];
-    laccept[local_id] = accepted;
-
-    __local REAL lacc[DIM][WGS];
-    for (uint j = 0; j < DIM; j++){
-        lacc[j][local_id] = pacc[j];
-    }
+    __local uint lacc[WGS];
+    lacc[local_id] = value;
 
     work_group_barrier(CLK_LOCAL_MEM_FENCE);
 
+    uint pacc = value;
     uint i = get_local_size(0);
     while (i > 0) {
+        bool include_odd = (i > ((i >> 1) << 1)) && (local_id == ((i >> 1) - 1));
         i >>= 1;
+        if (include_odd) {
+            pacc += lacc[local_id + i + 1];
+        }
         if (local_id < i) {
-            laccept[local_id] += laccept[local_id + i];
-            for (uint j = 0; j < DIM; j++) {
-                pacc[j] += lacc[j][local_id + i];
-                lacc[j][local_id] = pacc[j];
-            }
-
+            pacc += lacc[local_id + i];
+            lacc[local_id] = pacc;
         }
         work_group_barrier(CLK_LOCAL_MEM_FENCE);
     }
 
-    if(local_id == 0) {
-        uint id = get_group_id(0);
-        accept[id] += laccept[0];
-        id += get_num_groups(0) * step_counter * DIM;
-        for (uint j = 0; j < DIM; j++) {
-            id += j * get_num_groups(0);
-            acc[id] += pacc[j];
-        }
-    }
+    return lacc[0];
 }
 
 // =============================================================================
@@ -108,15 +92,22 @@ __kernel void stretch_move_accu(const uint seed,
                                 const uint step_counter) {
 
     REAL Y[DIM];
-    bool accepted = stretch_move(seed, params, Scompl, X, logpdf_X, a, 1.0f, step_counter, odd_or_even, Y);
-
-    if (!accepted){
-        const uint k0 = get_global_id(0) * DIM;
+    const bool accepted = stretch_move(seed, params, Scompl, X, logpdf_X, a,
+                                       1.0f, step_counter, odd_or_even, Y);
+    const uint accepted_sum = work_group_reduction_uint(accepted ? 1 : 0);
+    const uint k0 = get_global_id(0) * DIM;
+    for (uint i = 0; i < DIM; i++) {
+        Y[i] = work_group_reduction_sum(accepted ? Y[i] : X[k0 + i]);//reuse Y[i] for means sum
+    }
+    if (get_local_id(0) == 0) {
+        uint id = get_group_id(0);
+        accept[id] += accepted_sum;
+        id + get_num_groups(0) * step_counter * DIM;
         for (uint i = 0; i < DIM; i++) {
-            Y[i] = X[k0 + i]; // Reuse private memory Y that is no longer needed.
+            id += i * get_num_groups(0);
+            means[id] += Y[i];
         }
     }
-    work_group_reduction_accumulate(accept, accepted ? 1 : 0, means, Y, step_counter);
 }
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))

@@ -5,7 +5,7 @@ REAL rlr_loglik(__constant const REAL* params, REAL* x) {
     const REAL b1 = x[2];
     const REAL sigma = x[3];
 
-    const uint n = (uint)params[1];
+    const uint n = (uint)params[0];
 
     const bool valid = (0.0f < nu) && (0.0f < sigma);
 
