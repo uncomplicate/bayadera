@@ -66,7 +66,6 @@
           position :position
           schedule :cooling-schedule
           a :a
-          refining :refining
           min-acc :min-acc-rate
           max-acc :max-acc-rate
           :or {step 64
@@ -74,11 +73,9 @@
                schedule minus-n
                position (srand-int)
                a 2.0
-               refining 0
                min-acc 0.2
                max-acc 0.5}} options
          a (double a)
-         refining (long refining)
          min-acc (double min-acc)
          max-acc (double max-acc)
          target-acc (/ (+ max-acc min-acc) 2.0)
@@ -97,14 +94,7 @@
                    :default a)))]
        (burn-in! samp (* step (pow dimension dimension-power)) a)
        (burn-in! samp step 2.0)
-       {:a a :acc-rate (acc-rate! samp a) :acc-rate-2.0 (acc-rate! samp)}
-       #_(loop [i 0 diff (abs (- target-acc (acc-rate! samp a)))]
-         (when (< i refining)
-           (burn-in! samp (* step (pow dimension 0.8)) a)
-           (let [new-diff  (abs (- target-acc (acc-rate! samp a)))]
-             (when (< new-diff diff)
-               (recur (inc i) new-diff)))))
-       #_(run-sampler! samp step a))))
+       {:a a :acc-rate (acc-rate! samp a) :acc-rate-2.0 (acc-rate! samp)})))
   ([samp]
    (mix! samp nil)))
 

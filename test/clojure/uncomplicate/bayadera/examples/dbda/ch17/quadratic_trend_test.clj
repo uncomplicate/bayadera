@@ -1,5 +1,5 @@
 (ns ^{:author "Dragan Djuric"}
-    uncomplicate.bayadera.examples.dbda.ch17.robust-hierarchical-linear-regression-test
+    uncomplicate.bayadera.examples.dbda.ch17.quadratic-trend-test
   (:require [midje.sweet :refer :all]
             [quil.core :as q]
             [quil.applet :as qa]
@@ -16,7 +16,7 @@
              [core :refer :all]
              [util :refer [bin-mapper hdi]]
              [opencl :refer [with-default-bayadera]]
-             [mcmc :refer [mix! burn-in! pow-n acc-rate!]]]
+             [mcmc :refer [mix! burn-in! pow-n acc-rate! info]]]
             [uncomplicate.bayadera.opencl.models
              :refer [cl-distribution-model cl-likelihood-model]]
             [uncomplicate.bayadera.toolbox
@@ -29,46 +29,43 @@
 (def state (atom nil))
 
 (defn read-data [in-file]
-  (loop [c 0 data (drop 1 (csv/read-csv in-file)) hws (transient {})]
+  (loop [c 0 data (drop 1 (csv/read-csv in-file)) income (transient {})]
     (if data
-      (let [[s h w] (first data)]
+      (let [[icm fsize st] (first data)]
         (recur (inc c) (next data)
-               (let [s (read-string s)
-                     hw (get hws s (transient []))]
-                 (assoc! hws s
-                        (-> hw
-                            (conj! (double (read-string h)))
-                            (conj! (double (read-string w))))))))
-      (let [persistent-hws (into (sorted-map) (fmap persistent! (persistent! hws)))
-            subject-count (count persistent-hws)]
-        (apply op [subject-count] (map (fn [[k v]] (op [(count v)] v)) persistent-hws))))))
+               (let [icm-st (get income st (transient []))]
+                 (assoc! income st
+                        (-> icm-st
+                            (conj! (double (read-string fsize)))
+                            (conj! (double (read-string icm))))))))
+      (let [persistent-income (into (sorted-map) (fmap persistent! (persistent! income)))
+            subject-count (count persistent-income)]
+        (apply op [subject-count] (map (fn [[k v]] (op [(count v)] v)) persistent-income))))))
 
-(def params (sv (read-data (slurp (io/resource "uncomplicate/bayadera/examples/dbda/ch17/hier-lin-regress-data.csv")))))
+(def params (sv (read-data (slurp (io/resource  "uncomplicate/bayadera/examples/dbda/ch17/income-famz-state.csv")))))
 
-(def rhlr-prior
+(def qt-prior
   (cl-distribution-model [(slurp (io/resource "uncomplicate/bayadera/opencl/distributions/gaussian.h"))
                           (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/uniform.h"))
                           (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/exponential.h"))
                           (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/t.h"))
-                          (slurp (io/resource "uncomplicate/bayadera/examples/dbda/ch17/robust-hierarchical-linear-regression.h"))]
-                         :name "rhlr" :mcmc-logpdf "rhlr_mcmc_logpdf" :params-size 103 :dimension 52))
+                          (slurp (io/resource "uncomplicate/bayadera/examples/dbda/ch17/quadratic-trend.h"))]
+                         :name "qt" :mcmc-logpdf "qt_mcmc_logpdf" :params-size 315 :dimension 158))
 
-(defn rhlr-likelihood [n]
-  (cl-likelihood-model (slurp (io/resource "uncomplicate/bayadera/examples/dbda/ch17/robust-hierarchical-linear-regression.h"))
-                       :name "rhlr" :params-size n))
+(defn qt-likelihood [n]
+  (cl-likelihood-model (slurp (io/resource "uncomplicate/bayadera/examples/dbda/ch17/quadratic-trend.h"))
+                       :name "qt" :params-size n))
 
 (defn analysis []
   (with-default-bayadera
-    (with-release [prior (distribution rhlr-prior)
-                   prior-dist (prior (sv (op [4 0.01 1000] (take 100 (interleave (repeat 0) (repeat 100) (repeat 3) (repeat 10))))))
-                   prior-sampler (sampler prior-dist {:limits (sge 2 52 (op [2 20 0.001 100] (take 100 (interleave (repeat -100) (repeat 100) (repeat -3) (repeat 9)))))})
-                   post (posterior "rhlr" (rhlr-likelihood (dim params)) prior-dist)
+    (with-release [prior (distribution qt-prior)
+                   prior-dist (prior (sv (op [4 10000 20000] (take 312 (interleave (repeat 10000) (repeat 10000) (repeat 20000) (repeat 5000) (repeat -1000) (repeat 1000))))))
+                   post (posterior "qt" (qt-likelihood (dim params)) prior-dist)
                    post-dist (post params)
-                   post-sampler (sampler post-dist {:limits (sge 2 52 (op [2 20 0.001 100] (take 100 (interleave (repeat -100) (repeat 100) (repeat -3) (repeat 9)))))})]
-      (println (time (mix! prior-sampler {:dimension-power 0.2 :cooling-schedule (pow-n 4)})))
+                   post-sampler (sampler post-dist {:limits (sge 2 158 (op [2 10 10000 20000] (take 312 (interleave (repeat 0) (repeat 2000) (repeat 10000) (repeat 30000) (repeat -2000) (repeat 0)))))})]
       (println (time (mix! post-sampler {:dimension-power 0.2 :cooling-schedule (pow-n 4)})))
-      (println (time (do (burn-in! post-sampler 30000 1.12) (acc-rate! post-sampler 1.12))))
-      (time (histogram! post-sampler 3000)))))
+      (println (time (do (burn-in! post-sampler 10000) (acc-rate! post-sampler))))
+      (time (histogram! post-sampler 500)))))
 
 (defn setup []
   (reset! state
