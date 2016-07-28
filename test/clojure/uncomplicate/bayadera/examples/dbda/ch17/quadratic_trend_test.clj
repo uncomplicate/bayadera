@@ -62,8 +62,9 @@
                    prior-dist (prior (sv (op [4 10000 20000] (take 312 (interleave (repeat 10000) (repeat 10000) (repeat 20000) (repeat 5000) (repeat -1000) (repeat 1000))))))
                    post (posterior "qt" (qt-likelihood (dim params)) prior-dist)
                    post-dist (post params)
-                   post-sampler (sampler post-dist {:limits (sge 2 158 (op [2 10 10000 20000] (take 312 (interleave (repeat 0) (repeat 2000) (repeat 10000) (repeat 30000) (repeat -2000) (repeat 0)))))})]
+                   post-sampler (sampler post-dist {:walkers (* 44 256) :limits (sge 2 158 (op [2 10 10000 20000] (take 312 (interleave (repeat 0) (repeat 2000) (repeat 10000) (repeat 30000) (repeat -2000) (repeat 0)))))})]
       (println (time (mix! post-sampler {:dimension-power 0.2 :cooling-schedule (pow-n 4)})))
+      (println (info post-sampler))
       (println (time (do (burn-in! post-sampler 10000) (acc-rate! post-sampler))))
       (time (histogram! post-sampler 500)))))
 

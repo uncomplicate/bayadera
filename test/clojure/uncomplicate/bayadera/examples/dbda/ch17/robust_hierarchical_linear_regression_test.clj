@@ -61,11 +61,9 @@
   (with-default-bayadera
     (with-release [prior (distribution rhlr-prior)
                    prior-dist (prior (sv (op [4 0.01 1000] (take 100 (interleave (repeat 0) (repeat 100) (repeat 3) (repeat 10))))))
-                   prior-sampler (sampler prior-dist {:limits (sge 2 52 (op [2 20 0.001 100] (take 100 (interleave (repeat -100) (repeat 100) (repeat -3) (repeat 9)))))})
                    post (posterior "rhlr" (rhlr-likelihood (dim params)) prior-dist)
                    post-dist (post params)
                    post-sampler (sampler post-dist {:limits (sge 2 52 (op [2 20 0.001 100] (take 100 (interleave (repeat -100) (repeat 100) (repeat -3) (repeat 9)))))})]
-      (println (time (mix! prior-sampler {:dimension-power 0.2 :cooling-schedule (pow-n 4)})))
       (println (time (mix! post-sampler {:dimension-power 0.2 :cooling-schedule (pow-n 4)})))
       (println (time (do (burn-in! post-sampler 30000 1.12) (acc-rate! post-sampler 1.12))))
       (time (histogram! post-sampler 3000)))))
