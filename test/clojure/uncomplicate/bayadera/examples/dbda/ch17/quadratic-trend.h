@@ -29,10 +29,11 @@ REAL qt_loglik(__constant const REAL* params, REAL* x) {
 }
 
 REAL qt_mcmc_logpdf(__constant const REAL* params, REAL* x) {
-    const bool valid = (1.0f < x[0]);
+    const REAL nu = x[0];
+    const bool valid = (1.0f < nu);
 
     if (valid) {
-        REAL logp = exponential_log_unscaled(params[0], x[0] - 1)
+        REAL logp = exponential_log_unscaled(params[0], nu - 1)
             + uniform_log(params[1], params[2], x[1]);
         for (uint i = 0; i < DIM-2; i++) {
             logp += gaussian_log_unscaled(params[2*i+3], params[2*i+4], x[i+2]);
@@ -43,10 +44,11 @@ REAL qt_mcmc_logpdf(__constant const REAL* params, REAL* x) {
 }
 
 REAL qt_logpdf(__constant const REAL* params, REAL* x) {
-    const bool valid = (1.0f < x[0]);
+    const REAL nu = x[0];
+    const bool valid = (1.0f < nu);
 
     if (valid) {
-        REAL logp = exponential_log(params[0], x[0] - 1)
+        REAL logp = exponential_log(params[0], nu - 1)
             + uniform_log(params[1], params[2], x[1]);
         for (uint i = 0; i < DIM-2; i++) {
             logp += gaussian_log(params[2*i+3], params[2*i+4], x[i+2]);

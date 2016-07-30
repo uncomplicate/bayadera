@@ -37,8 +37,7 @@ bool stretch_move(const uint seed,
                   const REAL a,
                   const REAL beta,
                   const uint step_counter,
-                  const uint odd_or_even,
-                  REAL* Y) {
+                  const uint odd_or_even) {
 
     // Get the index of this walker Xk
     const uint k = get_global_id(0);
@@ -56,6 +55,8 @@ bool stretch_move(const uint seed,
     // Draw a walker Xj's index at random from the complementary ensemble S(~i)(t)
     const uint j0 = (uint)(u.s0 * K * DIM);
     const uint k0 = k * DIM;
+
+    REAL Y[DIM];
 
     for (uint i = 0; i < DIM; i++) {
         const REAL Xji = Scompl[j0 + i];
@@ -91,23 +92,23 @@ __kernel void stretch_move_accu(const uint seed,
                                 const REAL a,
                                 const uint step_counter) {
 
-    REAL Y[DIM];
     const bool accepted = stretch_move(seed, params, Scompl, X, logpdf_X, a,
-                                       1.0f, step_counter, odd_or_even, Y);
+                                       1.0f, step_counter, odd_or_even);
+
     const uint accepted_sum = work_group_reduction_uint(accepted ? 1 : 0);
-    const uint k0 = get_global_id(0) * DIM;
-    for (uint i = 0; i < DIM; i++) {
-        Y[i] = work_group_reduction_sum(accepted ? Y[i] : X[k0 + i]);//reuse Y[i] for means sum
-    }
     if (get_local_id(0) == 0) {
-        uint id = get_group_id(0);
-        accept[id] += accepted_sum;
-        id + get_num_groups(0) * step_counter * DIM;
-        for (uint i = 0; i < DIM; i++) {
-            id += i * get_num_groups(0);
-            means[id] += Y[i];
+        accept[get_group_id(0)] += accepted_sum;
+    }
+
+    const uint k0 = get_global_id(0) * DIM;
+    const uint id = get_group_id(0) + get_num_groups(0) * step_counter * DIM;
+    for (uint i = 0; i < DIM; i++) {
+        const REAL mean_sum = work_group_reduction_sum(X[k0 + i]);
+        if (get_local_id(0) == 0) {
+            means[id + i * get_num_groups(0)] += mean_sum;
         }
     }
+
 }
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
@@ -122,8 +123,8 @@ __kernel void stretch_move_bare(const uint seed,
                                 const REAL beta,
                                 const uint step_counter) {
 
-    REAL Y[DIM];
-    bool accepted = stretch_move(seed, params, Scompl, X, logpdf_X, a, beta, step_counter, odd_or_even, Y);
+    stretch_move(seed, params, Scompl, X, logpdf_X, a, beta, step_counter, odd_or_even);
+
 }
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))

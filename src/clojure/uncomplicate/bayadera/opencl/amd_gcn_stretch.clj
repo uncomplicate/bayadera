@@ -125,7 +125,7 @@
           TAUMAX 16
           lag (max MINLAG (min (quot n min-fac) WGS))
           i-max (- n lag)
-          wgsm (min DIM WGS)
+          wgsm (min 16 DIM WGS)
           wgsn (long (/ WGS wgsm))
           wg-count (count-work-groups wgsn n)]
       (if (<= (* lag min-fac) n)
