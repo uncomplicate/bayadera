@@ -1,5 +1,6 @@
 (defproject uncomplicate/bayadera "0.1.0-SNAPSHOT"
   :description "Bayesian Inference and Probabilistic Machine Learning Library for Clojure"
+  :author "Dragan Djuric"
   :url "http://github.com/blueberry/bayadera"
   :scm {:name "git"
         :url "https://github.com/blueberry/bayadera"}

@@ -36,9 +36,9 @@
                (let [s (read-string s)
                      hw (get hws s (transient []))]
                  (assoc! hws s
-                        (-> hw
-                            (conj! (double (read-string h)))
-                            (conj! (double (read-string w))))))))
+                         (-> hw
+                             (conj! (double (read-string h)))
+                             (conj! (double (read-string w))))))))
       (let [persistent-hws (into (sorted-map) (fmap persistent! (persistent! hws)))
             subject-count (count persistent-hws)]
         (apply op [subject-count] (map (fn [[k v]] (op [(count v)] v)) persistent-hws))))))
@@ -60,7 +60,7 @@
 (defn analysis []
   (with-default-bayadera
     (with-release [prior (distribution rhlr-prior)
-                   prior-dist (prior (sv (op [4 0.01 1000] (take 100 (interleave (repeat 0) (repeat 100) (repeat 3) (repeat 10))))))
+                   prior-dist (prior (sv (op [4 0.01 1000] (take 100 (cycle [0 100 3 10])))))
                    post (posterior "rhlr" (rhlr-likelihood (dim params)) prior-dist)
                    post-dist (post params)
                    post-sampler (sampler post-dist {:limits (sge 2 52 (op [2 20 0.001 100] (take 100 (interleave (repeat -100) (repeat 100) (repeat -3) (repeat 9)))))})]

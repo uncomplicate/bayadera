@@ -68,6 +68,7 @@
       (println (time (mix! post-30-sampler {:step 128})))
       (println (time (mix! post-300-sampler {:step 384})))
       (println (time (uncomplicate.bayadera.protocols/run-sampler! post-300-sampler 64 2.0)))
+      (println (uncomplicate.bayadera.mcmc/info post-300-sampler))
       [(histogram! post-30-sampler 1000)
        (histogram! post-300-sampler 1000)])))
 
