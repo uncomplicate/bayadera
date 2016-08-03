@@ -48,8 +48,8 @@
 
        (mean dist) => mu
        (sd dist) => sigma
-       (entry (mean cl-sample) 0) => (roughly mu)
-       (entry (variance cl-sample) 0)  => (roughly100 (* sigma sigma))
+       (entry (mean cl-sample) 0) => (roughly (mean dist))
+       (entry (variance cl-sample) 0)  => (roughly (variance dist) 2)
        (entry (sd cl-sample) 0) => (roughly100 sigma))))
 
   (let [nu 30
@@ -107,8 +107,8 @@
        (entry (sd cl-sample) 0) => (roughly (sd dist) 0.03)))))
 
 (with-default-bayadera
-  (let [a 2.0 b 5.0
-        z 3.0 N 5.0
+  (let [a 8.5 b 3.5
+        z 6 N 9
         a1 (+ z a) b1 (+ (- N z) b)]
     (with-release [prior-dist (beta a b)
                    prior-sampler (sampler prior-dist)
@@ -126,8 +126,9 @@
       (let [prior-evidence (evidence post-dist prior-sample)]
         (facts
          "Core functions for beta-bernoulli distribution."
-         prior-evidence =>  (exp (- (log-beta a1 b1) (log-beta a b)))
+         (entry (mean prior-sample) 0) => (roughly (mean prior-dist))
+         prior-evidence => (roughly (exp (- (log-beta a1 b1) (log-beta a b))))
          (/ (sum (scal! (/ prior-evidence) post-pdf)) (dim post-pdf))
-         =>  (roughly100 (/ (sum real-pdf) (dim real-pdf)))
+         =>   (roughly100 (/ (sum real-pdf) (dim real-pdf)))
          (entry (mean post-sample) 0) =>  (roughly100 (mean real-post))
          (entry (sd post-sample) 0) =>  (roughly100 (sd real-post)))))))

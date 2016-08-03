@@ -15,20 +15,20 @@
       (variance x0) => 0.0
       (sd x0) => 0.0
       (mean x) => 4.5
-      (variance x) => (roughly 9.16666 0.01)
-      (sd x) => (roughly 3.02765 0.0001))))
+      (variance x) => (roughly 8.24999 0.0001)
+      (sd x) => (roughly 2.87223 0.0001))))
 
 (defn ge-matrix-location-test [factory]
   (with-release [a (create-ge-matrix factory 3 5 (range 15))
-                 a02 (create-ge-matrix factory 0 2)]
+                 a20 (create-ge-matrix factory 2 0)]
      (facts
       "GE Matrix as a Location"
-      (every? #(Double/isNaN %) (mean a02)) => true
-      (variance a02) => (create-vector factory [0 0])
-      (sd a02) => (create-vector factory [0 0])
-      (mean a) => (create-vector factory [1 4 7 10 13])
-      (sum (variance a)) => (roughly (sum (create-vector factory [1 1 1 1 1])))
-      (sum (sd a)) => (roughly (sum (create-vector factory [1 1 1 1 1]))))))
+      (every? #(Double/isNaN %) (mean a20)) => true
+      (variance a20) => (create-vector factory [0 0])
+      (sd a20) => (create-vector factory [0 0])
+      (mean a) => (create-vector factory [6 7 8])
+      (sum (variance a)) =>  (roughly 54)
+      (sum (sd a)) => (roughly 12.7278))))
 
 (vector-location-test cblas-single)
 (vector-location-test cblas-double)

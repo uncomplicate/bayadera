@@ -21,6 +21,7 @@ REAL binomial_logpdf(__constant const REAL* params, const REAL* x) {
 }
 
 REAL binomial_loglik(__constant const REAL* params, const REAL* p) {
-    const bool valid = (0.0f < p[0]) && (p[0] < 1.0f);
-    return valid ? binomial_log(params[0], p[0], params[1]) : NAN;
+    const REAL pp = p[0];
+    const bool valid = (0.0f < pp) && (pp < 1.0f);
+    return valid ? binomial_log_unscaled(params[0], pp, params[1]) : NAN;
 }
