@@ -10,7 +10,7 @@
                  [uncomplicate/commons "0.2.0"]
                  [uncomplicate/fluokitten "0.5.1-SNAPSHOT"]
                  [uncomplicate/clojurecl "0.6.4"]
-                 [uncomplicate/neanderthal "0.7.0"]
+                 [uncomplicate/neanderthal "0.8.0-SNAPSHOT"]
                  [org.apache.commons/commons-math3 "3.6.1"]
                  [me.raynes/fs "1.4.6"]
                  [quil "2.4.0"]]

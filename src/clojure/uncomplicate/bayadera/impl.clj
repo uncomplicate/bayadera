@@ -272,7 +272,7 @@
                       (* (long (processing-elements bayadera-factory)) 2))]
       (let-release [samp (mcmc-sampler sampler-factory walkers params)]
         (init! samp (or (:seed options) (srand-int)))
-        (when-let [limits (:limits options)]
+        (when-let [limits (or (:limits options) (limits dist-model))]
           (init-position! samp (srand-int) limits))
         (when-let [positions (:positions options)]
           (init-position! samp positions))

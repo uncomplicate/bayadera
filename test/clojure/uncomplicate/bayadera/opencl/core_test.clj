@@ -34,7 +34,7 @@
                     cl-sample (dataset (sample uniform-sampler))
                     cl-pdf (pdf dist cl-sample)]
 
-       (entry (mean cl-sample) 0) => (roughly (mean dist))
+       (entry (mean cl-sample) 0) => (roughly100 (mean dist))
        (entry (sd cl-sample) 0) => (roughly100 (sd dist))
        (/ (sum cl-pdf) (dim cl-pdf)) => (roughly (/ 1.0 (- b a))))))
 
@@ -102,16 +102,17 @@
                     cl-sample (dataset (sample exponential-sampler))]
 
        (mean dist) => (/ 1.0 lambda)
-       (entry (mean cl-sample) 0) => (roughly100 (mean dist))
-       (entry (variance cl-sample) 0)  => (roughly100 (variance dist))
-       (entry (sd cl-sample) 0) => (roughly100 (sd dist))))))
+       (entry (mean cl-sample) 0) => (roughly (mean dist) 0.05)
+       (entry (variance cl-sample) 0)  => (roughly (variance dist) 0.05)
+       (entry (sd cl-sample) 0) => (roughly (sd dist) 0.03)))))
 
 (with-default-bayadera
   (let [a 2.0 b 5.0
         z 3.0 N 5.0
         a1 (+ z a) b1 (+ (- N z) b)]
     (with-release [prior-dist (beta a b)
-                   prior-sample (dataset (sample (sampler prior-dist)))
+                   prior-sampler (sampler prior-dist)
+                   prior-sample (dataset (sample prior-sampler))
                    post (posterior "post" binomial-likelihood prior-dist)
                    post-dist (post (binomial-lik-params N z))
                    post-sampler (doto (sampler post-dist) (mix!))
@@ -125,9 +126,8 @@
       (let [prior-evidence (evidence post-dist prior-sample)]
         (facts
          "Core functions for beta-bernoulli distribution."
-         prior-evidence => (roughly (exp (- (log-beta a1 b1) (log-beta a b)))
-                                    (/ prior-evidence 100.0))
-         (sum (scal! (/ prior-evidence) post-pdf))
-         => (roughly100 (sum real-pdf))
-         (entry (mean post-sample) 0) => (roughly (mean real-post))
-         (entry (sd post-sample) 0) => (roughly100 (sd real-post)))))))
+         prior-evidence =>  (exp (- (log-beta a1 b1) (log-beta a b)))
+         (/ (sum (scal! (/ prior-evidence) post-pdf)) (dim post-pdf))
+         =>  (roughly100 (/ (sum real-pdf) (dim real-pdf)))
+         (entry (mean post-sample) 0) =>  (roughly100 (mean real-post))
+         (entry (sd post-sample) 0) =>  (roughly100 (sd real-post)))))))

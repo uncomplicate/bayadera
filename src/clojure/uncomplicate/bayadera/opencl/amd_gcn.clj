@@ -105,7 +105,7 @@
         (enq-reduce cqueue variance-kernel sum-reduction-kernel m n wgsm wgsn)
         (enq-copy! cqueue cl-acc (buffer res-vec))
         (transfer (scal! (/ 1.0 n) res-vec)))))
-  EstimateEngine
+  EstimateEngine ;;TODO use macros to unify code for this and stretch implementation of histogram
   (histogram [this data-matrix]
     (let [m (mrows data-matrix)
           n (ncols data-matrix)
