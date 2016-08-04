@@ -24,6 +24,13 @@
 (def ^:private USE_SAMPLE_MSG
   "This distribution's %s is a random variable. Please draw a sample to estimate it.")
 
+(extend-type uncomplicate.bayadera.protocols.Histogram
+  Releaseable
+  (release [this]
+    (release (.limits this))
+    (release (.pdf this))
+    (release (.bin-ranks this))))
+
 (defrecord DataSetImpl [dataset-eng data-matrix]
   Releaseable
   (release [_]
@@ -300,9 +307,8 @@
 (deftype DistributionCreator [bayadera-factory dist-eng sampler-factory dist-model]
   Releaseable
   (release [_]
-    (and
-     (release dist-eng)
-     (release sampler-factory)))
+    (release dist-eng)
+    (release sampler-factory))
   IFn
   (invoke [_ params]
     (if (= (params-size dist-model) (ecount params))
@@ -321,8 +327,8 @@
 (deftype PosteriorCreator [^IFn dist-creator hyperparams]
   Releaseable
   (release [_]
-    (and (release hyperparams)
-         (release dist-creator)))
+    (release hyperparams)
+    (release dist-creator))
   IFn
   (invoke [_ data]
     (.invoke dist-creator data hyperparams)))

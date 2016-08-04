@@ -29,8 +29,8 @@
 
   :profiles {:dev {:dependencies [[midje "1.8.3"]
                                   [org.clojure/data.csv "0.1.3"]]
-                   :plugins [[lein-midje "3.1.3"]
-                             [codox "0.9.4"]]
+                   :plugins [[lein-midje "3.2"]
+                             [codox "0.9.5"]]
                    :global-vars {*warn-on-reflection* true
                                  *unchecked-math* :warn-on-boxed
                                  *print-length* 128}
