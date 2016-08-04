@@ -1,7 +1,13 @@
 (ns ^{:author "Dragan Djuric"}
-    uncomplicate.bayadera.protocols)
+    uncomplicate.bayadera.protocols
+  (:require [uncomplicate.commons.core :refer [Releaseable release]]))
 
-(defrecord Histogram [limits pdf bin-ranks])
+(defrecord Histogram [limits pdf bin-ranks]
+  Releaseable
+  (release [this]
+    (release limits)
+    (release pdf)
+    (release bin-ranks)))
 
 (defprotocol Location
   (mean [x])
@@ -81,7 +87,12 @@
   (set-temperature! [this t])
   (acor [this sample]))
 
-(defrecord Autocorrelation [tau mean sigma ^long steps ^long lag])
+(defrecord Autocorrelation [tau mean sigma ^long steps ^long lag]
+  Releaseable
+  (release [_]
+    (release tau)
+    (release mean)
+    (release sigma)))
 
 (defprotocol MCMCFactory
   (mcmc-sampler [this walkers params]))

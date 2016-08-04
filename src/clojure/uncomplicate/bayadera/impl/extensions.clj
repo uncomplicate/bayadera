@@ -1,5 +1,5 @@
 (ns ^{:author "Dragan Djuric"}
-    uncomplicate.bayadera.impl.plain
+    uncomplicate.bayadera.impl.extensions
   (:require [uncomplicate.commons.core :refer [with-release let-release]]
             [uncomplicate.fluokitten.core :refer [fmap! fmap]]
             [uncomplicate.neanderthal
@@ -63,22 +63,65 @@
 (extend-type IPersistentCollection
   Location
   (mean [this]
-    (loop [n 0 sum 0.0 s (seq this)]
-      (if s
-        (recur (inc n) (+ sum (double (first s))) (next s))
-        (/ sum n))))
+    (if (first this)
+      (if (number? (first this))
+        (loop [n 0 acc 0.0 s (seq this)]
+          (if s
+            (recur (inc n) (+ acc (double (first s))) (next s))
+            (/ acc n)))
+        (let [c (count (first this))
+              acc (double-array c)]
+          (if (< 0 c)
+            (loop [n 0 s (seq this)]
+              (if s
+                (do
+                  (loop [j 0 es (seq (first s))]
+                    (when es
+                      (aset acc j (+ (aget acc j) (double (first es))))
+                      (recur (inc j) (next es))))
+                  (recur (inc n) (next s)))
+                (into [] (map (fn ^double [^double sum] (/ sum n))) acc)))
+            Double/NaN)))
+      Double/NaN))
   Spread
   (variance [this]
-    (loop [i 1 mu 0.0 m2 0.0 x (first this) s (next this)]
-      (if x
-        (let [delta (- (double x) mu)]
-          (recur (inc i)
-                 (+ mu (/ delta i))
-                 (+ m2 (* delta (- (double x) mu)))
-                 (first s)
-                 (next s)))
-        (if (< i 3)
-          0.0
-          (/ m2 (- i 1))))))
+    (if (first this)
+      (if (number? (first this))
+        (loop [i 1 mu 0.0 m2 0.0 x (first this) s (next this)]
+          (if x
+            (let [delta (- (double x) mu)
+                  new-mu (+ mu (/ delta i))]
+              (recur (inc i)
+                     new-mu
+                     (+ m2 (* delta (- (double x) new-mu)))
+                     (first s)
+                     (next s)))
+            (if (< i 3)
+              0.0
+              (/ m2 (dec i)))))
+        (let [c (count (first this))
+              mus (double-array c)
+              m2s (double-array c)]
+          (if (< 0 c)
+            (loop [i 1 xs (first this) s (next this)]
+              (if xs
+                (do
+                  (loop [j 0 es (seq xs)]
+                    (when es
+                      (let [e (double (first es))
+                            mu (aget mus j)
+                            delta (- e mu)
+                            new-mu (+ mu (/ delta i))]
+                        (aset mus j new-mu)
+                        (aset m2s j (+ (aget m2s j) (* delta (- e new-mu)))))
+                      (recur (inc j) (next es))))
+                  (recur (inc i) (first s) (next s)))
+                (if (< i 3)
+                  (vec (take c (repeat 0.0)))
+                  (into [] (map (fn (^double [^double m2] (/ m2 (dec i))))) m2s))))
+            0.0)))
+      0.0))
   (sd [x]
-    (sqrt (variance x))))
+    (if (number? x)
+      (sqrt (variance x))
+      (fmap sqrt (variance x)))))

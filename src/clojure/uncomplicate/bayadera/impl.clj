@@ -24,13 +24,6 @@
 (def ^:private USE_SAMPLE_MSG
   "This distribution's %s is a random variable. Please draw a sample to estimate it.")
 
-(extend-type uncomplicate.bayadera.protocols.Histogram
-  Releaseable
-  (release [this]
-    (release (.limits this))
-    (release (.pdf this))
-    (release (.bin-ranks this))))
-
 (defrecord DataSetImpl [dataset-eng data-matrix]
   Releaseable
   (release [_]
