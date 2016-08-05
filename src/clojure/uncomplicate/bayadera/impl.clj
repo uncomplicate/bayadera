@@ -69,7 +69,7 @@
     (release params))
   SamplerProvider
   (sampler [_ options]
-    (->DirectSampler (gaussian-sampler bayadera-factory) params
+    (->DirectSampler (direct-sampler bayadera-factory :gaussian) params
                      (processing-elements bayadera-factory)
                      (wrap-int (or (:seed options) (srand-int)))))
   (sampler [this]
@@ -98,7 +98,7 @@
     (release params))
   SamplerProvider
   (sampler [_ options]
-    (->DirectSampler (uniform-sampler bayadera-factory) params
+    (->DirectSampler (direct-sampler bayadera-factory :uniform) params
                      (processing-elements bayadera-factory)
                      (wrap-int (or (:seed options) (srand-int)))))
   (sampler [this]
@@ -134,7 +134,7 @@
           m (t-mean nu mu)
           seed (int (or (:seed options) (srand-int)))]
       (with-release [limits (sge 2 1 [(- m (* 10 std)) (+ m (* 10 std))])]
-        (let-release [samp (mcmc-sampler (t-sampler bayadera-factory)
+        (let-release [samp (mcmc-sampler (mcmc-factory bayadera-factory :t)
                                          walkers params)]
           (init-position! samp seed limits)
           (init! samp (inc seed))
@@ -170,7 +170,7 @@
                       (* (long (processing-elements bayadera-factory)) 32))
           seed (int (or (:seed options) (srand-int)))]
       (with-release [limits (sge 2 1 [0 1])]
-        (let-release [samp (mcmc-sampler (beta-sampler bayadera-factory)
+        (let-release [samp (mcmc-sampler (mcmc-factory bayadera-factory :beta)
                                          walkers params)]
           (init-position! samp seed limits)
           (init! samp (inc seed))
@@ -207,7 +207,7 @@
           seed (int (or (:seed options) (srand-int)))]
       (with-release [limits (sge 2 1 [0 (+ (gamma-mean theta k)
                                            (* 2 (sqrt (gamma-variance theta k))))])]
-        (let-release [samp (mcmc-sampler (gamma-sampler bayadera-factory)
+        (let-release [samp (mcmc-sampler (mcmc-factory bayadera-factory :gamma)
                                          walkers params)]
           (init-position! samp seed limits)
           (init! samp (inc seed))
@@ -239,7 +239,7 @@
     (release params))
   SamplerProvider
   (sampler [_ options]
-    (->DirectSampler (exponential-sampler bayadera-factory) params
+    (->DirectSampler (direct-sampler bayadera-factory :exponential) params
                      (processing-elements bayadera-factory)
                      (wrap-int (or (:seed options) (srand-int)))))
   (sampler [this]

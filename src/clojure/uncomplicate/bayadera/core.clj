@@ -44,7 +44,7 @@
    (uniform *bayadera-factory* a b))
   ([factory ^double a ^double b]
    (with-release [params (uniform-params a b)]
-     (->UniformDistribution factory (p/uniform-engine factory)
+     (->UniformDistribution factory (p/distribution-engine factory :uniform)
                             (transfer (np/factory factory) params) a b))))
 
 (defn gaussian-params [^double mu ^double sigma]
@@ -55,7 +55,7 @@
    (gaussian *bayadera-factory* mu sigma))
   ([factory ^double mu ^double sigma]
    (with-release [params (gaussian-params mu sigma)]
-     (->GaussianDistribution factory (p/gaussian-engine factory)
+     (->GaussianDistribution factory (p/distribution-engine factory :gaussian)
                              (transfer (np/factory factory) params)
                              mu sigma))))
 
@@ -72,7 +72,7 @@
    (t nu 0.0 1.0))
   ([factory ^double nu ^double mu ^double sigma]
    (with-release [params (t-params nu mu sigma)]
-     (->TDistribution factory (p/t-engine factory)
+     (->TDistribution factory (p/distribution-engine factory :t)
                              (transfer (np/factory factory) params)
                              nu mu sigma)))
   ([factory ^double nu]
@@ -86,7 +86,7 @@
    (beta *bayadera-factory* a b))
   ([factory ^double a ^double b]
    (with-release [params (beta-params a b)]
-     (->BetaDistribution factory (p/beta-engine factory)
+     (->BetaDistribution factory (p/distribution-engine factory :beta)
                          (transfer (np/factory factory) params) a b))))
 
 (defn gamma-params [^double theta ^double k]
@@ -97,7 +97,7 @@
    (beta *bayadera-factory* theta k))
   ([factory ^double theta ^double k]
    (with-release [params (gamma-params theta k)]
-     (->BetaDistribution factory (p/gamma-engine factory)
+     (->BetaDistribution factory (p/distribution-engine factory :gamma)
                          (transfer (np/factory factory) params) theta k))))
 
 (defn binomial-lik-params [^double n ^double k]
@@ -111,7 +111,7 @@
    (exponential *bayadera-factory* lambda))
   ([factory ^double lambda]
    (with-release [params (exponential-params lambda)]
-     (->ExponentialDistribution factory (p/exponential-engine factory)
+     (->ExponentialDistribution factory (p/distribution-engine factory :exponential)
                                 (transfer (np/factory factory) params)
                                 lambda))))
 

@@ -4,6 +4,7 @@
             [uncomplicate.commons.core
              :refer [Releaseable release with-release let-release
                      wrap-int wrap-float]]
+            [uncomplicate.fluokitten.core :refer [fmap]]
             [uncomplicate.clojurecl
              [core :refer :all]
              [info :refer [max-compute-units max-work-group-size queue-device]]]
@@ -191,75 +192,42 @@
 
 ;; =========================== Distribution creators ===========================
 
+(defn ^:private release-delays [delays]
+  (doseq [d delays]
+    (when (realized? d) (release @d))))
+
 (defrecord GCNBayaderaFactory [ctx cqueue tmp-dir-name
                                ^long compute-units ^long WGS
                                dataset-eng neanderthal-factory
-                               uniform-model uniform-eng uniform-samp
-                               gaussian-model gaussian-eng gaussian-samp
-                               t-model t-eng t-samp
-                               beta-model beta-eng beta-samp
-                               gamma-model gamma-eng gamma-samp
-                               exponential-model exponential-eng exponential-samp
-                               binomial-model binomial-eng binomial-samp]
+                               distribution-engines
+                               direct-samplers
+                               mcmc-factories]
   Releaseable
   (release [_]
     (release dataset-eng)
     (release neanderthal-factory)
-    (release uniform-eng)
-    (release uniform-samp)
-    (release gaussian-eng)
-    (release gaussian-samp)
-    (release t-eng)
-    (release t-samp)
-    (release beta-eng)
-    (release beta-samp)
-    (release gamma-eng)
-    (release gamma-samp)
-    (release exponential-eng)
-    (release exponential-samp)
-    (release binomial-eng)
-    (release binomial-samp)
+    (release-delays (vals distribution-engines))
+    (release-delays (vals direct-samplers))
+    (release-delays (vals mcmc-factories))
     true)
   DistributionEngineFactory
-  (uniform-engine [_]
-    uniform-eng)
-  (binomial-engine [_]
-    binomial-eng)
-  (gaussian-engine [_]
-    gaussian-eng)
-  (t-engine [_]
-    t-eng)
-  (beta-engine [_]
-    beta-eng)
-  (gamma-engine [_]
-    gamma-eng)
-  (exponential-engine [_]
-    exponential-eng)
   (distribution-engine [_ model]
-    (with-philox tmp-dir-name
-      (gcn-distribution-engine ctx cqueue tmp-dir-name model WGS)))
+    (if-let [eng (distribution-engines model)]
+      @eng
+      (with-philox tmp-dir-name
+        (gcn-distribution-engine ctx cqueue tmp-dir-name model WGS))))
   (posterior-engine [_ model]
     (with-philox tmp-dir-name
       (gcn-posterior-engine ctx cqueue tmp-dir-name model WGS)))
   SamplerFactory
-  (uniform-sampler [_]
-    uniform-samp)
-  (binomial-sampler [_]
-    binomial-samp)
-  (gaussian-sampler [_]
-    gaussian-samp)
-  (t-sampler [_]
-    t-samp)
-  (beta-sampler [_]
-    beta-samp)
-  (gamma-sampler [_]
-    gamma-samp)
-  (exponential-sampler [_]
-    exponential-samp)
+  (direct-sampler [_ id]
+    (deref (direct-samplers id)))
   (mcmc-factory [_ model]
-    (with-philox tmp-dir-name
-      (gcn-stretch-factory ctx cqueue tmp-dir-name
-                           neanderthal-factory model WGS)))
+    (if-let [factory (mcmc-factories model)]
+      @factory
+      (with-philox tmp-dir-name
+        (gcn-stretch-factory ctx cqueue tmp-dir-name
+                             neanderthal-factory model WGS))))
   (processing-elements [_]
     (* compute-units WGS))
   DatasetFactory
@@ -279,31 +247,25 @@
         compute-units WGS
         (gcn-dataset-engine ctx cqueue WGS)
         neanderthal-factory
-        uniform-model
-        (gcn-distribution-engine ctx cqueue tmp-dir-name uniform-model WGS)
-        (gcn-direct-sampler ctx cqueue tmp-dir-name uniform-model WGS)
-        gaussian-model
-        (gcn-distribution-engine ctx cqueue tmp-dir-name gaussian-model WGS)
-        (gcn-direct-sampler ctx cqueue tmp-dir-name gaussian-model WGS)
-        t-model
-        (gcn-distribution-engine ctx cqueue tmp-dir-name t-model WGS)
-        (gcn-stretch-factory ctx cqueue tmp-dir-name neanderthal-factory
-                             t-model WGS)
-        beta-model
-        (gcn-distribution-engine ctx cqueue tmp-dir-name beta-model WGS)
-        (gcn-stretch-factory ctx cqueue tmp-dir-name neanderthal-factory
-                             beta-model WGS)
-        gamma-model
-        (gcn-distribution-engine ctx cqueue tmp-dir-name gamma-model WGS)
-        (gcn-stretch-factory ctx cqueue tmp-dir-name neanderthal-factory
-                             gamma-model WGS)
-        exponential-model
-        (gcn-distribution-engine ctx cqueue tmp-dir-name exponential-model WGS)
-        (gcn-direct-sampler ctx cqueue tmp-dir-name exponential-model WGS)
-        binomial-model
-        (gcn-distribution-engine ctx cqueue tmp-dir-name binomial-model WGS)
-        (gcn-stretch-factory ctx cqueue tmp-dir-name neanderthal-factory
-                             binomial-model WGS)))))
+        (fmap #(delay (with-philox tmp-dir-name (gcn-distribution-engine ctx cqueue tmp-dir-name % WGS)))
+              {:gaussian gaussian-model
+               :uniform uniform-model
+               :t t-model
+               :beta beta-model
+               :gamma gamma-model
+               :exponential exponential-model
+               :binomial binomial-model})
+        {:uniform (delay (with-philox tmp-dir-name (gcn-direct-sampler ctx cqueue tmp-dir-name uniform-model WGS)))
+         :gaussian (delay (with-philox tmp-dir-name (gcn-direct-sampler ctx cqueue tmp-dir-name gaussian-model WGS)))
+         :exponential (delay (with-philox tmp-dir-name (gcn-direct-sampler ctx cqueue tmp-dir-name exponential-model WGS)))}
+        {:t (delay (with-philox tmp-dir-name (gcn-stretch-factory ctx cqueue tmp-dir-name neanderthal-factory
+                                                                  t-model WGS)))
+         :beta (delay (with-philox tmp-dir-name (gcn-stretch-factory ctx cqueue tmp-dir-name neanderthal-factory
+                                                                    beta-model WGS)))
+         :gamma (delay (with-philox tmp-dir-name (gcn-stretch-factory ctx cqueue tmp-dir-name neanderthal-factory
+                                                                      gamma-model WGS)))
+         :binomial (delay (with-philox tmp-dir-name (gcn-stretch-factory ctx cqueue tmp-dir-name neanderthal-factory
+                                                                         binomial-model WGS)))}))))
   ([ctx cqueue]
    (let [dev (queue-device cqueue)]
      (gcn-bayadera-factory ctx cqueue

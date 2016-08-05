@@ -106,24 +106,11 @@
   (engine [_]))
 
 (defprotocol DistributionEngineFactory
-  (uniform-engine [this])
-  (binomial-engine [this])
-  (gaussian-engine [this])
-  (t-engine [this])
-  (beta-engine [this])
-  (gamma-engine [this])
-  (exponential-engine [this])
   (distribution-engine [this model])
   (posterior-engine [this model]))
 
 (defprotocol SamplerFactory
-  (uniform-sampler [this])
-  (binomial-sampler [this])
-  (gaussian-sampler [this])
-  (t-sampler [this])
-  (beta-sampler [this])
-  (gamma-sampler [this])
-  (exponential-sampler [this])
+  (direct-sampler [this id])
   (mcmc-factory [this model])
   (processing-elements [this]))
 
