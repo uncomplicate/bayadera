@@ -44,11 +44,11 @@
 (defprotocol LikelihoodModel
   (loglik [this]))
 
-(defprotocol ModelProvider
-  (model [this]))
-
 (defprotocol PriorModel
   (posterior-model [prior name likelihood]))
+
+(defprotocol ModelProvider
+  (model [this]))
 
 ;; ==================== Engines ====================
 

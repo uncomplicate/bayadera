@@ -3,7 +3,7 @@
             [uncomplicate.commons.core :refer [with-release]]
             [uncomplicate.neanderthal.core :refer [create-vector create-ge-matrix sum]]
             [uncomplicate.neanderthal.impl.cblas :refer [cblas-single cblas-double]]
-            [uncomplicate.bayadera.impl.plain :refer :all]
+            [uncomplicate.bayadera.impl.extensions :refer :all]
             [uncomplicate.bayadera.core :refer [mean variance sd]]))
 
 (defn vector-test [factory]

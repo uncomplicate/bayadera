@@ -7,7 +7,7 @@
              [math :refer [sqrt]]
              [core :refer [transfer]]
              [native :refer [sv]]]
-            [uncomplicate.bayadera.impl.plain :as plain]
+            [uncomplicate.bayadera.impl.extensions :as extensions]
             [uncomplicate.bayadera
              [protocols :as p]
              [impl :refer :all]
