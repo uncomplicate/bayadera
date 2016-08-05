@@ -21,14 +21,17 @@
      (try ~@body
           (finally (release *bayadera-factory*)))))
 
+(defn ^:private compatible [factory x]
+  (= (np/factory factory) (np/factory x)))
+
 ;; =============================================================================
 
 (defn dataset
   ([data-matrix]
    (dataset *bayadera-factory* data-matrix))
   ([factory data-matrix]
-   (if (= (np/factory factory) (np/factory data-matrix));;TODO check compatibility of data-matrix factory and dataset factory in a separate method
-     (->DataSetImpl (p/dataset-engine factory) data-matrix)
+   (if (compatible factory data-matrix)
+     (->DatasetImpl (p/dataset-engine factory) data-matrix)
      (throw (IllegalArgumentException. (format "Illegal data source: %s." data-matrix))))))
 
 ;; =============================================================================

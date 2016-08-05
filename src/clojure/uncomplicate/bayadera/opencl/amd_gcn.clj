@@ -65,7 +65,7 @@
           (/ (enq-read-double cqueue cl-acc) n)))
       Double/NaN)))
 
-(deftype GCNDataSetEngine [ctx cqueue prog ^long WGS]
+(deftype GCNDatasetEngine [ctx cqueue prog ^long WGS]
   Releaseable
   (release [_]
     (release prog))
@@ -148,7 +148,7 @@
      (let [prog (build-program! (program-with-source ctx dataset-src)
                                 (format "-cl-std=CL2.0 -DREAL=float -DREAL2=float2 -DACCUMULATOR=float -DWGS=%d" WGS)
                                 nil)]
-       (->GCNDataSetEngine ctx cqueue prog WGS)))
+       (->GCNDatasetEngine ctx cqueue prog WGS)))
     ([ctx queue]
      (gcn-dataset-engine ctx queue 256))))
 
@@ -262,7 +262,7 @@
                            neanderthal-factory model WGS)))
   (processing-elements [_]
     (* compute-units WGS))
-  DataSetFactory
+  DatasetFactory
   (dataset-engine [_]
     dataset-eng)
   np/FactoryProvider

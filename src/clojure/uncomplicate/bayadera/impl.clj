@@ -24,11 +24,11 @@
 (def ^:private USE_SAMPLE_MSG
   "This distribution's %s is a random variable. Please draw a sample to estimate it.")
 
-(defrecord DataSetImpl [dataset-eng data-matrix]
+(defrecord DatasetImpl [dataset-eng data-matrix]
   Releaseable
   (release [_]
     (release data-matrix))
-  DataSet
+  Dataset
   (data [_]
     data-matrix)
   Location

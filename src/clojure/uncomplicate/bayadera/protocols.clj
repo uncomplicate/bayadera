@@ -24,7 +24,7 @@
   (cov [x y])
   (corr [x y]))
 
-(defprotocol DataSet
+(defprotocol Dataset
   (data [_]))
 
 (defprotocol Distribution
@@ -127,5 +127,5 @@
   (mcmc-factory [this model])
   (processing-elements [this]))
 
-(defprotocol DataSetFactory
+(defprotocol DatasetFactory
   (dataset-engine [this]))
