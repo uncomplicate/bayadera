@@ -9,7 +9,7 @@
              [core :refer :all]
              [toolbox :refer [count-work-groups enq-reduce enq-read-long]]]
             [uncomplicate.neanderthal
-             [protocols :refer [data-accessor factory]]
+             [protocols :refer [data-accessor native-factory]]
              [math :refer [sqrt ceil]]
              [core :refer [dim create-raw create-ge-matrix transfer
                            create scal! copy matrix? ncols]]
@@ -130,8 +130,8 @@
           wgsn (long (/ WGS wgsm))
           wg-count (count-work-groups wgsn n)]
       (if (<= (* lag min-fac) n)
-        (let-release [d (create-raw (factory claccessor) DIM)]
-          (with-release [c0 (create-raw (factory claccessor) DIM)
+        (let-release [d (create-raw (native-factory claccessor) DIM)]
+          (with-release [c0 (create-raw (native-factory claccessor) DIM)
                          cl-acc (.createDataSource claccessor (* DIM wg-count))
                          mean-vec (create-raw neanderthal-factory DIM)
                          d-acc (.createDataSource claccessor (* DIM wg-count))]
@@ -314,7 +314,7 @@
         (->Histogram (transfer limits) (transfer result) (transfer bin-ranks)))))
   Location
   (mean [_]
-    (let-release [res-vec (create-raw (factory claccessor) DIM)]
+    (let-release [res-vec (create-raw (native-factory claccessor) DIM)]
       (set-arg! sum-reduction-kernel 0 cl-acc)
       (enq-reduce cqueue mean-kernel sum-reduction-kernel DIM walker-count 1 WGS)
       (enq-read! cqueue cl-acc (buffer res-vec))

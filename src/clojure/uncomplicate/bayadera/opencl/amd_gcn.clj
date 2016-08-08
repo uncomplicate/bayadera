@@ -19,7 +19,8 @@
             [uncomplicate.bayadera.opencl
              [utils :refer [with-philox get-tmp-dir-name]]
              [models :refer [source sampler-source distributions samplers likelihoods]]
-             [amd-gcn-stretch :refer [gcn-stretch-factory]]]))
+             [amd-gcn-stretch :refer [gcn-stretch-factory]]])
+  (:import [uncomplicate.neanderthal.protocols DataAccessor]))
 
 (deftype GCNDirectSampler [cqueue prog ^long DIM]
   Releaseable
@@ -76,44 +77,45 @@
           n (ncols data-matrix)
           wgsn (min n WGS)
           wgsm (/ WGS wgsn)
-          acc-size (* Float/BYTES (max 1 (* m (count-work-groups wgsn n))))]
-      (let-release [res (create-raw (np/factory data-matrix) m)]
-        (with-release [cl-acc (cl-buffer ctx acc-size :read-write)
+          acc-size (max 1 (* m (count-work-groups wgsn n)))]
+      (let-release [res-vec (create-raw (np/native-factory data-matrix) m)]
+        (with-release [cl-acc (.createDataSource (np/data-accessor data-matrix) acc-size)
                        sum-reduction-kernel (kernel prog "sum_reduction_horizontal")
                        mean-kernel (kernel prog "mean_reduce")]
           (set-arg! sum-reduction-kernel 0 cl-acc)
           (set-args! mean-kernel cl-acc (buffer data-matrix))
           (enq-reduce cqueue mean-kernel sum-reduction-kernel m n wgsm wgsn)
-          (enq-copy! cqueue cl-acc (buffer res))
-          (transfer (scal! (/ 1.0 n) res))))))
+          (enq-read! cqueue cl-acc (buffer res-vec))
+          (scal! (/ 1.0 n) res-vec)))))
   (data-variance [this data-matrix]
     (let [m (mrows data-matrix)
           n (ncols data-matrix)
           wgsn (min n WGS)
           wgsm (/ WGS wgsn)
-          acc-size (* Float/BYTES (max 1 (* m (count-work-groups wgsn n))))]
-      (with-release [cl-acc (cl-buffer ctx acc-size :read-write)
-                     res-vec (create-raw (np/factory data-matrix) m)
+          acc-size (max 1 (* m (count-work-groups wgsn n)))]
+      (with-release [cl-res-vec (create-raw (np/factory data-matrix) m)
+                     cl-acc (.createDataSource (np/data-accessor data-matrix) acc-size)
                      sum-reduction-kernel (kernel prog "sum_reduction_horizontal")
                      mean-kernel (kernel prog "mean_reduce")
                      variance-kernel (kernel prog "variance_reduce")]
         (set-arg! sum-reduction-kernel 0 cl-acc)
         (set-args! mean-kernel cl-acc (buffer data-matrix))
         (enq-reduce cqueue mean-kernel sum-reduction-kernel m n wgsm wgsn)
-        (enq-copy! cqueue cl-acc (buffer res-vec))
-        (scal! (/ 1.0 n) res-vec)
-        (set-args! variance-kernel 0 cl-acc (buffer data-matrix) (buffer res-vec))
+        (enq-copy! cqueue cl-acc (buffer cl-res-vec))
+        (scal! (/ 1.0 n) cl-res-vec)
+        (set-args! variance-kernel 0 cl-acc (buffer data-matrix) (buffer cl-res-vec))
         (enq-reduce cqueue variance-kernel sum-reduction-kernel m n wgsm wgsn)
-        (enq-copy! cqueue cl-acc (buffer res-vec))
-        (transfer (scal! (/ 1.0 n) res-vec)))))
+        (enq-copy! cqueue cl-acc (buffer cl-res-vec))
+        (scal! (/ 1.0 n) (transfer cl-res-vec)))))
   EstimateEngine ;;TODO use macros to unify code for this and stretch implementation of histogram
   (histogram [this data-matrix]
     (let [m (mrows data-matrix)
           n (ncols data-matrix)
           wgsn (min n WGS)
           wgsm (/ WGS wgsn)
-          acc-size (* 2 Float/BYTES (max 1 (* m (count-work-groups wgsn n))))]
-      (with-release [cl-min-max (cl-buffer ctx acc-size :read-write)
+          acc-size (* 2 (max 1 (* m (count-work-groups wgsn n))))
+          claccessor (np/data-accessor data-matrix)]
+      (with-release [cl-min-max (.createDataSource claccessor acc-size)
                      uint-res (cl-buffer ctx (* Integer/BYTES WGS m) :read-write)
                      result (create-raw (np/factory data-matrix) WGS m)
                      limits (create-raw (np/factory data-matrix) 2 m)
