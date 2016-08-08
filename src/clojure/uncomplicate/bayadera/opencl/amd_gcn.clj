@@ -538,77 +538,74 @@
 
 ;; ======================== Constructor functions ==============================
 
-(let [dataset-src [(slurp (io/resource "uncomplicate/clojurecl/kernels/reduction.cl"))
-                   (slurp (io/resource "uncomplicate/bayadera/opencl/engines/amd-gcn-estimate.cl"))]]
+(let [reduction-src (slurp (io/resource "uncomplicate/clojurecl/kernels/reduction.cl"))
+      estimate-src (slurp (io/resource "uncomplicate/bayadera/opencl/engines/amd-gcn-estimate.cl"))
+      dist-kernels-src (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/dist-kernels.cl"))
+      lik-kernels-src (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/lik-kernels.cl"))
+      uniform-sampler-src (slurp (io/resource "uncomplicate/bayadera/opencl/rng/uniform-sampler.cl"))
+      stretch-common-src (slurp (io/resource "uncomplicate/bayadera/opencl/engines/amd-gcn-stretch-generic.cl"))
+      stretch-move-src (slurp (io/resource "uncomplicate/bayadera/opencl/engines/amd-gcn-stretch-move.cl"))
+      dataset-options "-cl-std=CL2.0 -DREAL=float -DREAL2=float2 -DACCUMULATOR=float -DWGS=%d"
+      distribution-options "-cl-std=CL2.0 -DREAL=float -DACCUMULATOR=float -DLOGPDF=%s -DPARAMS_SIZE=%d -DDIM=%d -DWGS=%d -I%s"
+      posterior-options "-cl-std=CL2.0 -DREAL=float -DACCUMULATOR=double -DLOGPDF=%s -DLOGLIK=%s -DPARAMS_SIZE=%d -DDIM=%d -DWGS=%d -I%s"
+      stretch-options "-cl-std=CL2.0 -DLOGPDF=%s -DACCUMULATOR=float -DREAL=float -DREAL2=float2 -DPARAMS_SIZE=%d -DDIM=%d -DWGS=%d -I%s/"]
 
   (defn gcn-dataset-engine
     ([ctx cqueue ^long WGS]
-     (let [prog (build-program! (program-with-source ctx dataset-src)
-                                (format "-cl-std=CL2.0 -DREAL=float -DREAL2=float2 -DACCUMULATOR=float -DWGS=%d" WGS)
-                                nil)]
+     (let-release [prog (build-program!
+                         (program-with-source ctx [reduction-src estimate-src])
+                         (format dataset-options WGS) nil)]
        (->GCNDatasetEngine ctx cqueue prog WGS)))
     ([ctx queue]
-     (gcn-dataset-engine ctx queue 256))))
-
-(let [kernels-src (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/dist-kernels.cl"))]
+     (gcn-dataset-engine ctx queue 256)))
 
   (defn gcn-distribution-engine
     ([ctx cqueue tmp-dir-name model WGS]
-     (let [prog (build-program!
-                 (program-with-source ctx (conj (source model) kernels-src))
-                 (format "-cl-std=CL2.0 -DREAL=float -DACCUMULATOR=float -DLOGPDF=%s -DPARAMS_SIZE=%d -DDIM=%d -DWGS=%d -I%s"
-                         (logpdf model) (params-size model) (dimension model)
-                         WGS tmp-dir-name)
-                 nil)]
-       (->GCNDistributionEngine ctx cqueue prog WGS model)))))
-
-(let [kernels-src (format "%s\n%s\n%s"
-                          (slurp (io/resource "uncomplicate/clojurecl/kernels/reduction.cl"))
-                          (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/lik-kernels.cl"))
-                          (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/dist-kernels.cl")))]
+     (let-release [prog (build-program!
+                         (program-with-source ctx (conj (source model)
+                                                        dist-kernels-src))
+                         (format distribution-options
+                                 (logpdf model) (params-size model) (dimension model)
+                                 WGS tmp-dir-name)
+                         nil)]
+       (->GCNDistributionEngine ctx cqueue prog WGS model))))
 
   (defn gcn-posterior-engine
     ([ctx cqueue tmp-dir-name model WGS]
-     (let [prog (build-program!
-                 (program-with-source ctx (conj (source model) kernels-src))
-                 (format "-cl-std=CL2.0 -DREAL=float -DACCUMULATOR=double -DLOGPDF=%s -DLOGLIK=%s -DPARAMS_SIZE=%d -DDIM=%d -DWGS=%d -I%s"
-                         (logpdf model) (loglik model)
-                         (params-size model) (dimension model) WGS tmp-dir-name)
-                 nil)]
-       (->GCNDistributionEngine ctx cqueue prog WGS model)))))
+     (let-release [prog (build-program!
+                         (program-with-source
+                          ctx (op (source model)
+                                  [reduction-src lik-kernels-src dist-kernels-src]))
+                         (format posterior-options
+                                 (logpdf model) (loglik model) (params-size model)
+                                 (dimension model) WGS tmp-dir-name)
+                         nil)]
+       (->GCNDistributionEngine ctx cqueue prog WGS model))))
 
-(defn gcn-direct-sampler
-  ([ctx cqueue tmp-dir-name model WGS]
-   (->GCNDirectSampler
-    cqueue
-    (build-program!
-     (program-with-source ctx (into (source model) (sampler-source model)))
-     (format "-cl-std=CL2.0 -DREAL=float -DWGS=%d -I%s/" WGS tmp-dir-name)
-     nil)
-    (dimension model))))
-
-(let [reduction-src (slurp (io/resource "uncomplicate/clojurecl/kernels/reduction.cl"))
-      kernels-src (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/dist-kernels.cl"))
-      uniform-sample-src (slurp (io/resource "uncomplicate/bayadera/opencl/rng/uniform-sampler.cl"))
-      estimate-src (slurp (io/resource "uncomplicate/bayadera/opencl/engines/amd-gcn-estimate.cl"))
-      stretch-common-src (slurp (io/resource "uncomplicate/bayadera/opencl/engines/amd-gcn-stretch-generic.cl"))
-      stretch-move-src (slurp (io/resource "uncomplicate/bayadera/opencl/engines/amd-gcn-stretch-move.cl"))
-      compiler-options "-cl-std=CL2.0 -DLOGPDF=%s -DACCUMULATOR=float -DREAL=float -DREAL2=float2 -DPARAMS_SIZE=%d -DDIM=%d -DWGS=%d -I%s/"]
+  (defn gcn-direct-sampler
+    ([ctx cqueue tmp-dir-name model WGS]
+     (let-release [prog (build-program!
+                         (program-with-source ctx (op (source model)
+                                                      (sampler-source model)))
+                         (format "-cl-std=CL2.0 -DREAL=float -DWGS=%d -I%s/"
+                                 WGS tmp-dir-name)
+                         nil)]
+       (->GCNDirectSampler cqueue prog (dimension model)))))
 
   (defn gcn-stretch-factory
     ([ctx cqueue tmp-dir-name neanderthal-factory model WGS]
-     (let-release [prog-src (program-with-source
-                             ctx (op [uniform-sample-src reduction-src]
-                                     (source model)
-                                     [kernels-src estimate-src stretch-common-src stretch-move-src]))]
-       (->GCNStretchFactory
-        ctx cqueue neanderthal-factory
-        (build-program! prog-src
-                        (format compiler-options
-                                (mcmc-logpdf model) (params-size model)
-                                (dimension model) WGS tmp-dir-name)
-                        nil)
-        model (dimension model) WGS)))
+     (let-release [prog (build-program!
+                         (program-with-source
+                          ctx (op [uniform-sampler-src reduction-src]
+                                  (source model)
+                                  [dist-kernels-src estimate-src
+                                   stretch-common-src stretch-move-src]))
+                         (format stretch-options
+                                 (mcmc-logpdf model) (params-size model)
+                                 (dimension model) WGS tmp-dir-name)
+                         nil)]
+       (->GCNStretchFactory ctx cqueue neanderthal-factory
+                            prog model (dimension model) WGS)))
     ([ctx cqueue neanderthal-factory model]
      (let [tmp-dir-name (get-tmp-dir-name)]
        (with-philox tmp-dir-name
