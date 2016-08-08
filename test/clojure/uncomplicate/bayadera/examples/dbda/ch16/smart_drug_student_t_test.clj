@@ -17,7 +17,7 @@
              [opencl :refer [with-default-bayadera]]
              [mcmc :refer [mix!]]]
             [uncomplicate.bayadera.opencl.models
-             :refer [t-likelihood cl-distribution-model]]
+             :refer [source-library likelihoods cl-distribution-model]]
             [uncomplicate.bayadera.toolbox
              [processing :refer :all]
              [plots :refer [render-sample render-histogram]]]
@@ -28,9 +28,9 @@
 (def state (atom nil))
 
 (def smart-drug-prior
-  (cl-distribution-model [(slurp (io/resource "uncomplicate/bayadera/opencl/distributions/gaussian.h"))
-                          (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/uniform.h"))
-                          (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/exponential.h"))
+  (cl-distribution-model [(:gaussian source-library)
+                          (:unifor source-library)
+                          (:exponential source-library)
                           (slurp (io/resource "uncomplicate/bayadera/examples/dbda/ch16/smart-drug-t.h"))]
                          :name "smart_drug" :mcmc-logpdf "smart_drug_mcmc_logpdf" :params-size 5 :dimension 3))
 
@@ -55,13 +55,13 @@
     (with-release [prior (distribution smart-drug-prior)
                    prior-dist (prior (sv 10 100 60 0 100))
                    smart-drug-post (posterior "smart_drug"
-                                              (t-likelihood (dim (:smart-drug params)))
+                                              ((:t likelihoods) (dim (:smart-drug params)))
                                               prior-dist)
                    smart-drug-dist (smart-drug-post (:smart-drug params))
                    smart-drug-sampler (sampler smart-drug-dist
                                                {:limits (sge 2 3 [0 30 80 120 0 40])})
                    placebo-post (posterior "placebo"
-                                           (t-likelihood (dim (:placebo params)))
+                                           ((:t likelihoods) (dim (:placebo params)))
                                            prior-dist)
                    placebo-dist (placebo-post (:placebo params))
                    placebo-sampler (sampler placebo-dist

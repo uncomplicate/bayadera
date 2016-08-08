@@ -15,7 +15,7 @@
              [mcmc :refer [mix!]]
              [opencl :refer [with-default-bayadera]]]
             [uncomplicate.bayadera.opencl.models
-             :refer [binomial-likelihood beta-model]]
+             :refer [distributions likelihoods]]
             [uncomplicate.bayadera.toolbox
              [processing :refer :all]
              [scaling :refer [axis vector-axis]]
@@ -33,7 +33,7 @@
       (with-release [prior-dist (beta a b)
                      prior-sample (dataset (sample! (sampler prior-dist) sample-count))
                      prior-pdf (pdf prior-dist prior-sample)
-                     post (posterior (posterior-model binomial-likelihood beta-model))
+                     post (posterior (posterior-model (:binomial likelihoods) (:beta distributions)))
                      post-dist (post (binomial-lik-params N z) (beta-params a b))
                      post-sampler (time (doto (sampler post-dist) (mix!)))
                      post-sample (dataset (sample! post-sampler sample-count))

@@ -16,8 +16,7 @@
              [impl :refer :all]
              [math :refer [log-beta]]]
             [uncomplicate.bayadera.opencl :refer [with-default-bayadera]]
-            [uncomplicate.bayadera.opencl.models
-             :refer [binomial-likelihood beta-model]]))
+            [uncomplicate.bayadera.opencl.models :refer [distributions likelihoods]]))
 
 (defmacro roughly100 [exp]
   `(let [v# (double ~exp)]
@@ -113,7 +112,7 @@
     (with-release [prior-dist (beta a b)
                    prior-sampler (sampler prior-dist)
                    prior-sample (dataset (sample prior-sampler))
-                   post (posterior "post" binomial-likelihood prior-dist)
+                   post (posterior "post" (:binomial likelihoods) prior-dist)
                    post-dist (post (binomial-lik-params N z))
                    post-sampler (doto (sampler post-dist) (mix!))
                    post-sample (dataset (sample post-sampler))

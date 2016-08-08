@@ -17,7 +17,7 @@
              [opencl :refer [with-default-bayadera]]
              [mcmc :refer [mix! info]]]
             [uncomplicate.bayadera.opencl.models
-             :refer [gaussian-likelihood cl-distribution-model]]
+             :refer [source-library likelihoods cl-distribution-model]]
             [uncomplicate.bayadera.toolbox
              [processing :refer :all]
              [plots :refer [render-sample render-histogram]]]
@@ -28,8 +28,8 @@
 (def state (atom nil))
 
 (def smart-drug-prior
-  (cl-distribution-model [(slurp (io/resource "uncomplicate/bayadera/opencl/distributions/gaussian.h"))
-                          (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/uniform.h"))
+  (cl-distribution-model [(:gaussian source-library)
+                          (:uniform source-library)
                           (slurp (io/resource "uncomplicate/bayadera/examples/dbda/ch16/smart-drug-normal.h"))]
                          :name "smart_drug" :params-size 4 :dimension 2))
 
@@ -53,10 +53,10 @@
   (with-default-bayadera
     (with-release [prior (distribution smart-drug-prior)
                    prior-dist (prior (sv 100 60 0 100))
-                   smart-drug-post (posterior "smart_drug" (gaussian-likelihood (dim (:smart-drug params))) prior-dist)
+                   smart-drug-post (posterior "smart_drug" ((:gaussian likelihoods) (dim (:smart-drug params))) prior-dist)
                    smart-drug-dist (smart-drug-post (:smart-drug params))
                    smart-drug-sampler (sampler smart-drug-dist {:limits (sge 2 2 [80 120 0 40])})
-                   placebo-post (posterior "placebo" (gaussian-likelihood (dim (:placebo params))) prior-dist)
+                   placebo-post (posterior "placebo" ((:gaussian likelihoods) (dim (:placebo params))) prior-dist)
                    placebo-dist (placebo-post (:placebo params))
                    placebo-sampler (sampler placebo-dist {:limits (sge 2 2 [80 120 0 40])})]
       (println (time (mix! smart-drug-sampler {:step 128})))

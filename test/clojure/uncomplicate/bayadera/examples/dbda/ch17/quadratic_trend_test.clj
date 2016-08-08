@@ -18,7 +18,7 @@
              [opencl :refer [with-default-bayadera]]
              [mcmc :refer [mix! burn-in! pow-n acc-rate! info run-sampler!]]]
             [uncomplicate.bayadera.opencl.models
-             :refer [cl-distribution-model cl-likelihood-model]]
+             :refer [source-library cl-distribution-model cl-likelihood-model]]
             [uncomplicate.bayadera.toolbox
              [processing :refer :all]
              [plots :refer [render-sample render-histogram]]]
@@ -45,10 +45,10 @@
 (def params (sv (read-data (slurp (io/resource  "uncomplicate/bayadera/examples/dbda/ch17/income-famz-state.csv")))))
 
 (def qt-prior
-  (cl-distribution-model [(slurp (io/resource "uncomplicate/bayadera/opencl/distributions/gaussian.h"))
-                          (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/uniform.h"))
-                          (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/exponential.h"))
-                          (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/t.h"))
+  (cl-distribution-model [(:gaussian source-library)
+                          (:uniform source-library)
+                          (:exponential source-library)
+                          (:t source-library)
                           (slurp (io/resource "uncomplicate/bayadera/examples/dbda/ch17/quadratic-trend.h"))]
                          :name "qt" :mcmc-logpdf "qt_mcmc_logpdf" :params-size 315 :dimension 158))
 

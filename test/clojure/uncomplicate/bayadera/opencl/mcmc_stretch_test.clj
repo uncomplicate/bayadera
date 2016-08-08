@@ -13,7 +13,7 @@
              [opencl :refer [opencl-single]]]
             [uncomplicate.bayadera.protocols :refer :all]
             [uncomplicate.bayadera.opencl
-             [models :refer [gaussian-model]]
+             [models :refer [distributions]]
              [amd-gcn-stretch :refer :all]]))
 
 (with-release [dev (first (sort-by-cl-version (devices (first (platforms)))))
@@ -25,7 +25,7 @@
     (with-release [neanderthal-factory (opencl-single ctx cqueue)
                    mcmc-engine-factory (gcn-stretch-factory
                                         ctx cqueue neanderthal-factory
-                                        gaussian-model)
+                                        (:gaussian distributions))
                    cl-params (create-vector neanderthal-factory [200 1])
                    limits (sge 2 1 [180.0 220.0])
                    engine (mcmc-sampler mcmc-engine-factory walker-count cl-params)]

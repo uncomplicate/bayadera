@@ -16,7 +16,7 @@
              [opencl :refer [with-default-bayadera]]
              [mcmc :refer [mix! info anneal! burn-in! acc-rate! run-sampler!]]]
             [uncomplicate.bayadera.opencl.models
-             :refer [binomial-likelihood cl-distribution-model]]
+             :refer [likelihoods source-library cl-distribution-model]]
             [uncomplicate.bayadera.toolbox
              [processing :refer :all]
              [plots :refer [render-sample render-histogram]]]
@@ -26,7 +26,7 @@
 (def state (atom nil))
 
 (def single-coin-model
-  (cl-distribution-model [(slurp (io/resource "uncomplicate/bayadera/opencl/distributions/beta.h"))
+  (cl-distribution-model [(:beta source-library)
                           (slurp (io/resource "uncomplicate/bayadera/examples/dbda/ch09/single-coin.h"))]
                          :name "single_coin" :params-size 3 :dimension 2 :limits (sge 2 2 [0 1 0 1])))
 
@@ -42,7 +42,7 @@
                                            (mix! {:a 2.68})))
                      prior-sample (dataset (sample! prior-sampler sample-count))
                      prior-pdf (pdf prior-dist prior-sample)
-                     post (posterior "posterior" binomial-likelihood prior-dist)
+                     post (posterior "posterior" (:binomial likelihoods) prior-dist)
                      post-dist (post (binomial-lik-params N z))
                      post-sampler (time (doto (sampler post-dist) (mix!)))
                      post-sample (dataset (sample! post-sampler sample-count))
@@ -68,7 +68,7 @@
                                 (:pdf data)))
            x-position y-position)
   (q/image (show (render-histogram omega (:histogram data) 1 :rotate))
-           (+ x-position 20 (width scatterplot)) y-position)
+            (+ x-position 20 (width scatterplot)) y-position)
   (q/image (show (render-histogram theta (:histogram data) 0))
            x-position (+ y-position 20 (height scatterplot))))
 
