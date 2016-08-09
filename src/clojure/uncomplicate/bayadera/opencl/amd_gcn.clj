@@ -540,8 +540,8 @@
 
 (let [reduction-src (slurp (io/resource "uncomplicate/clojurecl/kernels/reduction.cl"))
       estimate-src (slurp (io/resource "uncomplicate/bayadera/opencl/engines/amd-gcn-estimate.cl"))
-      dist-kernels-src (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/dist-kernels.cl"))
-      lik-kernels-src (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/lik-kernels.cl"))
+      distribution-src (slurp (io/resource "uncomplicate/bayadera/opencl/engines/amd-gcn-distribution.cl"))
+      likelihood-src (slurp (io/resource "uncomplicate/bayadera/opencl/engines/amd-gcn-likelihood.cl"))
       uniform-sampler-src (slurp (io/resource "uncomplicate/bayadera/opencl/rng/uniform-sampler.cl"))
       mcmc-stretch-src (slurp (io/resource "uncomplicate/bayadera/opencl/engines/amd-gcn-mcmc-stretch.cl"))
       dataset-options "-cl-std=CL2.0 -DREAL=float -DREAL2=float2 -DACCUMULATOR=float -DWGS=%d"
@@ -562,7 +562,7 @@
     ([ctx cqueue tmp-dir-name model WGS]
      (let-release [prog (build-program!
                          (program-with-source ctx (conj (source model)
-                                                        dist-kernels-src))
+                                                        distribution-src))
                          (format distribution-options
                                  (logpdf model) (params-size model) (dimension model)
                                  WGS tmp-dir-name)
@@ -574,7 +574,7 @@
      (let-release [prog (build-program!
                          (program-with-source
                           ctx (op (source model)
-                                  [reduction-src lik-kernels-src dist-kernels-src]))
+                                  [reduction-src likelihood-src distribution-src]))
                          (format posterior-options
                                  (logpdf model) (loglik model) (params-size model)
                                  (dimension model) WGS tmp-dir-name)
