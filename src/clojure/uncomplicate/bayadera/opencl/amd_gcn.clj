@@ -169,11 +169,11 @@
                      ^ints move-counter ^ints move-bare-counter ^longs iteration-counter
                      ^ints move-seed
                      cl-params cl-xs cl-s0 cl-s1
-                     cl-logpdf-xs cl-logpdf-s0 cl-logpdf-s1
+                     cl-logfn-xs cl-logfn-s0 cl-logfn-s1
                      cl-accept cl-accept-acc cl-acc
                      stretch-move-odd-kernel stretch-move-even-kernel
                      stretch-move-odd-bare-kernel stretch-move-even-bare-kernel
-                     init-walkers-kernel logpdf-kernel
+                     init-walkers-kernel logfn-kernel
                      sum-accept-reduction-kernel sum-accept-kernel
                      sum-means-kernel
                      sum-reduction-kernel sum-reduce-kernel
@@ -191,9 +191,9 @@
     (release cl-xs)
     (release cl-s0)
     (release cl-s1)
-    (release cl-logpdf-xs)
-    (release cl-logpdf-s0)
-    (release cl-logpdf-s1)
+    (release cl-logfn-xs)
+    (release cl-logfn-s0)
+    (release cl-logfn-s1)
     (release cl-accept)
     (release cl-accept-acc)
     (release cl-acc)
@@ -202,7 +202,7 @@
     (release stretch-move-odd-bare-kernel)
     (release stretch-move-even-bare-kernel)
     (release init-walkers-kernel)
-    (release logpdf-kernel)
+    (release logfn-kernel)
     (release sum-accept-reduction-kernel)
     (release sum-accept-kernel)
     (release sum-means-kernel)
@@ -338,7 +338,7 @@
   (init-position! [this position]
     (let [cl-position (.cl-xs ^GCNStretch position)]
       (enq-copy! cqueue cl-position cl-xs)
-      (enq-nd! cqueue logpdf-kernel (work-size-1d walker-count))
+      (enq-nd! cqueue logfn-kernel (work-size-1d walker-count))
       (aset iteration-counter 0 0)
       this))
   (init-position! [this seed limits]
@@ -347,7 +347,7 @@
         (set-args! init-walkers-kernel 0 seed (buffer cl-limits))
         (enq-nd! cqueue init-walkers-kernel
                  (work-size-1d (* DIM (long (/ walker-count 4)))))
-        (enq-nd! cqueue logpdf-kernel (work-size-1d walker-count))
+        (enq-nd! cqueue logfn-kernel (work-size-1d walker-count))
         (aset iteration-counter 0 0)
         this)))
   (burn-in! [this n a]
@@ -484,10 +484,10 @@
           (let-release [cl-xs (.createDataSource claccessor (* DIM walker-count))
                         cl-s0 (cl-sub-buffer cl-xs 0 sub-bytesize :read-write)
                         cl-s1 (cl-sub-buffer cl-xs sub-bytesize sub-bytesize :read-write)
-                        cl-logpdf-xs (.createDataSource claccessor (* DIM walker-count))
-                        cl-logpdf-s0 (cl-sub-buffer cl-logpdf-xs
+                        cl-logfn-xs (.createDataSource claccessor (* DIM walker-count))
+                        cl-logfn-s0 (cl-sub-buffer cl-logfn-xs
                                                     0 sub-bytesize :read-write)
-                        cl-logpdf-s1 (cl-sub-buffer cl-logpdf-xs
+                        cl-logfn-s1 (cl-sub-buffer cl-logfn-xs
                                                     sub-bytesize sub-bytesize
                                                     :read-write)
                         cl-accept (cl-buffer ctx (* Integer/BYTES accept-count)
@@ -500,20 +500,20 @@
              walker-count (work-size-1d (/ walker-count 2))
              model DIM WGS
              (int-array 1)(int-array 1) (long-array 1) (int-array 1)
-             cl-params cl-xs cl-s0 cl-s1 cl-logpdf-xs cl-logpdf-s0 cl-logpdf-s1
+             cl-params cl-xs cl-s0 cl-s1 cl-logfn-xs cl-logfn-s0 cl-logfn-s1
              cl-accept cl-accept-acc cl-acc
              (doto (kernel prog "stretch_move_accu")
-               (set-args! 1 (wrap-int 1111) cl-params cl-s1 cl-s0 cl-logpdf-s0 cl-accept))
+               (set-args! 1 (wrap-int 1111) cl-params cl-s1 cl-s0 cl-logfn-s0 cl-accept))
              (doto (kernel prog "stretch_move_accu")
-               (set-args! 1 (wrap-int 2222) cl-params cl-s0 cl-s1 cl-logpdf-s1 cl-accept))
+               (set-args! 1 (wrap-int 2222) cl-params cl-s0 cl-s1 cl-logfn-s1 cl-accept))
              (doto (kernel prog "stretch_move_bare")
-               (set-args! 1 (wrap-int 3333) cl-params cl-s1 cl-s0 cl-logpdf-s0))
+               (set-args! 1 (wrap-int 3333) cl-params cl-s1 cl-s0 cl-logfn-s0))
              (doto (kernel prog "stretch_move_bare")
-               (set-args! 1 (wrap-int 4444) cl-params cl-s0 cl-s1 cl-logpdf-s1))
+               (set-args! 1 (wrap-int 4444) cl-params cl-s0 cl-s1 cl-logfn-s1))
              (doto (kernel prog "init_walkers")
                (set-arg! 2 cl-xs))
-             (doto (kernel prog "logpdf")
-               (set-args! 0 cl-params cl-xs cl-logpdf-xs))
+             (doto (kernel prog "logfn")
+               (set-args! 0 cl-params cl-xs cl-logfn-xs))
              (doto (kernel prog "sum_accept_reduction")
                (set-arg! 0 cl-accept-acc))
              (doto (kernel prog "sum_accept_reduce")
@@ -543,12 +543,11 @@
       dist-kernels-src (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/dist-kernels.cl"))
       lik-kernels-src (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/lik-kernels.cl"))
       uniform-sampler-src (slurp (io/resource "uncomplicate/bayadera/opencl/rng/uniform-sampler.cl"))
-      stretch-common-src (slurp (io/resource "uncomplicate/bayadera/opencl/engines/amd-gcn-stretch-generic.cl"))
-      stretch-move-src (slurp (io/resource "uncomplicate/bayadera/opencl/engines/amd-gcn-stretch-move.cl"))
+      mcmc-stretch-src (slurp (io/resource "uncomplicate/bayadera/opencl/engines/amd-gcn-mcmc-stretch.cl"))
       dataset-options "-cl-std=CL2.0 -DREAL=float -DREAL2=float2 -DACCUMULATOR=float -DWGS=%d"
       distribution-options "-cl-std=CL2.0 -DREAL=float -DACCUMULATOR=float -DLOGPDF=%s -DPARAMS_SIZE=%d -DDIM=%d -DWGS=%d -I%s"
       posterior-options "-cl-std=CL2.0 -DREAL=float -DACCUMULATOR=double -DLOGPDF=%s -DLOGLIK=%s -DPARAMS_SIZE=%d -DDIM=%d -DWGS=%d -I%s"
-      stretch-options "-cl-std=CL2.0 -DLOGPDF=%s -DACCUMULATOR=float -DREAL=float -DREAL2=float2 -DPARAMS_SIZE=%d -DDIM=%d -DWGS=%d -I%s/"]
+      stretch-options "-cl-std=CL2.0 -DREAL=float -DREAL2=float2 -DACCUMULATOR=float -DLOGFN=%s -DPARAMS_SIZE=%d -DDIM=%d -DWGS=%d -I%s/"]
 
   (defn gcn-dataset-engine
     ([ctx cqueue ^long WGS]
@@ -597,9 +596,7 @@
      (let-release [prog (build-program!
                          (program-with-source
                           ctx (op [uniform-sampler-src reduction-src]
-                                  (source model)
-                                  [dist-kernels-src estimate-src
-                                   stretch-common-src stretch-move-src]))
+                                  (source model) [estimate-src mcmc-stretch-src]))
                          (format stretch-options
                                  (mcmc-logpdf model) (params-size model)
                                  (dimension model) WGS tmp-dir-name)

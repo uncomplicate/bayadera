@@ -12,6 +12,7 @@
             [uncomplicate.bayadera
              [protocols :as p]
              [core :refer :all]
+             [distributions :refer [binomial-lik-params]]
              [util :refer [bin-mapper hdi]]
              [opencl :refer [with-default-bayadera]]
              [mcmc :refer [mix! info anneal! burn-in! acc-rate! run-sampler!]]]

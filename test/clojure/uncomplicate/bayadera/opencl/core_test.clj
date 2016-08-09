@@ -7,11 +7,11 @@
              [math :refer [log exp sqrt]]
              [core :refer [dim nrm2 copy dot scal! transfer entry row]]
              [real :refer [sum]]
-             [native :refer [sge]]]
+             [native :refer [sge sv]]]
             [uncomplicate.bayadera
              [protocols :as p]
              [core :refer :all]
-             [distributions :refer [beta-pdf t-pdf]]
+             [distributions :refer [beta-pdf t-pdf binomial-lik-params]]
              [mcmc :refer [mix!]]
              [impl :refer :all]
              [math :refer [log-beta]]]
@@ -113,7 +113,7 @@
                    prior-sampler (sampler prior-dist)
                    prior-sample (dataset (sample prior-sampler))
                    post (posterior "post" (:binomial likelihoods) prior-dist)
-                   post-dist (post (binomial-lik-params N z))
+                   post-dist (post (sv (binomial-lik-params N z)))
                    post-sampler (doto (sampler post-dist) (mix!))
                    post-sample (dataset (sample post-sampler))
                    post-pdf (pdf post-dist post-sample)

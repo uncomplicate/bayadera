@@ -12,6 +12,7 @@
             [uncomplicate.bayadera
              [protocols :as p]
              [core :refer :all]
+             [distributions :refer [beta-params binomial-lik-params]]
              [mcmc :refer [mix!]]
              [opencl :refer [with-default-bayadera]]]
             [uncomplicate.bayadera.opencl.models

@@ -21,6 +21,8 @@
   (+ (* k (log p)) (* (- n k) (log (- 1 p)))))
 
 ;; ==================== Binomial distribution ====================
+(defn binomial-lik-params [^double n ^double k]
+  [n k])
 
 (defn binomial-check-args
   ([^double p]
@@ -181,6 +183,9 @@
 
 ;; ==================== Exponential Distribution ================
 
+(defn exponential-params [^double lambda]
+  [lambda])
+
 (defn exponential-log-pdf
   ^double [^double lambda ^double x]
   (- (log lambda) (* lambda x)))
@@ -227,6 +232,9 @@
 
 ;; ==================== Uniform Distribution ================
 
+(defn uniform-params [^double a ^double b]
+  [a b])
+
 (defn uniform-pdf
   ^double [^double a ^double b ^double x]
   (if (<= a x b)
@@ -258,6 +266,9 @@
 (let [sqrt-2pi (sqrt (* 2.0 Math/PI))
       log-sqrt-2pi (log sqrt-2pi)
       sqrt2 (sqrt 2.0)]
+
+  (defn gaussian-params [^double mu ^double sigma]
+    [mu sigma])
 
   (defn gaussian-log-pdf
     ^double [^double mu ^double sigma ^double x]
@@ -297,6 +308,12 @@
         (* 0.5 (log nu)) log-sqrt-pi (log-gamma (* 0.5 nu))))
     (^double [^double nu ^double sigma]
      (- (t-log-scale nu) (log sigma)))))
+
+(defn t-params
+  ([^double nu ^double mu ^double sigma]
+   [nu mu sigma (t-log-scale nu sigma)])
+  ([^double nu]
+   (t-params nu 0.0 1.0)))
 
 (defn t-log-pdf
   (^double [^double nu ^double x]
@@ -357,6 +374,9 @@
   ^double [^double a ^double b]
   (- (log-beta a b)))
 
+(defn beta-params [^double a ^double b]
+  [a b (beta-log-scale a b)])
+
 (defn beta-log-pdf
   ^double [^double a ^double b ^double x]
   (- (beta-log-unscaled a b x) (log-beta a b)))
@@ -386,6 +406,9 @@
 (defn gamma-log-scale
   ^double [^double theta ^double k]
   (- (+ (log-gamma k) (* k (log theta)))))
+
+(defn gamma-params [^double theta ^double k]
+  [theta k (gamma-log-scale theta k)])
 
 (defn gamma-log-pdf
   ^double [^double theta ^double k ^double x]
