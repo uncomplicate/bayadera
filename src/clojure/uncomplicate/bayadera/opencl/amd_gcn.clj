@@ -658,9 +658,11 @@
     neanderthal-factory))
 
 (defn gcn-bayadera-factory
-  ([ctx cqueue ^long compute-units ^long WGS]
+  ([ctx cqueue compute-units WGS add-dist add-samp]
    (let [tmp-dir-name (get-tmp-dir-name)
-         neanderthal-factory (opencl-single ctx cqueue)]
+         neanderthal-factory (opencl-single ctx cqueue)
+         distributions (merge distributions add-dist)
+         samplers (merge samplers add-samp)]
      (with-philox tmp-dir-name
        (->GCNBayaderaFactory
         ctx cqueue tmp-dir-name
@@ -677,6 +679,8 @@
                         (gcn-stretch-factory ctx cqueue tmp-dir-name
                                              neanderthal-factory % WGS)))
               distributions)))))
+  ([ctx cqueue compute-units WGS]
+   (gcn-bayadera-factory ctx cqueue compute-units WGS nil nil))
   ([ctx cqueue]
    (let [dev (queue-device cqueue)]
      (gcn-bayadera-factory ctx cqueue
