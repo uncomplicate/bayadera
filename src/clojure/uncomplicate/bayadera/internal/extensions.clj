@@ -1,5 +1,5 @@
 (ns ^{:author "Dragan Djuric"}
-    uncomplicate.bayadera.impl.extensions
+    uncomplicate.bayadera.internal.extensions
   (:require [uncomplicate.commons.core :refer [with-release let-release]]
             [uncomplicate.fluokitten.core :refer [fmap! fmap]]
             [uncomplicate.neanderthal

@@ -7,14 +7,15 @@
              [math :refer [sqrt]]
              [core :refer [transfer create-vector]]
              [native :refer [sv]]]
-            [uncomplicate.bayadera.impl.extensions :as extensions]
             [uncomplicate.bayadera
              [protocols :as p]
-             [impl :refer :all]
              [distributions :refer [beta-log-scale gamma-log-scale t-log-scale
                                     uniform-params gaussian-params t-params
                                     beta-params gamma-params exponential-params]]
-             [util :refer [srand-int]]]))
+             [util :refer [srand-int]]]
+            [uncomplicate.bayadera.internal
+             [extensions :as extensions]
+             [impl :refer :all]]))
 
 (def ^:dynamic *bayadera-factory*)
 

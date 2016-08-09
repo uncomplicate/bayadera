@@ -13,7 +13,7 @@
              [core :refer :all]
              [distributions :refer [beta-pdf t-pdf binomial-lik-params]]
              [mcmc :refer [mix!]]
-             [impl :refer :all]
+             ;;[impl :refer :all]
              [math :refer [log-beta]]]
             [uncomplicate.bayadera.opencl :refer [with-default-bayadera]]
             [uncomplicate.bayadera.opencl.models :refer [distributions likelihoods]]))

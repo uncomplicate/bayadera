@@ -1,5 +1,5 @@
 (ns ^{:author "Dragan Djuric"}
-    uncomplicate.bayadera.impl
+    uncomplicate.bayadera.internal.impl
   (:require [clojure.java.io :as io]
             [uncomplicate.commons.core
              :refer [Releaseable release with-release let-release

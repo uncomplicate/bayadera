@@ -1,9 +1,9 @@
-(ns uncomplicate.bayadera.impl.extensions-test
+(ns uncomplicate.bayadera.internal.extensions-test
   (:require [midje.sweet :refer :all]
             [uncomplicate.commons.core :refer [with-release]]
             [uncomplicate.neanderthal.core :refer [create-vector create-ge-matrix sum]]
             [uncomplicate.neanderthal.impl.cblas :refer [cblas-single cblas-double]]
-            [uncomplicate.bayadera.impl.extensions :refer :all]
+            [uncomplicate.bayadera.internal.extensions :refer :all]
             [uncomplicate.bayadera.core :refer [mean variance sd]]))
 
 (defn vector-test [factory]
