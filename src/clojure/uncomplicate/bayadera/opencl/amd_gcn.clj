@@ -21,7 +21,7 @@
              [protocols :refer :all]
              [util :refer [srand-int]]]
             [uncomplicate.bayadera.opencl
-             [util :refer [with-philox get-tmp-dir-name]]
+             [util :refer [get-tmp-dir-name copy-philox clean-random123 with-philox]]
              [models :refer [source sampler-source distributions samplers likelihoods]]])
   (:import [uncomplicate.neanderthal.protocols DataAccessor]))
 
@@ -629,25 +629,22 @@
     (release-deref (vals distribution-engines))
     (release-deref (vals direct-samplers))
     (release-deref (vals mcmc-factories))
+    (clean-random123 tmp-dir-name)
     true)
   DistributionEngineFactory
   (distribution-engine [_ model]
     (if-let [eng (distribution-engines model)]
       @eng
-      (with-philox tmp-dir-name
-        (gcn-distribution-engine ctx cqueue tmp-dir-name model WGS))))
+      (gcn-distribution-engine ctx cqueue tmp-dir-name model WGS)))
   (posterior-engine [_ model]
-    (with-philox tmp-dir-name
-      (gcn-posterior-engine ctx cqueue tmp-dir-name model WGS)))
+    (gcn-posterior-engine ctx cqueue tmp-dir-name model WGS))
   SamplerFactory
   (direct-sampler [_ id]
     (deref (direct-samplers id)))
   (mcmc-factory [_ model]
     (if-let [factory (mcmc-factories model)]
       @factory
-      (with-philox tmp-dir-name
-        (gcn-stretch-factory ctx cqueue tmp-dir-name
-                             neanderthal-factory model WGS))))
+      (gcn-stretch-factory ctx cqueue tmp-dir-name neanderthal-factory model WGS)))
   (processing-elements [_]
     (* compute-units WGS))
   DatasetFactory
@@ -663,22 +660,19 @@
          neanderthal-factory (opencl-single ctx cqueue)
          distributions (merge distributions add-dist)
          samplers (merge samplers add-samp)]
-     (with-philox tmp-dir-name
-       (->GCNBayaderaFactory
-        ctx cqueue tmp-dir-name
-        compute-units WGS
-        (gcn-dataset-engine ctx cqueue WGS)
-        neanderthal-factory
-        (fmap #(delay (with-philox tmp-dir-name
-                        (gcn-distribution-engine ctx cqueue tmp-dir-name % WGS)))
-              distributions)
-        (fmap #(delay (with-philox tmp-dir-name
-                        (gcn-direct-sampler ctx cqueue tmp-dir-name % WGS)))
-              (select-keys distributions (keys samplers)))
-        (fmap #(delay (with-philox tmp-dir-name
-                        (gcn-stretch-factory ctx cqueue tmp-dir-name
-                                             neanderthal-factory % WGS)))
-              distributions)))))
+     (copy-philox tmp-dir-name)
+     (->GCNBayaderaFactory
+      ctx cqueue tmp-dir-name
+      compute-units WGS
+      (gcn-dataset-engine ctx cqueue WGS)
+      neanderthal-factory
+      (fmap #(delay (gcn-distribution-engine ctx cqueue tmp-dir-name % WGS))
+            distributions)
+      (fmap #(delay (gcn-direct-sampler ctx cqueue tmp-dir-name % WGS))
+            (select-keys distributions (keys samplers)))
+      (fmap #(delay (gcn-stretch-factory ctx cqueue tmp-dir-name
+                                         neanderthal-factory % WGS))
+            distributions))))
   ([ctx cqueue compute-units WGS]
    (gcn-bayadera-factory ctx cqueue compute-units WGS nil nil))
   ([ctx cqueue]
