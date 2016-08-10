@@ -161,21 +161,22 @@
    :t (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/t.h"))
    :beta (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/beta.h"))
    :exponential (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/exponential.h"))
+   :erlang (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/erlang.h"))
    :gamma (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/gamma.h"))
    :binomial (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/binomial.h"))})
 
 (def samplers
   {:uniform (slurp (io/resource "uncomplicate/bayadera/opencl/rng/uniform-sampler.cl"))
    :gaussian (slurp (io/resource "uncomplicate/bayadera/opencl/rng/gaussian-sampler.cl"))
-   :exponential (slurp (io/resource "uncomplicate/bayadera/opencl/rng/exponential-sampler.cl"))})
+   :exponential (slurp (io/resource "uncomplicate/bayadera/opencl/rng/exponential-sampler.cl"))
+   :erlang (slurp (io/resource "uncomplicate/bayadera/opencl/rng/erlang-sampler.cl"))})
 
 (def distributions
   {:uniform
    (cl-distribution-model (:uniform source-library)
                           :name "uniform" :params-size 2
                           :limits (sge 2 1 [(- Float/MAX_VALUE) Float/MAX_VALUE])
-                          :sampler-source
-                          (:uniform samplers))
+                          :sampler-source (:uniform samplers))
    :gaussian
    (cl-distribution-model (:gaussian source-library)
                           :name "gaussian" :params-size 2
@@ -193,8 +194,12 @@
    (cl-distribution-model (:exponential source-library)
                           :name "exponential" :params-size 2
                           :limits (sge 2 1 [Float/MIN_VALUE Float/MAX_VALUE])
-                          :sampler-source
-                          (:exponential samplers))
+                          :sampler-source (:exponential samplers))
+   :erlang
+   (cl-distribution-model (:erlang source-library)
+                          :name "erlang" :params-size 3
+                          :limits (sge 2 1 [0 Float/MAX_VALUE])
+                          :sampler-source (:erlang samplers))
    :gamma
    (cl-distribution-model (:gamma source-library)
                           :name "gamma" :params-size 2
@@ -205,6 +210,8 @@
                           :limits (sge 2 1 [0.0 Float/MAX_VALUE]))})
 
 (def likelihoods
-  {:gaussian (fn [n] (cl-likelihood-model (:gaussian source-library) :name "gaussian" :params-size n))
+  {:gaussian (fn [n] (cl-likelihood-model (:gaussian source-library)
+                                          :name "gaussian" :params-size n))
    :t (fn [n] (cl-likelihood-model (:t source-library) :name "t" :params-size n))
-   :binomial (cl-likelihood-model (:binomial source-library) :name "binomial" :params-size 2)})
+   :binomial (cl-likelihood-model (:binomial source-library)
+                                  :name "binomial" :params-size 2)})

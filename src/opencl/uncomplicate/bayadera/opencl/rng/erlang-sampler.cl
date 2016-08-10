@@ -23,13 +23,18 @@ __kernel void sample( __constant const float* params
 
     const uint gid = get_global_id(0);
     // Generate uniform(0,1) floats
+
+    const float k = params[1];
+
+    float4 res = 0.0;
+
     const philox4x32_key_t key = {{seed, 0xdecafaaa, 0xfacebead, 0x12345678}};
-    const philox4x32_ctr_t cnt = {{gid, 0xf00dcafe, 0xdeadbeef, 0xbeeff00d}};
 
-    const float lower = params[0];
-    const float upper = params[1];
+    for (uint i = 0; i < k; i++) {
+        const philox4x32_ctr_t cnt = {{gid, 0xf00dcafe, 0xdeadbeef, i}};
+        res += native_log(u01fpt_oo_4x32_24(((uint4*)philox4x32(cnt, key).v)[0]));
+    }
 
-    x[gid] = u01fpt_oo_4x32_24(((uint4*)philox4x32(cnt, key).v)[0])
-        * (upper - lower) + lower;
+    x[gid] = - (res / params[0]);
 
 }

@@ -18,23 +18,19 @@ inline bool binomial_check_nk(const REAL n, const REAL k) {
     return (0.0f <= k) && (k <= n);
 }
 
-inline bool binomial_check(const REAL n, const REAL p, const REAL k) {
-    return binomial_check_nk(n, k) && binomial_check_p(p);
-}
-
 // ============= With params ========================================
 
 REAL binomial_mcmc_logpdf(__constant const REAL* params, const REAL* k) {
-    return binomial_log_unscaled(params[0], params[1], k[0]);
+    return binomial_check_nk(params[0], k[0]) ?
+        binomial_log_unscaled(params[0], params[1], k[0]) : NAN;
 }
 
 REAL binomial_logpdf(__constant const REAL* params, const REAL* k) {
-    bool valid = binomial_check_nk(params[0], k[0]);
-    return valid ?
+    return binomial_check_nk(params[0], k[0]) ?
         binomial_log(params[0], params[1], k[0]) : NAN;
 }
 
 REAL binomial_loglik(__constant const REAL* params, const REAL* p) {
-    const bool valid = binomial_check_p(p[0]);
-    return valid ? binomial_log_unscaled(params[0], p[0], params[1]) : NAN;
+    return binomial_check_p(p[0]) ?
+        binomial_log_unscaled(params[0], p[0], params[1]) : NAN;
 }

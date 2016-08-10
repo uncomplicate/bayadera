@@ -17,10 +17,10 @@ __kernel void sample( __constant const float* params
                       __attribute__ ((max_constant_size(1))),
                       const uint seed, __global float4* x) {
 
-    uint gid = get_global_id(0);
+    const uint gid = get_global_id(0);
     // Generate uniform(0,1) floats
-    philox4x32_key_t key = {{seed, 0xdecafaaa, 0xfacebead, 0x12345678}};
-    philox4x32_ctr_t cnt = {{gid, 0xf00dcafe, 0xdeadbeef, 0xbeeff00d}};
+    const philox4x32_key_t key = {{seed, 0xdecafaaa, 0xfacebead, 0x12345678}};
+    const philox4x32_ctr_t cnt = {{gid, 0xf00dcafe, 0xdeadbeef, 0xbeeff00d}};
 
     x[gid] = -1.0f / params[0]
         * native_log(1.0f - u01fpt_oo_4x32_24(((uint4*)philox4x32(cnt, key).v)[0]));

@@ -1,6 +1,7 @@
 (ns ^{:author "Dragan Djuric"}
     uncomplicate.bayadera.core
-  (:require [uncomplicate.commons.core :refer [release with-release let-release double-fn]]
+  (:require [uncomplicate.commons.core
+             :refer [release with-release let-release double-fn]]
             [uncomplicate.fluokitten.core :refer [fmap! foldmap]]
             [uncomplicate.neanderthal
              [protocols :as np]
@@ -9,9 +10,9 @@
              [native :refer [sv]]]
             [uncomplicate.bayadera
              [protocols :as p]
-             [distributions :refer [beta-log-scale gamma-log-scale t-log-scale
-                                    uniform-params gaussian-params t-params
-                                    beta-params gamma-params exponential-params]]
+             [distributions :refer
+              [uniform-params gaussian-params t-params beta-params gamma-params
+               exponential-params erlang-params]]
              [util :refer [srand-int]]]
             [uncomplicate.bayadera.internal
              [extensions :as extensions]
@@ -92,6 +93,15 @@
                               (create-vector (np/factory factory)
                                              (exponential-params lambda))
                               lambda)))
+
+(defn erlang
+  ([^double lambda ^long k]
+   (erlang *bayadera-factory* lambda k))
+  ([factory ^double lambda ^long k]
+   (->ErlangDistribution factory (p/distribution-engine factory :erlang)
+                         (create-vector (np/factory factory)
+                                        (erlang-params lambda k))
+                         lambda k)))
 
 ;; ====================== Distribution =========================================
 

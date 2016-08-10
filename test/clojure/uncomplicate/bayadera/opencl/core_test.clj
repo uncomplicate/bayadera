@@ -47,8 +47,8 @@
 
        (mean dist) => mu
        (sd dist) => sigma
-       (entry (mean cl-sample) 0) => (roughly (mean dist))
-       (entry (variance cl-sample) 0)  => (roughly (variance dist) 2)
+       (entry (mean cl-sample) 0) => (roughly100 (mean dist))
+       (entry (variance cl-sample) 0)  => (roughly100 (variance dist))
        (entry (sd cl-sample) 0) => (roughly100 sigma))))
 
   (let [nu 30
@@ -103,7 +103,20 @@
        (mean dist) => (/ 1.0 lambda)
        (entry (mean cl-sample) 0) => (roughly (mean dist) 0.05)
        (entry (variance cl-sample) 0)  => (roughly (variance dist) 0.05)
-       (entry (sd cl-sample) 0) => (roughly (sd dist) 0.03)))))
+       (entry (sd cl-sample) 0) => (roughly (sd dist) 0.03))))
+
+  (let [lambda 3.5
+        k 9]
+    (facts
+     "Core functions for erlang distribution."
+     (with-release [dist (erlang lambda k)
+                    erlang-sampler (sampler dist)
+                    cl-sample (dataset (sample erlang-sampler))]
+
+       (mean dist) => (/ k lambda)
+       (entry (mean cl-sample) 0) => (roughly100 (mean dist))
+       (entry (variance cl-sample) 0)  => (roughly100 (variance dist))
+       (entry (sd cl-sample) 0) => (roughly100 (sd dist))))))
 
 (with-default-bayadera
   (let [a 8.5 b 3.5

@@ -266,6 +266,40 @@
   (sd [_]
     (sqrt (exponential-variance lambda))))
 
+(deftype ErlangDistribution [bayadera-factory dist-eng params
+                             ^double lambda ^long k]
+  Releaseable
+  (release [_]
+    (release params))
+  SamplerProvider
+  (sampler [_ options]
+    (->DirectSampler (direct-sampler bayadera-factory :erlang) params
+                     (processing-elements bayadera-factory)
+                     (wrap-int (or (:seed options) (srand-int)))))
+  (sampler [this]
+    (sampler this nil))
+  Distribution
+  (parameters [_]
+    params)
+  EngineProvider
+  (engine [_]
+    dist-eng)
+  ModelProvider
+  (model [_]
+    (model dist-eng))
+  Location
+  (mean [_]
+    (erlang-mean lambda k))
+  (mode [_]
+    (erlang-mode lambda k))
+  (median [_]
+    (erlang-median lambda k))
+  Spread
+  (variance [_]
+    (erlang-variance lambda k))
+  (sd [_]
+    (sqrt (erlang-variance lambda k))))
+
 (deftype DistributionImpl [bayadera-factory dist-eng sampler-factory params dist-model]
   Releaseable
   (release [_]

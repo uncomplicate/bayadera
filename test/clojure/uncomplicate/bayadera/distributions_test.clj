@@ -35,6 +35,16 @@
  (exponential-median 0.4) => 1.732867951399863)
 
 (facts
+ "Erlang Distribution + see examples/fapsp"
+ (erlang-check 0.3 5) => true
+ (erlang-check 0 4) => false
+ (erlang-check 4 0) => false
+ (erlang-params 0.2 7) => [0.2 7 -17.845316599048804]
+ (erlang-mode 0.4 2) => 2.5
+ (Double/isNaN (erlang-mode 0.4 0)) => true
+ (erlang-median 2.0 7) => 3.6732673267326734)
+
+(facts
  "Beta Distribution"
  (beta-pdf 2.3 3.3 0.14) => (roughly 1.079)
  (beta-cdf 2.3 3.3 0.18) => (roughly 0.122)

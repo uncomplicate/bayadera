@@ -272,10 +272,26 @@
 
 ;; ==================== Erlang Distribution ================
 
+(defn erlang-check
+  [^double lambda ^long k]
+  (and (< 0.0 lambda) (< 0 k)))
+
+(defn erlang-log-unscaled
+  ^double [^double lambda ^long k ^double x]
+  (- (* (dec k) (log x)) (* lambda x) ))
+
+(defn erlang-log-scale
+  ^double [^double lambda ^long k]
+  (- (* k (log lambda)) (log-factorial (dec k))))
+
+(defn erlang-params
+  [^double lambda ^long k]
+  (when (erlang-check lambda k)
+    [lambda k (erlang-log-scale lambda k)]))
+
 (defn erlang-log-pdf
   ^double [^double lambda ^long k ^double x]
-  (- (+ (* k (log lambda)) (* (dec k) (log x)))
-     (* lambda x) (log-factorial (dec k))))
+  (+ (erlang-log-unscaled lambda k x) (erlang-log-scale lambda k)))
 
 (defn erlang-pdf
   ^double [^double lambda ^long k ^double x]
@@ -284,6 +300,16 @@
 (defn erlang-mean
   ^double [^double lambda ^long k]
   (/ k lambda))
+
+(defn erlang-median
+  ^double [^double lambda ^long k]
+  (/ (/ k lambda) (- 1.0 (/ 1.0 (+ (* 3.0 k) 0.2)))))
+
+(defn erlang-mode
+  ^double [^double lambda ^long k]
+  (if (<= 1.0 k)
+    (/ (dec k) lambda)
+    Double/NaN))
 
 (defn erlang-variance
   ^double [^double lambda ^long k]
