@@ -9,7 +9,12 @@
  (binomial-params -1 7) => nil
  (binomial-check-nk 9 0) => true
  (binomial-check-nk 9 10) => false
- (binomial-mode 4 0.8) => 4)
+ (binomial-mode 4 0.8) => 4
+ (binomial-median 4 0.8) => 3)
+
+(facts
+ "Binomial (Bernoulli) Likelihood"
+ (binomial-lik-params -1 7) => nil)
 
 (facts
  "Beta Distribution"

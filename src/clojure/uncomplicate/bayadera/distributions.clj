@@ -72,7 +72,8 @@
 ;; ============ Binomial (Bernoulli) Likelihood ===================
 
 (defn binomial-lik-params [^long n ^long k]
-  [n k])
+  (when (binomial-check-nk n k)
+    [n k]))
 
 (defn binomial-log-lik
   ^double [^long n ^long k ^double p]
