@@ -21,7 +21,7 @@
              [protocols :refer :all]
              [util :refer [srand-int]]]
             [uncomplicate.bayadera.opencl
-             [utils :refer [with-philox get-tmp-dir-name]]
+             [util :refer [with-philox get-tmp-dir-name]]
              [models :refer [source sampler-source distributions samplers likelihoods]]])
   (:import [uncomplicate.neanderthal.protocols DataAccessor]))
 
