@@ -4,6 +4,14 @@
             [uncomplicate.bayadera.distributions :refer :all]))
 
 (facts
+ "Binomial Distribution + see examples/fpsap"
+ (binomial-params 7 0.3) => [7 0.3]
+ (binomial-params -1 7) => nil
+ (binomial-check-nk 9 0) => true
+ (binomial-check-nk 9 10) => false
+ (binomial-mode 4 0.8) => 4)
+
+(facts
  "Beta Distribution"
  (beta-pdf 2.3 3.3 0.14) => (roughly 1.079)
  (beta-cdf 2.3 3.3 0.18) => (roughly 0.122)

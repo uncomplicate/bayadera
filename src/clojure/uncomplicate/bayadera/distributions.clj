@@ -13,24 +13,31 @@
   (:import [org.apache.commons.math3.distribution TDistribution]))
 
 (defn probability? [^double p]
-  (<= 0 p 1))
+  (<= 0.0 p 1.0))
 
 ;; ==================== Bernoulli trials ====================
+
 (defn bernoulli-log-trials
   ^double [^long n ^double p ^long k]
   (+ (* k (log p)) (* (- n k) (log (- 1 p)))))
 
 ;; ==================== Binomial distribution ====================
-(defn binomial-lik-params [^double n ^double k]
-  [n k])
 
-(defn binomial-check-args
-  ([^double p]
-   (probability? p))
-  ([^long n ^long k]
-   (<= 0 k n))
-  ([^long n ^double p ^long k]
-   (and (probability? p) (binomial-check-args n k))))
+(defn binomial-check-p [^double p]
+  (<= 0.0 p 1.0))
+
+(defn binomial-check-n [^long n]
+  (<= 0 n))
+
+(defn binomial-check-nk [^long n ^long k]
+  (<= 0 k n))
+
+(defn binomial-check [^long n ^double p ^long k]
+  (and (binomial-check-p p) (binomial-check-nk n k)))
+
+(defn binomial-params [^long n ^double p]
+  (when (and (binomial-check-n n) (binomial-check-p p))
+    [n p]))
 
 (defn binomial-log-pmf
   ^double [^long n ^double p ^long k]
@@ -44,17 +51,36 @@
   ^double [^long n ^double p]
   (* n p))
 
+(defn binomial-mode
+  ^long [^long n ^double p]
+  (long (* (inc n) p)))
+
+(defn binomial-median
+  ^long [^long n ^double p]
+  (long (* n p)))
+
 (defn binomial-variance
   ^double [^long n ^double p]
   (* n p (- 1.0 p)))
 
-;; TODO Use normal approximation
 (defn binomial-cdf
   ^double [^long n ^double p ^long k]
-  (loop [i 0 res 0.0]
-    (if (< k i)
-      res
-      (recur (inc i) (+ res (binomial-pmf n p i))))))
+  (if (<= 0 k n)
+    (- 1.0 (regularized-beta p (inc k) (- n k)))
+    0.0))
+
+;; ============ Binomial (Bernoulli) Likelihood ===================
+
+(defn binomial-lik-params [^long n ^long k]
+  [n k])
+
+(defn binomial-log-lik
+  ^double [^long n ^long k ^double p]
+  (bernoulli-log-trials n p k))
+
+(defn binomial-lik
+  ^double [^long n ^long k ^double p]
+  (exp (bernoulli-log-trials n p k)))
 
 ;; ==================== Geometric Distribution ====================
 
@@ -186,6 +212,7 @@
 (defn exponential-params [^double lambda]
   [lambda])
 
+;;(defn exponential-check-args [])CONTINUE HERE
 (defn exponential-log-pdf
   ^double [^double lambda ^double x]
   (- (log lambda) (* lambda x)))

@@ -27,7 +27,7 @@
 (defn ^:private compatible [factory x]
   (= (np/factory factory) (np/factory x)))
 
-;; =============================================================================
+;; =================== Dataset =================================================
 
 (defn dataset
   ([data-matrix]
@@ -37,7 +37,7 @@
      (->DatasetImpl (p/dataset-engine factory) data-matrix)
      (throw (IllegalArgumentException. (format "Illegal data source: %s." data-matrix))))))
 
-;; =============================================================================
+;; =================== Distributions ===========================================
 
 (defn uniform
   ([^double a ^double b]
@@ -93,7 +93,7 @@
                                              (exponential-params lambda))
                               lambda)))
 
-;; =============================================================================
+;; ====================== Distribution =========================================
 
 (defn distribution
   ([model]
@@ -123,7 +123,7 @@
        (->PosteriorCreator dist-creator (transfer (p/parameters prior)))
        dist-creator))))
 
-;; =============================================================================
+;; ====================== Measures =============================================
 
 (defn mean [x]
   (p/mean x))
