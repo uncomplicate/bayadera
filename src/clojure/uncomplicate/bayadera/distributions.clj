@@ -19,7 +19,7 @@
 
 (defn bernoulli-log-trials
   ^double [^long n ^double p ^long k]
-  (+ (* k (log p)) (* (- n k) (log (- 1 p)))))
+  (+ (* k (log p)) (* (- n k) (log (- 1.0 p)))))
 
 ;; ==================== Binomial distribution ====================
 
@@ -113,7 +113,7 @@
 
 (defn geometric-median
   ^long [^double p]
-  (long (ceil (/ -1.0 (log (- 1 p))))))
+  (long (ceil (/ -1.0 (log (- 1.0 p))))))
 
 (defn geometric-variance
   ^double [^double p]
@@ -166,6 +166,7 @@
       0.0)))
 
 ;; ==================== Hyper-geometric Distribution ================
+;;TODO
 
 (defn hypergeometric-check-args
   ([^long k ^long n]
@@ -199,6 +200,7 @@
       (recur (inc j) (+ res (hypergeometric-pmf N K n j))))))
 
 ;; ==================== Poisson Distribution ================
+;; TODO
 
 (defn poisson-check-args
   [^double lambda ^long k]

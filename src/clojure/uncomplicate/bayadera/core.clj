@@ -128,8 +128,11 @@
 (defn mean [x]
   (p/mean x))
 
-#_(defn mode [x]
+(defn mode [x]
   (p/mode x))
+
+(defn median [x]
+  (p/median x))
 
 (defn variance [x]
   (p/variance x))

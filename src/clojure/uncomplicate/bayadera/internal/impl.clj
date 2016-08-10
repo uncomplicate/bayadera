@@ -256,6 +256,10 @@
   Location
   (mean [_]
     (exponential-mean lambda))
+  (mode [_]
+    (exponential-mode lambda))
+  (median [_]
+    (exponential-median lambda))
   Spread
   (variance [_]
     (exponential-variance lambda))

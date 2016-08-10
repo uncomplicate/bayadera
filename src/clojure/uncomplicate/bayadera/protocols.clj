@@ -15,8 +15,7 @@
   (mode [x]))
 
 (defprotocol Spread
-  (total-range [x])
-  (interquartile-range [x])
+  (hdi [x])
   (variance [x])
   (sd [x]))
 
