@@ -4,7 +4,7 @@
             [uncomplicate.bayadera.distributions :refer :all]))
 
 (facts
- "Binomial Distribution + see examples/fpsap"
+ "Binomial Distribution + see examples/fapsp"
  (binomial-params 7 0.3) => [7 0.3]
  (binomial-params -1 7) => nil
  (binomial-check-nk 9 0) => true
@@ -15,6 +15,24 @@
 (facts
  "Binomial (Bernoulli) Likelihood"
  (binomial-lik-params -1 7) => nil)
+
+(facts
+ "Geometric Distribution + see examples/fapsp"
+ (geometric-check 0.3 3) => true
+ (geometric-check 0.2 0) => false
+ (geometric-params 0.4) => [0.4]
+ (geometric-params 1.2) => nil
+ (geometric-median 0.24) => 4
+ (geometric-mode 0.33) => 1)
+
+(facts
+ "Exponential Distribution + see examples/fapsp"
+ (exponential-check 0.3 5) => true
+ (exponential-check 0 4) => false
+ (exponential-check 4 0) => false
+ (exponential-params 0.2) => [0.2 -1.6094379124341003]
+ (exponential-mode 0.4) => 0.0
+ (exponential-median 0.4) => 1.732867951399863)
 
 (facts
  "Beta Distribution"

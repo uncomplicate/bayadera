@@ -191,7 +191,7 @@
                           :limits (sge 2 1 [0.0 1.0]))
    :exponential
    (cl-distribution-model (:exponential source-library)
-                          :name "exponential" :params-size 1
+                          :name "exponential" :params-size 2
                           :limits (sge 2 1 [Float/MIN_VALUE Float/MAX_VALUE])
                           :sampler-source
                           (:exponential samplers))

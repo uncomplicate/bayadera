@@ -3,7 +3,7 @@
   (:require [uncomplicate.commons.core :refer [double-fn]]
             [uncomplicate.fluokitten.core :refer [foldmap fmap]]
             [uncomplicate.neanderthal
-             [math :refer [log exp pow floor sqrt]]
+             [math :refer [log exp pow floor sqrt ceil]]
              [core :refer [scal! copy! copy]]
              [real :refer [asum]]]
             [uncomplicate.bayadera.math
@@ -23,20 +23,17 @@
 
 ;; ==================== Binomial distribution ====================
 
-(defn binomial-check-p [^double p]
-  (<= 0.0 p 1.0))
-
-(defn binomial-check-n [^long n]
-  (<= 0 n))
-
-(defn binomial-check-nk [^long n ^long k]
+(defn binomial-check-nk
+  [^long n ^long k]
   (<= 0 k n))
 
-(defn binomial-check [^long n ^double p ^long k]
-  (and (binomial-check-p p) (binomial-check-nk n k)))
+(defn binomial-check
+  [^long n ^double p ^long k]
+  (and (probability? p) (binomial-check-nk n k)))
 
-(defn binomial-params [^long n ^double p]
-  (when (and (binomial-check-n n) (binomial-check-p p))
+(defn binomial-params
+  [^long n ^double p]
+  (when (and (<= 0 n) (probability? p))
     [n p]))
 
 (defn binomial-log-pmf
@@ -85,11 +82,14 @@
 
 ;; ==================== Geometric Distribution ====================
 
-(defn geometric-check-args
-  ([^double p]
-   (probability? p))
-  ([^double p ^long k]
-   (and (probability? p) (< 0 k))))
+(defn geometric-check
+  [^double p ^long k]
+  (and (< 0 k) (probability? p)))
+
+(defn geometric-params
+  [^double p]
+  (when (probability? p)
+    [p]))
 
 (defn geometric-normalizer
   ^double [^long n ^double p]
@@ -107,6 +107,14 @@
   ^double [^double p]
   (/ 1.0 p))
 
+(defn geometric-mode
+  ^long [^double p]
+  1)
+
+(defn geometric-median
+  ^long [^double p]
+  (long (ceil (/ -1.0 (log (- 1 p))))))
+
 (defn geometric-variance
   ^double [^double p]
   (/ (- 1.0 p) (* p p)))
@@ -117,13 +125,18 @@
 
 ;; ==================== Negative Binomial (Pascal) Distribution ================
 
-(defn pascal-check-args
-  ([^double p]
-   (probability? p))
-  ([^long k ^long n]
-   (<= 0 k n))
-  ([^long k ^double p ^long n]
-   (and (probability? p) (pascal-check-args n k))))
+(defn pascal-check-nk
+  [^long k ^long n]
+  (and (< 0 k) (<= k n)))
+
+(defn pascal-check
+  [^long k ^double p ^long n]
+  (and (probability? p) (pascal-check-nk k n)))
+
+(defn pascal-params
+  [^long k ^double p]
+  (when (and (< 0 k) (probability? p))
+    [k p]))
 
 (defn pascal-log-pmf
   ^double [^long k ^double p ^long n]
@@ -136,6 +149,9 @@
 (defn pascal-mean
   ^double [^long k ^double p]
   (/ k p))
+
+;;TODO mode
+;;TODO median
 
 (defn pascal-variance
   ^double [^long k ^double p]
@@ -210,13 +226,22 @@
 
 ;; ==================== Exponential Distribution ================
 
-(defn exponential-params [^double lambda]
-  [lambda])
+(defn exponential-check
+  [^double lambda ^double x]
+  (and (< 0.0 lambda) (< 0.0 x)))
 
-;;(defn exponential-check-args [])CONTINUE HERE
+(defn exponential-params
+  [^double lambda]
+  (when (< 0.0 lambda)
+    [lambda (log lambda)]))
+
+(defn exponential-log-unscaled
+  ^double [^double lambda ^double x]
+  (- (* lambda x)))
+
 (defn exponential-log-pdf
   ^double [^double lambda ^double x]
-  (- (log lambda) (* lambda x)))
+  (- (log lambda) (exponential-log-unscaled lambda x)))
 
 (defn exponential-pdf
   ^double [^double lambda ^double x]
@@ -226,13 +251,22 @@
   ^double [^double lambda]
   (/ 1.0 lambda))
 
+(defn exponential-mode
+  ^double [^double lambda]
+  0.0)
+
+(let [ln2 (log 2.0)]
+  (defn exponential-median
+    ^double [^double lambda]
+    (/ ln2 lambda)))
+
 (defn exponential-variance
   ^double [^double lambda]
   (/ 1.0 (* lambda lambda)))
 
 (defn exponential-cdf
   ^double [^double lambda ^double x]
-  (- 1 (exp (- (* lambda x)))))
+  (- 1.0 (exp (- (* lambda x)))))
 
 ;; ==================== Erlang Distribution ================
 
