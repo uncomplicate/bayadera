@@ -51,9 +51,20 @@
  (uniform-check 0.3 5) => true
  (uniform-check 4 0) => false
  (uniform-params 0.2 7) => [0.2 7.0]
+ (uniform-params 4 2) => nil
  (uniform-mean 0.4 2) => 1.2
  (uniform-mode 0.4 2) => 1.2
  (uniform-median 0.4 2) => 1.2)
+
+(facts
+ "Gaussian Distribution + see examples/fapsp"
+ (gaussian-check 0.3 5) => true
+ (gaussian-check 4 0) => false
+ (gaussian-params 0.2 7) => [0.2 7.0]
+ (gaussian-params 0.2 -2) => nil
+ (gaussian-mean 0.4) => 0.4
+ (gaussian-mode 0.4) => 0.4
+ (gaussian-median 0.4) => 0.4)
 
 (facts
  "Beta Distribution"

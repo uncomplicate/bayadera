@@ -86,6 +86,10 @@
   Location
   (mean [_]
     mu)
+  (mode [_]
+    mu)
+  (median [_]
+    mu)
   Spread
   (variance [_]
     (gaussian-variance sigma))

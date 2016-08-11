@@ -365,8 +365,16 @@
       log-sqrt-2pi (log sqrt-2pi)
       sqrt2 (sqrt 2.0)]
 
-  (defn gaussian-params [^double mu ^double sigma]
-    [mu sigma])
+  (defn gaussian-check
+    ([^double mu ^double sigma]
+     (< 0.0 sigma))
+    ([^double mu ^double sigma ^double x]
+     (< 0.0 sigma)))
+
+  (defn gaussian-params
+    [^double mu ^double sigma]
+    (when (gaussian-check mu sigma)
+      [mu sigma]))
 
   (defn gaussian-log-pdf
     ^double [^double mu ^double sigma ^double x]
@@ -381,6 +389,10 @@
   (defn gaussian-mean
     ^double [^double mu]
     mu)
+
+  (def gaussian-mode gaussian-mean)
+
+  (def gaussian-median gaussian-mean)
 
   (defn gaussian-variance
     ^double [^double sigma]
