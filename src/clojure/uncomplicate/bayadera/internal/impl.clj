@@ -202,6 +202,10 @@
   Location
   (mean [_]
     (beta-mean a b))
+  (median [_]
+    (beta-median a b))
+  (mode [_]
+    (beta-mode a b))
   Spread
   (variance [_]
     (beta-variance a b))

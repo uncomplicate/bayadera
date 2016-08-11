@@ -489,13 +489,11 @@
 
 ;; ==================== Beta Distribution ================
 
-(defn beta-check-args
+(defn beta-check
   ([^double a ^double b]
    (and (< 0.0 a) (< 0.0 b)))
-  ([^double x]
-   (< 0.0 x 1.0))
   ([^double a ^double b ^double x]
-   (and (beta-check-args a b) (beta-check-args x))))
+   (and (beta-check a b) (<= 0.0 x 1.0))))
 
 (defn beta-log-unscaled
   ^double [^double a ^double b ^double x]
@@ -506,7 +504,8 @@
   (- (log-beta a b)))
 
 (defn beta-params [^double a ^double b]
-  [a b (beta-log-scale a b)])
+  (when (beta-check a b)
+    [a b (beta-log-scale a b)]))
 
 (defn beta-log-pdf
   ^double [^double a ^double b ^double x]
@@ -519,6 +518,23 @@
 (defn beta-mean
   ^double [^double a ^double b]
   (/ a (+ a b)))
+
+(defn beta-median
+  ^double [^double a ^double b]
+  (cond
+    (= a b) 0.5
+    (and (= 1.0 a) (< 0.0 b)) (- 1.0 (pow 2.0 (- (/ 1.0 b))))
+    (and (= 1.0 b) (< 0.0 a)) (pow 2.0 (- (/ 1.0 a)))
+    (and (= 3.0 a) (= 2.0 b)) 0.6142724318676105
+    (and (= 2.0 a) (= 3.0 b)) 0.38572756813238945
+    (and (< 1.0 a) (< 1.0 b)) (/ (- a (/ 1.0 3.0)) (- (+ a b) (/ 2.0 3.0)))
+    :default Double/NaN))
+
+(defn beta-mode
+  ^double [^double a ^double b]
+  (if (and (< 1.0 a) (< 1.0 b))
+    (/ (dec a) (- (+ a b) 2.0))
+    Double/NaN))
 
 (defn beta-variance
   ^double [^double a ^double b]

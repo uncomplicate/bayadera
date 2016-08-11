@@ -77,15 +77,18 @@
  (t-mean 2.3 0.4) => 0.4
  (t-mode 2.3 0.4) => 0.4
  (t-median 2.3 0.4) => 0.4
- (t-log-pdf 2.3 3.9 3.1 3.5) => -2.1680471922538787
- (t-pdf 2.3 3.9 3.1 3.5) => 0.114400801693134
- (t-variance 2.3 3.1) => 73.67666666666672)
+ (t-variance 2.3 3.1) => 73.67666666666672
+ (t-pdf 2.45 2.34) => (roughly 0.047657)
+ (- (t-cdf 2.45 3.12) (t-cdf 2.45 2.34)) => (roughly 0.02602))
 
 (facts
  "Beta Distribution"
+ (beta-check 3 4) => true
+ (beta-check -2 0) => false
+ (beta-params 2.3 3.3) => [2.3 3.3 2.978625424679165]
+ (beta-params 2.3 -3.3) => nil
  (beta-pdf 2.3 3.3 0.14) => (roughly 1.079)
  (beta-cdf 2.3 3.3 0.18) => (roughly 0.122)
-
  (beta-cdf 4.343 6.5454 0.0) => 0.0
  (beta-cdf 4.232 1.232 1.0) => 1.0)
 
@@ -93,8 +96,3 @@
  "Gamma Distribution"
  (gamma-pdf 3.3 3 5.77) => (roughly (erlang-pdf (/ 1 3.3) 3 5.77))
  (gamma-cdf 4.57 5 13.33) => (erlang-cdf (/ 1 4.57) 5 13.33))
-
-(facts
- "Student's t distribution"
- (t-pdf 2.45 2.34) => (roughly 0.047657)
- (- (t-cdf 2.45 3.12) (t-cdf 2.45 2.34)) => (roughly 0.02602))
