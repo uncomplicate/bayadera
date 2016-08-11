@@ -554,8 +554,16 @@
   ^double [^double theta ^double k]
   (- (+ (log-gamma k) (* k (log theta)))))
 
-(defn gamma-params [^double theta ^double k]
-  [theta k (gamma-log-scale theta k)])
+(defn gamma-check
+  ([^double theta ^double k]
+   (and (< 0.0 theta) (< 0.0 k)))
+  ([^double theta ^double k ^double x]
+   (and (< 0.0 theta) (< 0.0 k) (< 0.0 x))))
+
+(defn gamma-params
+  [^double theta ^double k]
+  (when (gamma-check theta k)
+    [theta k (gamma-log-scale theta k)]))
 
 (defn gamma-log-pdf
   ^double [^double theta ^double k ^double x]
@@ -568,6 +576,11 @@
 (defn gamma-mean
   ^double [^double theta ^double k]
   (* k theta))
+
+(defn gamma-mode
+  ^double [^double theta ^double k]
+  (if (<= 1.0 k)
+    (* (dec k) theta)))
 
 (defn gamma-variance
   ^double [^double theta ^double k]

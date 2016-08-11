@@ -94,5 +94,9 @@
 
 (facts
  "Gamma Distribution"
+ (gamma-check 3 4) => true
+ (gamma-check -2 0) => false
+ (gamma-params 2.3 3.3) => [2.3 3.3 -3.7356986835805768]
+ (gamma-params 2.3 -3.3) => nil
  (gamma-pdf 3.3 3 5.77) => (roughly (erlang-pdf (/ 1 3.3) 3 5.77))
  (gamma-cdf 4.57 5 13.33) => (erlang-cdf (/ 1 4.57) 5 13.33))

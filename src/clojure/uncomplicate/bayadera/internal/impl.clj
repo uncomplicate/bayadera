@@ -243,6 +243,10 @@
   Location
   (mean [_]
     (gamma-mean theta k))
+  (mode [_]
+    (gamma-mode theta k))
+  (median [_]
+    (throw (java.lang.UnsupportedOperationException. "No closed form for gamma median.")))
   Spread
   (variance [_]
     (gamma-variance theta k))
