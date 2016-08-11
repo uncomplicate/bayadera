@@ -159,9 +159,6 @@
 (defn evidence ^double [dist xs]
   (p/evidence (p/engine dist) (p/parameters dist) (p/data xs)))
 
-;;(defn pdf1 ^double [dist ^double x]
-;;  (p/pdf1 dist x))
-
 ;; ================= Estimation ===============================================
 
 (defn sampler

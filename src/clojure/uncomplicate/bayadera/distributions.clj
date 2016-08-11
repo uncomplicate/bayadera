@@ -322,8 +322,12 @@
 
 ;; ==================== Uniform Distribution ================
 
+(defn uniform-check [^double a ^double b]
+  (< a b))
+
 (defn uniform-params [^double a ^double b]
-  [a b])
+  (when (uniform-check a b)
+    [a b]))
 
 (defn uniform-pdf
   ^double [^double a ^double b ^double x]
@@ -338,6 +342,10 @@
 (defn uniform-mean
   ^double [^double a ^double b]
   (* (+ a b) 0.5))
+
+(def uniform-mode uniform-mean)
+
+(def uniform-median uniform-mean)
 
 (defn uniform-variance
   ^double [^double a ^double b]

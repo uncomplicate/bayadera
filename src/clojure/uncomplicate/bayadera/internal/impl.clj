@@ -115,6 +115,10 @@
   Location
   (mean [_]
     (uniform-mean a b))
+  (mode [_]
+    (uniform-mode a b))
+  (median [_]
+    (uniform-median a b))
   Spread
   (variance [_]
     (uniform-variance a b))

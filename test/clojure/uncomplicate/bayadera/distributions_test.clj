@@ -31,6 +31,7 @@
  (exponential-check 0 4) => false
  (exponential-check 4 0) => false
  (exponential-params 0.2) => [0.2 -1.6094379124341003]
+ (exponential-params -0.2) => nil
  (exponential-mode 0.4) => 0.0
  (exponential-median 0.4) => 1.732867951399863)
 
@@ -40,9 +41,19 @@
  (erlang-check 0 4) => false
  (erlang-check 4 0) => false
  (erlang-params 0.2 7) => [0.2 7 -17.845316599048804]
+ (erlang-params 2 0.7) => nil
  (erlang-mode 0.4 2) => 2.5
  (Double/isNaN (erlang-mode 0.4 0)) => true
  (erlang-median 2.0 7) => 3.6732673267326734)
+
+(facts
+ "Uniform Distribution + see examples/fapsp"
+ (uniform-check 0.3 5) => true
+ (uniform-check 4 0) => false
+ (uniform-params 0.2 7) => [0.2 7.0]
+ (uniform-mean 0.4 2) => 1.2
+ (uniform-mode 0.4 2) => 1.2
+ (uniform-median 0.4 2) => 1.2)
 
 (facts
  "Beta Distribution"
