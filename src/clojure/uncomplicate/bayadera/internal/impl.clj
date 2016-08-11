@@ -162,6 +162,10 @@
   Location
   (mean [_]
     (t-mean nu mu))
+  (mode [_]
+    (t-mode nu mu))
+  (median [_]
+    (t-median nu mu))
   Spread
   (variance [_]
     (t-variance nu sigma))

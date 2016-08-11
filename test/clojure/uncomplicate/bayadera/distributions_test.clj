@@ -67,6 +67,21 @@
  (gaussian-median 0.4) => 0.4)
 
 (facts
+ "Student's t Distribution"
+ (t-check 0.3) => true
+ (t-check 0) => false
+ (t-check 2.0 3.0 0.5) => true
+ (t-check 2.0 3.0 -0.5) => false
+ (t-params 0.2) => [0.2 0.0 1.0 -1.6221247803726204]
+ (t-params 0.2 -2 -2.0) => nil
+ (t-mean 2.3 0.4) => 0.4
+ (t-mode 2.3 0.4) => 0.4
+ (t-median 2.3 0.4) => 0.4
+ (t-log-pdf 2.3 3.9 3.1 3.5) => -2.1680471922538787
+ (t-pdf 2.3 3.9 3.1 3.5) => 0.114400801693134
+ (t-variance 2.3 3.1) => 73.67666666666672)
+
+(facts
  "Beta Distribution"
  (beta-pdf 2.3 3.3 0.14) => (roughly 1.079)
  (beta-cdf 2.3 3.3 0.18) => (roughly 0.122)

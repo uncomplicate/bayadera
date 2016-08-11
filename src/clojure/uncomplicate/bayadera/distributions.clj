@@ -202,7 +202,7 @@
 ;; ==================== Poisson Distribution ================
 ;; TODO
 
-(defn poisson-check-args
+(defn poisson-check
   [^double lambda ^long k]
   (and (< 0 lambda) (<= 0 k)))
 
@@ -229,8 +229,10 @@
 ;; ==================== Exponential Distribution ================
 
 (defn exponential-check
-  [^double lambda ^double x]
-  (and (< 0.0 lambda) (< 0.0 x)))
+  ([^double lambda]
+   (< 0.0 lambda))
+  ([^double lambda ^double x]
+   (and (< 0.0 lambda) (< 0.0 x))))
 
 (defn exponential-params
   [^double lambda]
@@ -273,8 +275,10 @@
 ;; ==================== Erlang Distribution ================
 
 (defn erlang-check
-  [^double lambda ^long k]
-  (and (< 0.0 lambda) (< 0 k)))
+  ([^double lambda ^long k]
+   (and (< 0.0 lambda) (< 0 k)))
+  ([^double lambda ^long k ^double x]
+   (and (< 0.0 lambda) (< 0 k) (<= 0.0 x))))
 
 (defn erlang-log-unscaled
   ^double [^double lambda ^long k ^double x]
@@ -322,10 +326,14 @@
 
 ;; ==================== Uniform Distribution ================
 
-(defn uniform-check [^double a ^double b]
-  (< a b))
+(defn uniform-check
+  ([^double a ^double b]
+   (< a b))
+  ([^double a ^double b ^double x]
+   (< a b)))
 
-(defn uniform-params [^double a ^double b]
+(defn uniform-params
+  [^double a ^double b]
   (when (uniform-check a b)
     [a b]))
 
@@ -404,12 +412,6 @@
 
 ;; ==================== Student's t distribution ================
 
-(defn t-log-unscaled
-  (^double [^double nu ^double x]
-   (- (* 0.5 (inc nu) (log (inc (/ (* x x) nu))))))
-  (^double [^double nu ^double mu ^double sigma ^double x]
-   (t-log-unscaled nu (/ (- x mu) sigma))))
-
 (let [log-sqrt-pi (log (sqrt Math/PI))]
 
   (defn t-log-scale
@@ -419,11 +421,26 @@
     (^double [^double nu ^double sigma]
      (- (t-log-scale nu) (log sigma)))))
 
+(defn t-check
+  ([^double nu]
+   (< 0.0 nu))
+  ([^double nu ^double mu ^double sigma]
+   (and (< 0.0 nu) (< 0.0 sigma)))
+  ([^double nu ^double mu ^double sigma ^double x]
+   (t-check nu mu sigma)))
+
 (defn t-params
   ([^double nu ^double mu ^double sigma]
-   [nu mu sigma (t-log-scale nu sigma)])
+   (when (t-check nu mu sigma)
+     [nu mu sigma (t-log-scale nu sigma)]))
   ([^double nu]
    (t-params nu 0.0 1.0)))
+
+(defn t-log-unscaled
+  (^double [^double nu ^double x]
+   (- (* 0.5 (inc nu) (log (inc (/ (* x x) nu))))))
+  (^double [^double nu ^double mu ^double sigma ^double x]
+   (t-log-unscaled nu (/ (- x mu) sigma))))
 
 (defn t-log-pdf
   (^double [^double nu ^double x]
@@ -442,6 +459,10 @@
    (t-mean nu 0.0))
   (^double [^double nu ^double mu]
    (if (< 1.0 nu) mu Double/NaN)))
+
+(def t-mode t-mean)
+
+(def t-median t-mean)
 
 (defn t-variance
   (^double [^double nu]
