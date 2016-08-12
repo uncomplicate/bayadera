@@ -45,6 +45,14 @@
  (hypergeometric-mode 10 4 3) => 4)
 
 (facts
+ "Poisson Distribution + see examples/fapsp"
+ (poisson-check 10 4) => true
+ (poisson-check 0 14) => false
+ (poisson-params 10) => [10.0]
+ (poisson-params -1.0) => nil
+ (poisson-mode 10.3) => 10)
+
+(facts
  "Exponential Distribution + see examples/fapsp"
  (exponential-check 0.3 5) => true
  (exponential-check 0 4) => false

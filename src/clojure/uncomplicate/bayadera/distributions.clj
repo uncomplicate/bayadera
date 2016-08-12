@@ -31,7 +31,7 @@
 
 (defn binomial-params
   [^long n ^double p]
-  (when (and (<= 0 n) (probability? p))
+  (when (binomial-check n p)
     [n p]))
 
 (defn binomial-log-pmf
@@ -81,8 +81,10 @@
 ;; ==================== Geometric Distribution ====================
 
 (defn geometric-check
-  [^double p ^long k]
-  (and (< 0 k) (probability? p)))
+  ([^double p]
+   (probability? p))
+  ([^double p ^long k]
+   (and (< 0 k) (probability? p))))
 
 (defn geometric-params
   [^double p]
@@ -205,11 +207,16 @@
       (recur (inc j) (+ res (hypergeometric-pmf N K n j))))))
 
 ;; ==================== Poisson Distribution ================
-;; TODO
-
 (defn poisson-check
-  [^double lambda ^long k]
-  (and (< 0 lambda) (<= 0 k)))
+  ([^double lambda]
+   (< 0 lambda))
+  ([^double lambda ^long k]
+   (and (< 0 lambda) (<= 0 k))))
+
+(defn poisson-params
+  [^double lambda]
+  (when (poisson-check lambda)
+    [lambda]))
 
 (defn poisson-log-pmf
   ^double [^double lambda ^long k]
@@ -222,6 +229,14 @@
 (defn poisson-mean
   ^double [^double lambda]
   lambda)
+
+(defn poisson-mode
+  ^long [^double lambda]
+  (long (floor lambda)))
+
+(defn poisson-median
+  ^long [^double lambda]
+  (long (floor (+ lambda (double 1/3) (/ -0.02 lambda)))))
 
 (defn poisson-variance
   ^double [^double lambda]
