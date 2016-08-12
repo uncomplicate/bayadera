@@ -10,27 +10,16 @@ inline REAL binomial_log(const REAL n, const REAL p, const REAL k) {
     return (k * native_log(p)) + ((n - k) * native_log(1 - p)) + lbinco(n, k);
 }
 
-inline bool binomial_check_p(const REAL p) {
-    return (0.0f < p) && (p < 1.0f);
-}
-
-inline bool binomial_check_nk(const REAL n, const REAL k) {
-    return (0.0f <= k) && (k <= n);
-}
-
 // ============= With params ========================================
 
 REAL binomial_mcmc_logpdf(__constant const REAL* params, const REAL* k) {
-    return binomial_check_nk(params[0], k[0]) ?
-        binomial_log_unscaled(params[0], params[1], k[0]) : NAN;
+    return binomial_log_unscaled(params[0], params[1], k[0]);
 }
 
 REAL binomial_logpdf(__constant const REAL* params, const REAL* k) {
-    return binomial_check_nk(params[0], k[0]) ?
-        binomial_log(params[0], params[1], k[0]) : NAN;
+    return binomial_log(params[0], params[1], k[0]);
 }
 
 REAL binomial_loglik(__constant const REAL* params, const REAL* p) {
-    return binomial_check_p(p[0]) ?
-        binomial_log_unscaled(params[0], p[0], params[1]) : NAN;
+    return binomial_log_unscaled(params[0], p[0], params[1]);
 }

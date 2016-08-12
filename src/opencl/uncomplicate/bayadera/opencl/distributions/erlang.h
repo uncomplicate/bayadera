@@ -13,10 +13,10 @@ inline REAL erlang_log(const REAL lambda, const REAL k, const REAL x) {
 // ============= With params ========================================
 
 REAL erlang_mcmc_logpdf(__constant const REAL* params, const REAL* x) {
-    return (0.0f < x[0]) ? erlang_log_unscaled(params[0], params[1], x[0]) :NAN;
+    return erlang_log_unscaled(params[0], params[1], x[0]);
 }
 
 
 REAL erlang_logpdf(__constant const REAL* params, const REAL* x) {
-    return (0.0f < x[0]) ? erlang_log_unscaled(params[0], params[1], x[0]) + params[2] :NAN;
+    return erlang_log_unscaled(params[0], params[1], x[0]) + params[2];
 }

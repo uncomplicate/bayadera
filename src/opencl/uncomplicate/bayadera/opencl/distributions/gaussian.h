@@ -29,10 +29,13 @@ REAL gaussian_loglik(__constant const REAL* data, const REAL* mu_sigma) {
     const uint n = (uint) data[0];
     const REAL mu = mu_sigma[0];
     const REAL sigma = mu_sigma[1];
-    REAL res = gaussian_log_unscaled(mu, sigma, data[1])
-        + n * gaussian_log_scale(sigma);
-    for (uint i = 1; i < n; i++){
-        res += gaussian_log_unscaled(mu, sigma, data[i+1]);
+    if (0.0f < sigma) {
+        REAL res = gaussian_log_unscaled(mu, sigma, data[1])
+            + n * gaussian_log_scale(sigma);
+        for (uint i = 1; i < n; i++){
+            res += gaussian_log_unscaled(mu, sigma, data[i+1]);
+        }
+        return res;
     }
-    return res;
+    return NAN;
 }

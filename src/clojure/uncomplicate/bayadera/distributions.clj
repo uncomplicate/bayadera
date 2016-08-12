@@ -415,16 +415,20 @@
        (* sigma sqrt-2pi)))
 
   (defn gaussian-mean
-    ^double [^double mu]
-    mu)
+    (^double [^double mu]
+     mu)
+    (^double [^double mu ^double sigma]
+     mu))
 
   (def gaussian-mode gaussian-mean)
 
   (def gaussian-median gaussian-mean)
 
   (defn gaussian-variance
-    ^double [^double sigma]
-    (* sigma sigma))
+    (^double [^double mu ^double sigma]
+     (* sigma sigma))
+    (^double [^double sigma]
+     (* sigma sigma)))
 
   (defn gaussian-cdf
     ^double [^double mu ^double sigma ^double x]
@@ -475,23 +479,27 @@
    (exp (t-log-pdf nu mu sigma x))))
 
 (defn t-mean
+  (^double [^double nu ^double mu]
+   (if (< 1.0 nu) mu Double/NaN))
   (^double [^double nu]
    (t-mean nu 0.0))
-  (^double [^double nu ^double mu]
-   (if (< 1.0 nu) mu Double/NaN)))
+  (^double [^double nu ^double mu ^double sigma]
+   (t-mean nu mu)))
 
 (def t-mode t-mean)
 
 (def t-median t-mean)
 
 (defn t-variance
-  (^double [^double nu]
-   (t-variance nu 1.0))
   (^double [^double nu ^double sigma]
    (cond
      (< 2.0 nu) (* sigma sigma (/ nu (- nu 2.0)))
      (and (< 1.0 nu) (<= nu 2)) Double/POSITIVE_INFINITY
-     :default Double/NaN)))
+     :default Double/NaN))
+  (^double [^double nu]
+   (t-variance nu 1.0))
+  (^double [^double nu ^double mu ^double sigma]
+   (t-variance nu sigma)))
 
 (defn t-cdf
   (^double [^double nu ^double x]

@@ -10,8 +10,8 @@
  "Binomial Distribution + see examples/fapsp"
  (binomial-params 7 0.3) => [7 0.3]
  (binomial-params -1 7) => nil
- (binomial-check-nk 9 0) => true
- (binomial-check-nk 9 10) => false
+ (binomial-check 9 0.4 0) => true
+ (binomial-check 9 0.34 10) => false
  (binomial-mode 4 0.8) => 4
  (binomial-median 4 0.8) => 3)
 
