@@ -163,14 +163,18 @@
       0.0)))
 
 ;; ==================== Hyper-geometric Distribution ================
-;;TODO
 
-(defn hypergeometric-check-args
-  ([^long k ^long n]
-   (<= 0 k n))
+(defn hypergeometric-check
+  ([^long N ^long K ^long n]
+   (and (<= 0 K N) (<= 0 (min n (- N K))) (<= 0 n N) ))
   ([^long N ^long K ^long n ^long k]
-   (and (<= K N) (<= 0 k (min n (- N K)))
-        (<= n N) (<= k K) (<= (- n k) (- N K)))))
+   (and (<= 0 K N) (<= 0 k (min n (- N K)))
+        (<= 0 n N) (<= 0 k K) (<= (- n k) (- N K)))))
+
+(defn hypergeometric-params
+  [^long N ^long K ^long n]
+  (when (hypergeometric-check N K n)
+    [N K n]))
 
 (defn hypergeometric-log-pmf
   ^double [^long N ^long K ^long n ^long k]
@@ -184,6 +188,10 @@
 (defn hypergeometric-mean
   ^double [^long N ^long K ^long n]
   (/ (* n K) N))
+
+(defn hypergeometric-mode
+  ^long [^long N ^long K ^long n]
+  (long (floor (/ (* (inc n) (inc K)) (+ n 2)))))
 
 (defn hypergeometric-variance
   ^double [^long N ^long K ^long n]

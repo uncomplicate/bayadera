@@ -37,6 +37,14 @@
  (pascal-mode 5 0.24) => 17)
 
 (facts
+ "Hypergeometric Distribution + see examples/fapsp"
+ (hypergeometric-check 10 4 3 3) => true
+ (hypergeometric-check 10 14 3 3) => false
+ (hypergeometric-params 10 4 3) => [10 4 3]
+ (hypergeometric-params 3 10 2) => nil
+ (hypergeometric-mode 10 4 3) => 4)
+
+(facts
  "Exponential Distribution + see examples/fapsp"
  (exponential-check 0.3 5) => true
  (exponential-check 0 4) => false
