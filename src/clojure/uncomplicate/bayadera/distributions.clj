@@ -1,11 +1,11 @@
 (ns ^{:author "Dragan Djuric"}
     uncomplicate.bayadera.distributions
   (:require [uncomplicate.commons.core :refer [double-fn]]
-            [uncomplicate.fluokitten.core :refer [foldmap fmap]]
+            [uncomplicate.fluokitten.core :refer [foldmap fmap!]]
             [uncomplicate.neanderthal
-             [math :refer [log exp pow floor sqrt ceil]]
-             [core :refer [scal! copy! copy]]
-             [real :refer [asum]]]
+             [math :refer [log exp pow floor sqrt ceil f=]]
+             [core :refer [scal! copy! copy dim raw]]
+             [real :refer [asum entry]]]
             [uncomplicate.bayadera.math
              :refer [log-factorial factorial log-binco log-multico
                      log-beta log-gamma gamma erf incomplete-gamma-l
@@ -23,13 +23,11 @@
 
 ;; ==================== Binomial distribution ====================
 
-(defn binomial-check-nk
-  [^long n ^long k]
-  (<= 0 k n))
-
 (defn binomial-check
-  [^long n ^double p ^long k]
-  (and (probability? p) (binomial-check-nk n k)))
+  ([^long n ^long p]
+   (<= 0 n) (probability? p))
+  ([^long n ^double p ^long k]
+   (and (binomial-check n p) (<= 0 k n))))
 
 (defn binomial-params
   [^long n ^double p]
@@ -69,7 +67,7 @@
 ;; ============ Binomial (Bernoulli) Likelihood ===================
 
 (defn binomial-lik-params [^long n ^long k]
-  (when (binomial-check-nk n k)
+  (when (<= 0 k n)
     [n k]))
 
 (defn binomial-log-lik
@@ -125,17 +123,15 @@
 
 ;; ==================== Negative Binomial (Pascal) Distribution ================
 
-(defn pascal-check-nk
-  [^long k ^long n]
-  (and (< 0 k) (<= k n)))
-
 (defn pascal-check
-  [^long k ^double p ^long n]
-  (and (probability? p) (pascal-check-nk k n)))
+  ([^long k ^double p]
+   (and (< 0 k) (probability? p)))
+  ([^long k ^double p ^long n]
+   (and (< 0 k) (<= 0 k n) (probability? p))))
 
 (defn pascal-params
   [^long k ^double p]
-  (when (and (< 0 k) (probability? p))
+  (when (pascal-check k p)
     [k p]))
 
 (defn pascal-log-pmf
@@ -150,8 +146,9 @@
   ^double [^long k ^double p]
   (/ k p))
 
-;;TODO mode
-;;TODO median
+(defn pascal-mode
+  ^long [^long k ^double p]
+  (long (floor (inc (/ (dec k) p)))))
 
 (defn pascal-variance
   ^double [^long k ^double p]
@@ -609,21 +606,47 @@
              (- (* k (log p)) (log-factorial k)))
            ps ks))
 
+(defn multinomial-check
+  ([ps]
+   (let [n (dim ps)]
+     (loop [i 0 sum 0.0]
+       (if (and (< i n) (probability? (entry ps i)))
+         (recur (inc i) (+ sum (entry ps i)))
+         (and (= i n) (f= (float sum) (float 1.0) (sqrt n)))))))
+  ([ps ks]
+   (and (= (dim ps) (dim ks))
+        (multinomial-check ps)
+        (let [n (dim ks)]
+          (loop [i 0]
+            (if (and (< i n) (<= 0 (entry ks i)))
+              (recur (inc i))
+              (= i n)))))))
+
 (defn multinomial-pmf
   ^double [ps ks]
   (exp (multinomial-log-pmf ps ks)))
 
 (defn multinomial-mean
-  (^double [ps ks result]
-   (scal! (asum ks) (copy! ps result)))
-  (^double [ps ks]
-   (scal! (asum ks) (copy ps))))
+  ([ps ^long n result]
+   (scal! n (copy! ps result)))
+  ([ps ^long n]
+   (scal! n (copy ps))))
+
+(defn multinomial-mode
+  ([ps ^long n result]
+   (scal! (inc n) (copy! ps result)))
+  ([ps ^long n]
+   (scal! (inc n) (copy ps))))
+
+(def multinomial-median multinomial-mean)
 
 (defn multinomial-variance
-  ^double [ps ks]
-  (scal! (fmap (fn ^double [^double p]
-                 (* p (- 1.0 p)))
-               ps)))
+  ([ps ^long n result]
+   (fmap! (fn ^double [^double p]
+            (* n p (- 1.0 p)))
+          (copy! ps result)))
+  ([ps ^long n]
+   (multinomial-variance ps n (raw ps))))
 
 (defn multinomial-cdf
   ^double [ps ks]

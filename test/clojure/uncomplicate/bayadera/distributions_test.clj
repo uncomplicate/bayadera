@@ -1,6 +1,9 @@
 (ns ^{:author "Dragan Djuric"}
     uncomplicate.bayadera.distributions-test
   (:require [midje.sweet :refer :all]
+            [uncomplicate.neanderthal
+             [core :refer [sum]]
+             [native :refer [sv]]]
             [uncomplicate.bayadera.distributions :refer :all]))
 
 (facts
@@ -24,6 +27,14 @@
  (geometric-params 1.2) => nil
  (geometric-median 0.24) => 4
  (geometric-mode 0.33) => 1)
+
+(facts
+ "Pascal (Negative Binomial) Distribution + see examples/fapsp"
+ (pascal-check 3 0.3) => true
+ (pascal-check 0 0) => false
+ (pascal-params 3 0.4) => [3 0.4]
+ (pascal-params 3 1.2) => nil
+ (pascal-mode 5 0.24) => 17)
 
 (facts
  "Exponential Distribution + see examples/fapsp"
@@ -100,3 +111,14 @@
  (gamma-params 2.3 -3.3) => nil
  (gamma-pdf 3.3 3 5.77) => (roughly (erlang-pdf (/ 1 3.3) 3 5.77))
  (gamma-cdf 4.57 5 13.33) => (erlang-cdf (/ 1 4.57) 5 13.33))
+
+(facts
+ "Multinomial Distribution + see examples/fapsp"
+ (multinomial-check (sv 0.2 0.3 0.5)) => true
+ (multinomial-check (sv 0.2 0.3 0.6)) => false
+ (multinomial-check (sv 0.2 0.3 3)) => false
+ (multinomial-check (sv 0.2 0.3 0.5) (sv 1 2 3)) => true
+ (multinomial-check (sv 0.2 0.3 5) (sv 1 2 3)) => false
+ (multinomial-check (sv 0.2 0.3 0.5) (sv 1 2 -3)) => false
+ (multinomial-mean (sv 0.2 0.3 0.5) 10) => (sv 2 3 5)
+ (sum (multinomial-variance (sv 0.2 0.3 0.5) 10)) => (roughly (sum (sv 1.6 2.1 2.5))))
