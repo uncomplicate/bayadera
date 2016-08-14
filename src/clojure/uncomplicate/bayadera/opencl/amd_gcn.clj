@@ -22,7 +22,8 @@
              [util :refer [srand-int]]]
             [uncomplicate.bayadera.opencl
              [util :refer [get-tmp-dir-name copy-philox clean-random123 with-philox]]
-             [models :refer [source sampler-source distributions samplers likelihoods]]])
+             [models :refer [source sampler-source distributions samplers likelihoods
+                             CLModel]]])
   (:import [uncomplicate.neanderthal.protocols DataAccessor]))
 
 ;; ============================ Private utillities =============================
@@ -467,7 +468,7 @@
   (sd [this]
     (fmap! sqrt (variance this))))
 
-(deftype GCNStretchFactory [ctx queue neanderthal-factory prog model ^long DIM ^long WGS]
+(deftype GCNStretchFactory [ctx queue prog neanderthal-factory model ^long DIM ^long WGS]
   Releaseable
   (release [_]
     (release prog))
@@ -601,8 +602,8 @@
                                  (mcmc-logpdf model) (params-size model)
                                  (dimension model) WGS tmp-dir-name)
                          nil)]
-       (->GCNStretchFactory ctx cqueue neanderthal-factory
-                            prog model (dimension model) WGS)))
+       (->GCNStretchFactory ctx cqueue prog neanderthal-factory
+                            model (dimension model) WGS)))
     ([ctx cqueue neanderthal-factory model]
      (let [tmp-dir-name (get-tmp-dir-name)]
        (with-philox tmp-dir-name
@@ -631,6 +632,10 @@
     (release-deref (vals mcmc-factories))
     (clean-random123 tmp-dir-name)
     true)
+  np/MemoryContext
+  (compatible [_ o]
+    (or (satisfies? CLModel o)
+        (np/compatible neanderthal-factory o)))
   DistributionEngineFactory
   (distribution-engine [_ model]
     (if-let [eng (distribution-engines model)]

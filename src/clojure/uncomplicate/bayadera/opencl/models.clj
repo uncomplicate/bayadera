@@ -3,8 +3,8 @@
   (:require [clojure.java.io :as io]
             [uncomplicate.commons.core :refer [Releaseable release]]
             [uncomplicate.neanderthal
-             [core :as nc]
              [protocols :as np]
+             [core :refer [copy]]
              [native :refer [sge]]]
             [uncomplicate.bayadera
              [protocols :refer :all]]))
@@ -19,6 +19,9 @@
   Releaseable
   (release [_]
     true)
+  np/MemoryContext
+  (compatible [_ o]
+    (satisfies? CLModel o))
   Model
   (params-size [_]
     lik-params-size)
@@ -47,6 +50,9 @@
   Releaseable
   (release [_]
     (release model-limits))
+  np/MemoryContext
+  (compatible [_ o]
+    (satisfies? CLModel o))
   Model
   (params-size [_]
     dist-params-size)
@@ -89,7 +95,10 @@
                            model-limits model-source likelihood-model]
   Releaseable
   (release [_]
-    (release likelihood-model))
+    (release model-limits))
+  np/MemoryContext
+  (compatible [_ o]
+    (satisfies? CLModel o))
   Model
   (params-size [_]
     dist-params-size)
@@ -114,16 +123,6 @@
   (model [this]
     this))
 
-(defn cl-likelihood-model
-  [source & {:keys [name loglik params-size]
-             :or {name (str (gensym "likelihood"))
-                  loglik (format "%s_loglik" name)
-                  params-size 1}}]
-  (->CLLikelihoodModel name loglik params-size
-                       (if (sequential? source) source [source])))
-
-;; ================ Posterior multimethod implementations ======================
-
 (let [post-source (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/posterior.cl"))]
 
   (defn cl-posterior-model [prior name lik]
@@ -134,7 +133,7 @@
                               (long (params-size prior)))]
       (->CLPosteriorModel post-name post-logpdf post-mcmc-logpdf
                           (dimension prior) post-params-size
-                          (limits prior)
+                          (copy (limits prior))
                           (conj (vec (distinct (into (source prior) (source lik))))
                                 (format "%s\n%s"
                                         (format post-source post-logpdf

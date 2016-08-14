@@ -41,7 +41,7 @@
     (fmap! sqrt (variance this)))
   EstimateEngine
   (histogram [this]
-    (histogram this data-matrix)))
+    (histogram dataset-eng data-matrix)))
 
 (deftype DirectSampler [samp-engine params sample-count ^ints fseed]
   Releaseable
@@ -67,6 +67,9 @@
   Releaseable
   (release [_]
     (release params))
+  np/MemoryContext
+  (compatible [_ o]
+    (np/compatible bayadera-factory o))
   SamplerProvider
   (sampler [_ options]
     (->DirectSampler (direct-sampler bayadera-factory :gaussian) params
@@ -100,6 +103,9 @@
   Releaseable
   (release [_]
     (release params))
+  np/MemoryContext
+  (compatible [_ o]
+    (np/compatible bayadera-factory o))
   SamplerProvider
   (sampler [_ options]
     (->DirectSampler (direct-sampler bayadera-factory :uniform) params
@@ -134,6 +140,9 @@
   Releaseable
   (release [_]
     (release params))
+  np/MemoryContext
+  (compatible [_ o]
+    (np/compatible bayadera-factory o))
   SamplerProvider
   (sampler [this options]
     (let [walkers (or (:walkers options)
@@ -176,6 +185,9 @@
   Releaseable
   (release [_]
     (release params))
+  np/MemoryContext
+  (compatible [_ o]
+    (np/compatible bayadera-factory o))
   SamplerProvider
   (sampler [this options]
     (let [walkers (or (:walkers options)
@@ -216,6 +228,9 @@
   Releaseable
   (release [_]
     (release params))
+  np/MemoryContext
+  (compatible [_ o]
+    (np/compatible bayadera-factory o))
   SamplerProvider
   (sampler [this options]
     (let [walkers (or (:walkers options)
@@ -257,6 +272,9 @@
   Releaseable
   (release [_]
     (release params))
+  np/MemoryContext
+  (compatible [_ o]
+    (np/compatible bayadera-factory o))
   SamplerProvider
   (sampler [_ options]
     (->DirectSampler (direct-sampler bayadera-factory :exponential) params
@@ -291,6 +309,9 @@
   Releaseable
   (release [_]
     (release params))
+  np/MemoryContext
+  (compatible [_ o]
+    (np/compatible bayadera-factory o))
   SamplerProvider
   (sampler [_ options]
     (->DirectSampler (direct-sampler bayadera-factory :erlang) params
@@ -324,6 +345,9 @@
   Releaseable
   (release [_]
     (release params))
+  np/MemoryContext
+  (compatible [_ o]
+    (np/compatible bayadera-factory o))
   SamplerProvider
   (sampler [_ options]
     (let [walkers (or (:walkers options)

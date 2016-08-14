@@ -6,7 +6,7 @@
             [uncomplicate.neanderthal
              [protocols :as np]
              [math :refer [sqrt]]
-             [core :refer [transfer create-vector]]
+             [core :refer [transfer create-vector compatible?]]
              [native :refer [sv]]]
             [uncomplicate.bayadera
              [protocols :as p]
@@ -25,18 +25,15 @@
      (try ~@body
           (finally (release *bayadera-factory*)))))
 
-(defn ^:private compatible [factory x]
-  (= (np/factory factory) (np/factory x)))
-
 ;; =================== Dataset =================================================
 
 (defn dataset
   ([data-matrix]
    (dataset *bayadera-factory* data-matrix))
   ([factory data-matrix]
-   (if (compatible factory data-matrix)
+   (if (compatible? factory data-matrix)
      (->DatasetImpl (p/dataset-engine factory) data-matrix)
-     (throw (IllegalArgumentException. (format "Illegal data source: %s." data-matrix))))))
+     (throw (IllegalArgumentException. (format "Incompatible data source: %s." data-matrix))))))
 
 ;; =================== Distributions ===========================================
 
@@ -109,12 +106,18 @@
   ([model]
    (distribution *bayadera-factory* model))
   ([factory model]
-   (->DistributionCreator factory (p/distribution-engine factory model)
-                          (p/mcmc-factory factory model) model)))
+   (if (compatible? factory model)
+     (->DistributionCreator factory (p/distribution-engine factory model)
+                            (p/mcmc-factory factory model) model)
+     (throw (IllegalArgumentException. (format "Incompatible model type: %s." (type model)))))))
 
 (defn posterior-model
   ([name likelihood prior]
-   (p/posterior-model (p/model prior) name likelihood))
+   (if (compatible? likelihood (p/model prior))
+     (p/posterior-model (p/model prior) name likelihood)
+     (throw (IllegalArgumentException.
+             (format "Incompatible model types: %s and %s."
+                     (type likelihood) (type (p/mode prior)))))))
   ([likelihood prior]
    (posterior-model (str (gensym "posterior")) likelihood prior)))
 
@@ -122,15 +125,21 @@
   ([model]
    (posterior *bayadera-factory* model))
   ([factory model]
-   (->DistributionCreator factory (p/posterior-engine factory model)
-                          (p/mcmc-factory factory model) model))
+   (if (compatible? factory model)
+     (->DistributionCreator factory (p/posterior-engine factory model)
+                            (p/mcmc-factory factory model) model)
+     (throw (IllegalArgumentException. (format "Incompatible model type: %s." (type model))))))
   ([^String name likelihood prior]
    (posterior *bayadera-factory* name likelihood prior))
   ([factory ^String name likelihood prior]
    (let-release [dist-creator
                  (posterior factory (posterior-model name likelihood prior))]
      (if (satisfies? p/Distribution prior)
-       (->PosteriorCreator dist-creator (transfer (p/parameters prior)))
+       (if (compatible? factory (p/parameters prior))
+         (->PosteriorCreator dist-creator (transfer (p/parameters prior)))
+         (throw (IllegalArgumentException.
+                 (format "Incompatible parameters type: %s."
+                         (type (p/parameters prior))))))
        dist-creator))))
 
 ;; ====================== Measures =============================================
@@ -150,14 +159,25 @@
 (defn sd [x]
   (p/sd x))
 
+;;TODO rename to pd or density
 (defn pdf [dist xs]
-  (p/pdf (p/engine dist) (p/parameters dist) (p/data xs)))
+  (if (compatible? dist (p/data xs))
+    (p/pdf (p/engine dist) (p/parameters dist) (p/data xs))
+    (format "Incompatible xs: %s." (type xs))))
 
+;;TODO rename to log-pd or log-density
 (defn log-pdf [dist xs]
-  (p/log-pdf (p/engine dist) (p/parameters dist) (p/data xs)))
+  (if (compatible? dist (p/data xs))
+    (p/log-pdf (p/engine dist) (p/parameters dist) (p/data xs))
+    (format "Incompatible xs: %s." (type xs))))
+
+(defn likelihood [lik xs]
+  (throw (UnsupportedOperationException. "TODO")))
 
 (defn evidence ^double [dist xs]
-  (p/evidence (p/engine dist) (p/parameters dist) (p/data xs)))
+  (if (compatible? dist (p/data xs))
+    (p/evidence (p/engine dist) (p/parameters dist) (p/data xs))
+    (format "Incompatible xs: %s." (type xs))))
 
 ;; ================= Estimation ===============================================
 
