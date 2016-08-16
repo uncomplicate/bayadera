@@ -133,7 +133,7 @@
                               (long (params-size prior)))]
       (->CLPosteriorModel post-name post-logpdf post-mcmc-logpdf
                           (dimension prior) post-params-size
-                          (copy (limits prior))
+                          (when (limits prior) (copy (limits prior)))
                           (conj (vec (distinct (into (source prior) (source lik))))
                                 (format "%s\n%s"
                                         (format post-source post-logpdf
