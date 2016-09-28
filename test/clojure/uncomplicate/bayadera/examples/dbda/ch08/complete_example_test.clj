@@ -7,8 +7,10 @@
              [pause-on-error :refer [pause-on-error]]
              [fun-mode :refer [fun-mode]]]
             [uncomplicate.commons.core :refer [with-release]]
-            [uncomplicate.neanderthal.core
-             :refer [row native scal!]]
+            [uncomplicate.fluokitten.core :refer [op]]
+            [uncomplicate.neanderthal
+             [core :refer [row native scal!]]
+             [native :refer [sv]]]
             [uncomplicate.bayadera
              [protocols :as p]
              [core :refer :all]
@@ -36,7 +38,7 @@
                      prior-pdf (pdf prior-dist prior-sample)
                      post (posterior (posterior-model (:binomial likelihoods)
                                                       (:beta distributions)))
-                     post-dist (post (binomial-lik-params N z) (beta-params a b))
+                     post-dist (post (sv (op (binomial-lik-params N z) (beta-params a b))))
                      post-sampler (time (doto (sampler post-dist) (mix!)))
                      post-sample (dataset (sample! post-sampler))
                      post-pdf (scal! (/ 1.0 (evidence post-dist prior-sample))

@@ -44,7 +44,7 @@
                      prior-sample (dataset (sample! prior-sampler sample-count))
                      prior-pdf (pdf prior-dist prior-sample)
                      post (posterior "posterior" (:binomial likelihoods) prior-dist)
-                     post-dist (post (binomial-lik-params N z))
+                     post-dist (post (sv (binomial-lik-params N z)))
                      post-sampler (time (doto (sampler post-dist) (mix!)))
                      post-sample (dataset (sample! post-sampler sample-count))
                      post-pdf (scal! (/ 1.0 (evidence post-dist prior-sample))

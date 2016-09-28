@@ -31,6 +31,9 @@
     (sqrt (variance x))))
 
 (extend-type RealMatrix
+  Dataset
+  (data [this]
+    this)
   Location
   (mean [a]
     (let [m (mrows a)

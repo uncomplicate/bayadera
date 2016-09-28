@@ -9,7 +9,7 @@
              [protocols :as np]
              [math :refer [sqrt abs]]
              [core :refer [ecount transfer]]
-             [native :refer [sge]]]
+             [native :refer [sge sv]]]
             [uncomplicate.bayadera
              [protocols :refer :all]
              [math :refer [log-beta]]

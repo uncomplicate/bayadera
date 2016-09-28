@@ -1,9 +1,9 @@
 (defproject uncomplicate/bayadera "0.1.0-SNAPSHOT"
   :description "Bayesian Inference and Probabilistic Machine Learning Library for Clojure"
   :author "Dragan Djuric"
-  :url "http://github.com/blueberry/bayadera"
+  :url "http://github.com/uncomplicate/bayadera"
   :scm {:name "git"
-        :url "https://github.com/blueberry/bayadera"}
+        :url "https://github.com/uncomplicate/bayadera"}
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.8.0"]

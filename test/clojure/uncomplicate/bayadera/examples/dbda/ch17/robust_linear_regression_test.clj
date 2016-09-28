@@ -17,7 +17,7 @@
              [core :refer :all]
              [util :refer [bin-mapper hdi]]
              [opencl :refer [with-default-bayadera]]
-             [mcmc :refer [mix! burn-in! pow-n]]]
+             [mcmc :refer [mix! burn-in! pow-n acc-rate!]]]
             [uncomplicate.bayadera.opencl.models
              :refer [source-library cl-distribution-model cl-likelihood-model]]
             [uncomplicate.bayadera.toolbox
@@ -67,7 +67,6 @@
                    post-300-sampler (sampler post-300-dist {:limits (sge 2 4 [1 10 -400 100 0 20 0.01 100])})]
       (println (time (mix! post-30-sampler {:step 128})))
       (println (time (mix! post-300-sampler {:step 384})))
-      (println (time (uncomplicate.bayadera.protocols/run-sampler! post-300-sampler 64 2.0)))
       (println (uncomplicate.bayadera.mcmc/info post-300-sampler))
       [(histogram! post-30-sampler 1000)
        (histogram! post-300-sampler 1000)])))
