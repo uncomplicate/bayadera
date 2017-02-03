@@ -8,7 +8,8 @@
 
 (ns ^{:author "Dragan Djuric"}
     uncomplicate.bayadera.internal.extensions
-  (:require [uncomplicate.commons.core :refer [with-release let-release]]
+  (:require [uncomplicate.commons.core
+             :refer [with-release let-release Releaseable release releaseable?]]
             [uncomplicate.fluokitten.core :refer [fmap! fmap]]
             [uncomplicate.neanderthal
              [protocols :as np]
@@ -18,7 +19,7 @@
                            create-raw create create-vector]]
              [real :refer [entry! entry sum nrm2]]]
             [uncomplicate.bayadera.protocols :refer :all])
-  (:import [clojure.lang IPersistentCollection]
+  (:import [clojure.lang Sequential]
            [uncomplicate.neanderthal.protocols RealVector RealMatrix]))
 
 (extend-type RealVector
@@ -71,7 +72,7 @@
   (sd [a]
     (fmap! sqrt (variance a))))
 
-(extend-type IPersistentCollection
+(extend-type Sequential
   Location
   (mean [this]
     (if (first this)

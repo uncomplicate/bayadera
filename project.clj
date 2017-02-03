@@ -15,13 +15,13 @@
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.8.0"]
-                 [uncomplicate/commons "0.2.0"]
-                 [uncomplicate/fluokitten "0.5.1-SNAPSHOT"]
-                 [uncomplicate/clojurecl "0.6.4"]
-                 [uncomplicate/neanderthal "0.8.0-SNAPSHOT"]
+                 [uncomplicate/commons "0.3.0-SNAPSHOT"]
+                 [uncomplicate/fluokitten "0.5.2"]
+                 [uncomplicate/clojurecl "0.6.5"]
+                 [uncomplicate/neanderthal "0.8.0"]
                  [org.apache.commons/commons-math3 "3.6.1"]
                  [me.raynes/fs "1.4.6"]
-                 [quil "2.4.0"]]
+                 [quil "2.5.0"]]
 
   :aot [;;uncomplicate.bayadera.protocols
                                         ;uncomplicate.bayadera.impl
@@ -38,7 +38,7 @@
   :profiles {:dev {:dependencies [[midje "1.8.3"]
                                   [org.clojure/data.csv "0.1.3"]]
                    :plugins [[lein-midje "3.2"]
-                             [codox "0.9.5"]]
+                             [codox "0.10.1"]]
                    :global-vars {*warn-on-reflection* true
                                  *unchecked-math* :warn-on-boxed
                                  *print-length* 128}
