@@ -399,8 +399,8 @@
                           (transfer (np/factory bayadera-factory) params)
                           dist-model)
       (throw (IllegalArgumentException.
-              (format INVALID_PARAMS_MESSAGE (params-size dist-model)
-                      (ecount params))))))
+              (format INVALID_PARAMS_MESSAGE (ecount params) 
+                      (params-size dist-model))))))
   (invoke [this data hyperparams]
     (.invoke this (op data hyperparams)))
   ModelProvider
