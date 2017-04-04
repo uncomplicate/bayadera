@@ -8,10 +8,7 @@
 
 (ns ^{:author "Dragan Djuric"}
     uncomplicate.bayadera.mcmc
-  (:require [uncomplicate.neanderthal
-             [core :refer [iamax]]
-             [real :refer [entry]]
-             [math :refer [pow sqrt abs]]]
+  (:require [uncomplicate.neanderthal.math :refer [pow sqrt abs]]
             [uncomplicate.bayadera
              [protocols :as p]
              [util :refer [srand-int]]]))

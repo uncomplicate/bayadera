@@ -18,7 +18,7 @@
              [core :refer [dim]]
              [real :refer [entry entry!]]
              [math :refer [sqrt]]
-             [native :refer [sv sge]]]
+             [native :refer [fv fge]]]
             [uncomplicate.bayadera
              [protocols :as p]
              [core :refer :all]
@@ -55,25 +55,25 @@
                      (recur s (inc p) (next data) smart  (conj! placebo (double (read-string b))))))
                  [(op [s] (persistent! smart))
                   (op [p] (persistent! placebo))]))]
-    (def params {:smart-drug (sv (data 0))
-                 :placebo (sv (data 1))})))
+    (def params {:smart-drug (fv (data 0))
+                 :placebo (fv (data 1))})))
 
 (defn analysis []
   (with-default-bayadera
     (with-release [prior (distribution smart-drug-prior)
-                   prior-dist (prior (sv 10 100 60 0 100))
+                   prior-dist (prior (fv 10 100 60 0 100))
                    smart-drug-post (posterior "smart_drug"
                                               ((:t likelihoods) (dim (:smart-drug params)))
                                               prior-dist)
                    smart-drug-dist (smart-drug-post (:smart-drug params))
                    smart-drug-sampler (sampler smart-drug-dist
-                                               {:limits (sge 2 3 [0 30 80 120 0 40])})
+                                               {:limits (fge 2 3 [0 30 80 120 0 40])})
                    placebo-post (posterior "placebo"
                                            ((:t likelihoods) (dim (:placebo params)))
                                            prior-dist)
                    placebo-dist (placebo-post (:placebo params))
                    placebo-sampler (sampler placebo-dist
-                                            {:limits (sge 2 3 [0 30 80 120 0 40])})]
+                                            {:limits (fge 2 3 [0 30 80 120 0 40])})]
       (println (time (mix! smart-drug-sampler {:step 256})))
       (println (time (mix! placebo-sampler {:step 256})))
       {:smart-drug (histogram! smart-drug-sampler 10)

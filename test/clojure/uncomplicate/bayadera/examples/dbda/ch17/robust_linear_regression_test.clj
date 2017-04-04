@@ -12,20 +12,17 @@
             [quil.core :as q]
             [quil.applet :as qa]
             [quil.middlewares.pause-on-error :refer [pause-on-error]]
-            [uncomplicate.commons.core :refer [with-release let-release wrap-float]]
+            [uncomplicate.commons.core :refer [with-release]]
             [uncomplicate.fluokitten.core :refer [op]]
             [uncomplicate.clojurecl.core :refer [finish!]]
             [uncomplicate.neanderthal
              [core :refer [dim]]
-             [real :refer [entry entry!]]
-             [math :refer [sqrt]]
-             [native :refer [sv sge]]]
+             [native :refer [fv fge]]]
             [uncomplicate.bayadera
              [protocols :as p]
              [core :refer :all]
-             [util :refer [bin-mapper hdi]]
              [opencl :refer [with-default-bayadera]]
-             [mcmc :refer [mix! burn-in! pow-n acc-rate!]]]
+             [mcmc :refer [mix!]]]
             [uncomplicate.bayadera.opencl.models
              :refer [source-library cl-distribution-model cl-likelihood-model]]
             [uncomplicate.bayadera.toolbox
@@ -47,8 +44,8 @@
                    (conj! (double (read-string w))))))
       (op [c] (persistent! hw)))))
 
-(def params-30 (sv (read-data (slurp (io/resource "uncomplicate/bayadera/examples/dbda/ch17/ht-wt-data-30.csv")))))
-(def params-300 (sv (read-data (slurp (io/resource "uncomplicate/bayadera/examples/dbda/ch17/ht-wt-data-300.csv")))))
+(def params-30 (fv (read-data (slurp (io/resource "uncomplicate/bayadera/examples/dbda/ch17/ht-wt-data-30.csv")))))
+(def params-300 (fv (read-data (slurp (io/resource "uncomplicate/bayadera/examples/dbda/ch17/ht-wt-data-300.csv")))))
 
 (def rlr-prior
   (cl-distribution-model [(:gaussian source-library)
@@ -65,14 +62,14 @@
 (defn analysis []
   (with-default-bayadera
     (with-release [prior (distribution rlr-prior)
-                   prior-dist (prior (sv 10 -100 100 5 10 0.001 1000))
-                   prior-sampler (sampler prior-dist {:walkers 22528 :limits (sge 2 4 [1 20 -400 100 0 20 0.01 100])})
+                   prior-dist (prior (fv 10 -100 100 5 10 0.001 1000))
+                   prior-sampler (sampler prior-dist {:walkers 22528 :limits (fge 2 4 [1 20 -400 100 0 20 0.01 100])})
                    post-30 (posterior "rlr_30" (rlr-likelihood (dim params-30)) prior-dist)
                    post-30-dist (post-30 params-30)
-                   post-30-sampler (sampler post-30-dist {:limits (sge 2 4 [1 20 -400 100 0 20 0.01 100])})
+                   post-30-sampler (sampler post-30-dist {:limits (fge 2 4 [1 20 -400 100 0 20 0.01 100])})
                    post-300 (posterior "rlr_300" (rlr-likelihood (dim params-300)) prior-dist)
                    post-300-dist (post-300 params-300)
-                   post-300-sampler (sampler post-300-dist {:limits (sge 2 4 [1 10 -400 100 0 20 0.01 100])})]
+                   post-300-sampler (sampler post-300-dist {:limits (fge 2 4 [1 10 -400 100 0 20 0.01 100])})]
       (println (time (mix! post-30-sampler {:step 128})))
       (println (time (mix! post-300-sampler {:step 384})))
       (println (uncomplicate.bayadera.mcmc/info post-300-sampler))

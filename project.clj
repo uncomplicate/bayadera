@@ -15,10 +15,10 @@
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.8.0"]
-                 [uncomplicate/commons "0.3.0-SNAPSHOT"]
-                 [uncomplicate/fluokitten "0.5.2"]
-                 [uncomplicate/clojurecl "0.6.5"]
-                 [uncomplicate/neanderthal "0.8.0"]
+                 [uncomplicate/commons "0.3.0"]
+                 [uncomplicate/fluokitten "0.6.0"]
+                 [uncomplicate/clojurecl "0.7.1"]
+                 [uncomplicate/neanderthal "0.9.1-SNAPSHOT"]
                  [org.apache.commons/commons-math3 "3.6.1"]
                  [me.raynes/fs "1.4.6"]
                  [quil "2.5.0"]]

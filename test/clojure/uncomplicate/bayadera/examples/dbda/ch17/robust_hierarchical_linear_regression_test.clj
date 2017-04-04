@@ -18,7 +18,7 @@
              [core :refer [dim]]
              [real :refer [entry entry!]]
              [math :refer [sqrt]]
-             [native :refer [sv sge]]]
+             [native :refer [fv fge]]]
             [uncomplicate.bayadera
              [protocols :as p]
              [core :refer :all]
@@ -51,7 +51,7 @@
             subject-count (count persistent-hws)]
         (apply op [subject-count] (map (fn [[k v]] (op [(count v)] v)) persistent-hws))))))
 
-(def params (sv (read-data (slurp (io/resource "uncomplicate/bayadera/examples/dbda/ch17/hier-lin-regress-data.csv")))))
+(def params (fv (read-data (slurp (io/resource "uncomplicate/bayadera/examples/dbda/ch17/hier-lin-regress-data.csv")))))
 
 (def rhlr-prior
   (cl-distribution-model [(:gaussian source-library)
@@ -68,13 +68,13 @@
 (defn analysis []
   (with-default-bayadera
     (with-release [prior (distribution rhlr-prior)
-                   prior-dist (prior (sv (op [4 0.01 1000] (take 100 (cycle [0 100 3 10])))))
+                   prior-dist (prior (fv (op [4 0.01 1000] (take 100 (cycle [0 100 3 10])))))
                    post (posterior "rhlr" (rhlr-likelihood (dim params)) prior-dist)
                    post-dist (post params)
-                   post-sampler (sampler post-dist {:limits (sge 2 52 (op [2 20 0.001 100] (take 100 (interleave (repeat -100) (repeat 100) (repeat -3) (repeat 9)))))})]
+                   post-sampler (sampler post-dist {:limits (fge 2 52 (op [2 20 0.001 100] (take 100 (interleave (repeat -100) (repeat 100) (repeat -3) (repeat 9)))))})]
       (println (time (mix! post-sampler {:dimension-power 0.2 :cooling-schedule (pow-n 4)})))
-      (println (time (do (burn-in! post-sampler 30000) (acc-rate! post-sampler))))
-      ;;(println (time (run-sampler! post-sampler 64)))
+      (println (time (do (burn-in! post-sampler 3000) (acc-rate! post-sampler))))
+      (println (time (run-sampler! post-sampler 64)))
       (time (histogram! post-sampler 1)))))
 
 (defn setup []

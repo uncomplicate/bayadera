@@ -11,16 +11,15 @@
   (:require [uncomplicate.commons.core
              :refer [with-release let-release Releaseable release releaseable?]]
             [uncomplicate.fluokitten.core :refer [fmap! fmap]]
+            [uncomplicate.neanderthal.internal.api :as na]
             [uncomplicate.neanderthal
-             [protocols :as np]
              [math :refer [sqrt pow]]
              [core :refer [dim mrows ncols raw zero axpy! imax row col rows
-                           scal! mv trans copy rank! native
-                           create-raw create create-vector]]
+                           scal! mv trans copy rk! native vctr]]
              [real :refer [entry! entry sum nrm2]]]
             [uncomplicate.bayadera.protocols :refer :all])
   (:import [clojure.lang Sequential]
-           [uncomplicate.neanderthal.protocols RealVector RealMatrix]))
+           [uncomplicate.neanderthal.internal.api RealVector RealMatrix]))
 
 (extend-type RealVector
   Location
@@ -52,7 +51,7 @@
           (with-release [ones (entry! (raw (row a 0)) 1)]
             (scal! (/ 1.0 n) (native (mv a ones))))
           (mean (row a 0)))
-        (entry! (create-raw (np/native-factory a) m) Double/NaN))))
+        (entry! (vctr (na/native-factory a) m) Double/NaN))))
   Spread
   (variance [a]
     (let [m (mrows a)
@@ -61,14 +60,14 @@
         (if (< 1 m)
           (with-release [ones (entry! (raw (row a 0)) 1)
                          sums (mv a ones)
-                         a-mean (rank! (/ -1.0 n) sums ones (copy a))
+                         a-mean (rk! (/ -1.0 n) sums ones (copy a))
                          sum-sqr (fmap! (pow 2.0) (native (mv a-mean ones)))]
             (let-release [res (raw sum-sqr)]
               (dotimes [i m]
                 (entry! res i (pow (nrm2 (row a-mean i)) 2.0)))
               (scal! (/ 1 n) (axpy! (/ -1.0 n) sum-sqr res))))
-          (create-vector (np/native-factory a) (variance (row a 0))))
-        (create (np/native-factory a) m))))
+          (vctr (na/native-factory a) (variance (row a 0))))
+        (vctr (na/native-factory a) m))))
   (sd [a]
     (fmap! sqrt (variance a))))
 

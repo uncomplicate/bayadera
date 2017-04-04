@@ -11,12 +11,11 @@
   (:require [uncomplicate.commons.core :refer [release with-release let-release]]
             [uncomplicate.fluokitten.core :refer [fmap!]]
             [uncomplicate.neanderthal
-             [protocols :as np]
              [math :refer [sqrt]]
-             [core :refer [transfer dim subvector col]]
+             [core :refer [transfer dim subvector col vctr]]
              [real :refer [entry entry! asum]]
-             [native :refer [sge]]
-             [block :refer [buffer]]])
+             [block :refer [buffer]]]
+            [uncomplicate.neanderthal.internal.api :as na])
   (:import [java.security SecureRandom]
            [java.nio ByteBuffer]
            [java.util Arrays]
@@ -84,7 +83,7 @@
         bin-width (/ (- upper lower) (dim bin-rank))
         hdi-vector (hdi-bins bin-rank hdi-cnt)
         cnt (long (/ (count hdi-vector) 2))
-        regions (sge 2 cnt)]
+        regions (vctr (na/factory bin-rank) 2 cnt)]
     (dotimes [i cnt]
       (entry! regions 0 i (+ lower (* bin-width (double (hdi-vector (* 2 i))))))
       (entry! regions 1 i (+ lower (* bin-width (inc (double (hdi-vector (inc (* 2 i)))))))))

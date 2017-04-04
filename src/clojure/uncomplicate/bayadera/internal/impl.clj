@@ -10,14 +10,13 @@
     uncomplicate.bayadera.internal.impl
   (:require [clojure.java.io :as io]
             [uncomplicate.commons.core
-             :refer [Releaseable release with-release let-release
-                     wrap-float wrap-int]]
+             :refer [Releaseable release with-release let-release wrap-float wrap-int]]
             [uncomplicate.fluokitten.core :refer [op fmap!]]
             [uncomplicate.neanderthal
-             [protocols :as np]
              [math :refer [sqrt abs]]
-             [core :refer [ecount transfer]]
-             [native :refer [sge sv]]]
+             [core :refer [transfer ge]]
+             [block :refer [ecount]]]
+            [uncomplicate.neanderthal.internal.api :as na]
             [uncomplicate.bayadera
              [protocols :refer :all]
              [math :refer [log-beta]]
@@ -75,14 +74,13 @@
   Releaseable
   (release [_]
     (release params))
-  np/MemoryContext
-  (compatible [_ o]
-    (np/compatible bayadera-factory o))
+  na/MemoryContext
+  (compatible? [_ o]
+    (na/compatible? bayadera-factory o))
   SamplerProvider
   (sampler [_ options]
     (->DirectSampler (direct-sampler bayadera-factory :gaussian) params
-                     (processing-elements bayadera-factory)
-                     (wrap-int (or (:seed options) (srand-int)))))
+                     (processing-elements bayadera-factory) (wrap-int (or (:seed options) (srand-int)))))
   (sampler [this]
     (sampler this nil))
   Distribution
@@ -111,14 +109,13 @@
   Releaseable
   (release [_]
     (release params))
-  np/MemoryContext
-  (compatible [_ o]
-    (np/compatible bayadera-factory o))
+  na/MemoryContext
+  (compatible? [_ o]
+    (na/compatible? bayadera-factory o))
   SamplerProvider
   (sampler [_ options]
     (->DirectSampler (direct-sampler bayadera-factory :uniform) params
-                     (processing-elements bayadera-factory)
-                     (wrap-int (or (:seed options) (srand-int)))))
+                     (processing-elements bayadera-factory) (wrap-int (or (:seed options) (srand-int)))))
   (sampler [this]
     (sampler this nil))
   Distribution
@@ -143,24 +140,22 @@
   (sd [_]
     (sqrt (uniform-variance a b))))
 
-(deftype TDistribution [bayadera-factory dist-eng params
-                        ^double nu ^double mu ^double sigma]
+(deftype TDistribution [bayadera-factory dist-eng params ^double nu ^double mu ^double sigma]
   Releaseable
   (release [_]
     (release params))
-  np/MemoryContext
-  (compatible [_ o]
-    (np/compatible bayadera-factory o))
+  na/MemoryContext
+  (compatible? [_ o]
+    (na/compatible? bayadera-factory o))
   SamplerProvider
   (sampler [this options]
-    (let [walkers (or (:walkers options)
-                      (* (long (processing-elements bayadera-factory)) 32))
+    (let [walkers (or (:walkers options) (* (long (processing-elements bayadera-factory)) 32))
           std (sqrt (t-variance nu sigma))
           m (t-mean nu mu)
           seed (int (or (:seed options) (srand-int)))]
-      (with-release [limits (sge 2 1 [(- m (* 10 std)) (+ m (* 10 std))])]
-        (let-release [samp (mcmc-sampler (mcmc-factory bayadera-factory :t)
-                                         walkers params)]
+      (with-release [limits (ge (na/native-factory bayadera-factory)
+                                2 1 [(- m (* 10 std)) (+ m (* 10 std))])]
+        (let-release [samp (mcmc-sampler (mcmc-factory bayadera-factory :t) walkers params)]
           (init-position! samp seed limits)
           (init! samp (inc seed))
           (burn-in! samp (max 0 (long (or (:warm-up options) 128))) 8.0)
@@ -193,17 +188,15 @@
   Releaseable
   (release [_]
     (release params))
-  np/MemoryContext
-  (compatible [_ o]
-    (np/compatible bayadera-factory o))
+  na/MemoryContext
+  (compatible? [_ o]
+    (na/compatible? bayadera-factory o))
   SamplerProvider
   (sampler [this options]
-    (let [walkers (or (:walkers options)
-                      (* (long (processing-elements bayadera-factory)) 32))
+    (let [walkers (or (:walkers options) (* (long (processing-elements bayadera-factory)) 32))
           seed (int (or (:seed options) (srand-int)))]
-      (with-release [limits (sge 2 1 [0 1])]
-        (let-release [samp (mcmc-sampler (mcmc-factory bayadera-factory :beta)
-                                         walkers params)]
+      (with-release [limits (ge (na/native-factory bayadera-factory) 2 1 [0 1])]
+        (let-release [samp (mcmc-sampler (mcmc-factory bayadera-factory :beta) walkers params)]
           (init-position! samp seed limits)
           (init! samp (inc seed))
           (burn-in! samp (max 0 (long (or (:warm-up options) 128))) 8.0)
@@ -236,18 +229,16 @@
   Releaseable
   (release [_]
     (release params))
-  np/MemoryContext
-  (compatible [_ o]
-    (np/compatible bayadera-factory o))
+  na/MemoryContext
+  (compatible? [_ o]
+    (na/compatible? bayadera-factory o))
   SamplerProvider
   (sampler [this options]
-    (let [walkers (or (:walkers options)
-                      (* (long (processing-elements bayadera-factory)) 32))
+    (let [walkers (or (:walkers options) (* (long (processing-elements bayadera-factory)) 32))
           seed (int (or (:seed options) (srand-int)))]
-      (with-release [limits (sge 2 1 [0 (+ (gamma-mean theta k)
+      (with-release [limits (ge (na/native-factory bayadera-factory) 2 1 [0 (+ (gamma-mean theta k)
                                            (* 2 (sqrt (gamma-variance theta k))))])]
-        (let-release [samp (mcmc-sampler (mcmc-factory bayadera-factory :gamma)
-                                         walkers params)]
+        (let-release [samp (mcmc-sampler (mcmc-factory bayadera-factory :gamma) walkers params)]
           (init-position! samp seed limits)
           (init! samp (inc seed))
           (burn-in! samp (max 0 (long (or (:warm-up options) 128))) 8.0)
@@ -280,14 +271,13 @@
   Releaseable
   (release [_]
     (release params))
-  np/MemoryContext
-  (compatible [_ o]
-    (np/compatible bayadera-factory o))
+  na/MemoryContext
+  (compatible? [_ o]
+    (na/compatible? bayadera-factory o))
   SamplerProvider
   (sampler [_ options]
     (->DirectSampler (direct-sampler bayadera-factory :exponential) params
-                     (processing-elements bayadera-factory)
-                     (wrap-int (or (:seed options) (srand-int)))))
+                     (processing-elements bayadera-factory) (wrap-int (or (:seed options) (srand-int)))))
   (sampler [this]
     (sampler this nil))
   Distribution
@@ -317,14 +307,13 @@
   Releaseable
   (release [_]
     (release params))
-  np/MemoryContext
-  (compatible [_ o]
-    (np/compatible bayadera-factory o))
+  na/MemoryContext
+  (compatible? [_ o]
+    (na/compatible? bayadera-factory o))
   SamplerProvider
   (sampler [_ options]
     (->DirectSampler (direct-sampler bayadera-factory :erlang) params
-                     (processing-elements bayadera-factory)
-                     (wrap-int (or (:seed options) (srand-int)))))
+                     (processing-elements bayadera-factory) (wrap-int (or (:seed options) (srand-int)))))
   (sampler [this]
     (sampler this nil))
   Distribution
@@ -353,13 +342,12 @@
   Releaseable
   (release [_]
     (release params))
-  np/MemoryContext
-  (compatible [_ o]
-    (np/compatible bayadera-factory o))
+  na/MemoryContext
+  (compatible? [_ o]
+    (na/compatible? bayadera-factory o))
   SamplerProvider
   (sampler [_ options]
-    (let [walkers (or (:walkers options)
-                      (* (long (processing-elements bayadera-factory)) 2))]
+    (let [walkers (or (:walkers options) (* (long (processing-elements bayadera-factory)) 2))]
       (let-release [samp (mcmc-sampler sampler-factory walkers params)]
         (init! samp (or (:seed options) (srand-int)))
         (when-let [limits (or (:limits options) (limits dist-model))]
@@ -396,11 +384,9 @@
   (invoke [_ params]
     (if (= (params-size dist-model) (ecount params))
       (->DistributionImpl bayadera-factory dist-eng sampler-factory
-                          (transfer (np/factory bayadera-factory) params)
-                          dist-model)
+                          (transfer (na/factory bayadera-factory) params) dist-model)
       (throw (IllegalArgumentException.
-              (format INVALID_PARAMS_MESSAGE (params-size dist-model)
-                      (ecount params))))))
+              (format INVALID_PARAMS_MESSAGE (params-size dist-model) (ecount params))))))
   (invoke [this data hyperparams]
     (.invoke this (op data hyperparams)))
   ModelProvider

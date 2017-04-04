@@ -11,7 +11,7 @@
   (:require [midje.sweet :refer :all]
             [uncomplicate.neanderthal
              [core :refer [sum]]
-             [native :refer [sv]]]
+             [native :refer [fv]]]
             [uncomplicate.bayadera.distributions :refer :all]))
 
 (facts
@@ -138,11 +138,11 @@
 
 (facts
  "Multinomial Distribution + see examples/fapsp"
- (multinomial-check (sv 0.2 0.3 0.5)) => true
- (multinomial-check (sv 0.2 0.3 0.6)) => false
- (multinomial-check (sv 0.2 0.3 3)) => false
- (multinomial-check (sv 0.2 0.3 0.5) (sv 1 2 3)) => true
- (multinomial-check (sv 0.2 0.3 5) (sv 1 2 3)) => false
- (multinomial-check (sv 0.2 0.3 0.5) (sv 1 2 -3)) => false
- (multinomial-mean (sv 0.2 0.3 0.5) 10) => (sv 2 3 5)
- (sum (multinomial-variance (sv 0.2 0.3 0.5) 10)) => (roughly (sum (sv 1.6 2.1 2.5))))
+ (multinomial-check (fv 0.2 0.3 0.5)) => true
+ (multinomial-check (fv 0.2 0.3 0.6)) => false
+ (multinomial-check (fv 0.2 0.3 3)) => false
+ (multinomial-check (fv 0.2 0.3 0.5) (fv 1 2 3)) => true
+ (multinomial-check (fv 0.2 0.3 5) (fv 1 2 3)) => false
+ (multinomial-check (fv 0.2 0.3 0.5) (fv 1 2 -3)) => false
+ (multinomial-mean (fv 0.2 0.3 0.5) 10) => (fv 2 3 5)
+ (sum (multinomial-variance (fv 0.2 0.3 0.5) 10)) => (roughly (sum (fv 1.6 2.1 2.5))))

@@ -15,7 +15,7 @@
              [math :refer [log exp]]
              [core :refer [dim copy imax imin]]
              [real :refer [entry]]
-             [native :refer [sv sge]]]
+             [native :refer [fv fge]]]
             [uncomplicate.bayadera.toolbox
              [processing :refer [plot2d render show]]
              [scaling :refer [vector-axis]]]
@@ -26,7 +26,7 @@
            [clojure.lang IFn$DDDD IFn$DD]))
 
 (defn setup []
-  (with-release [rand-vect (fmap! (fn ^double [^double x] (rand 10.0)) (sv 100))
+  (with-release [rand-vect (fmap! (fn ^double [^double x] (rand 10.0)) (fv 100))
                  pdf-vect (fmap (fn ^double [^double x] (log (inc x))) rand-vect)]
     (q/background 0)
     (q/image (-> (plot2d (qa/current-applet))
@@ -34,8 +34,8 @@
                           :y-axis (vector-axis pdf-vect)
                           :x rand-vect
                           :y pdf-vect
-                          :y-sidelines (sge 2 1 [1.0 8.0])
-                          :x-sidelines (sge 2 3 [1.3 1.8 3.5 4.2 5.0 9.0])})
+                          :y-sidelines (fge 2 1 [1.0 8.0])
+                          :x-sidelines (fge 2 3 [1.3 1.8 3.5 4.2 5.0 9.0])})
                  show)
              0 0)))
 

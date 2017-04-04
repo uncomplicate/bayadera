@@ -10,12 +10,11 @@
     uncomplicate.bayadera.opencl.models
   (:require [clojure.java.io :as io]
             [uncomplicate.commons.core :refer [Releaseable release]]
+            [uncomplicate.neanderthal.internal.api :as na]
             [uncomplicate.neanderthal
-             [protocols :as np]
              [core :refer [copy]]
-             [native :refer [sge]]]
-            [uncomplicate.bayadera
-             [protocols :refer :all]]))
+             [native :refer [fge]]]
+            [uncomplicate.bayadera.protocols :refer :all]))
 
 (defprotocol CLModel
   (source [this])
@@ -27,8 +26,8 @@
   Releaseable
   (release [_]
     true)
-  np/MemoryContext
-  (compatible [_ o]
+  na/MemoryContext
+  (compatible? [_ o]
     (satisfies? CLModel o))
   Model
   (params-size [_]
@@ -58,8 +57,8 @@
   Releaseable
   (release [_]
     (release model-limits))
-  np/MemoryContext
-  (compatible [_ o]
+  na/MemoryContext
+  (compatible? [_ o]
     (satisfies? CLModel o))
   Model
   (params-size [_]
@@ -104,8 +103,8 @@
   Releaseable
   (release [_]
     (release model-limits))
-  np/MemoryContext
-  (compatible [_ o]
+  na/MemoryContext
+  (compatible? [_ o]
     (satisfies? CLModel o))
   Model
   (params-size [_]
@@ -182,39 +181,39 @@
   {:uniform
    (cl-distribution-model (:uniform source-library)
                           :name "uniform" :params-size 2
-                          :limits (sge 2 1 [(- Float/MAX_VALUE) Float/MAX_VALUE])
+                          :limits (fge 2 1 [(- Float/MAX_VALUE) Float/MAX_VALUE])
                           :sampler-source (:uniform samplers))
    :gaussian
    (cl-distribution-model (:gaussian source-library)
                           :name "gaussian" :params-size 2
-                          :limits (sge 2 1 [(- Float/MAX_VALUE) Float/MAX_VALUE])
+                          :limits (fge 2 1 [(- Float/MAX_VALUE) Float/MAX_VALUE])
                           :sampler-source (:gaussian samplers))
    :t
    (cl-distribution-model (:t source-library)
                           :name "t" :params-size 4
-                          :limits (sge 2 1 [(- Float/MAX_VALUE) Float/MAX_VALUE]))
+                          :limits (fge 2 1 [(- Float/MAX_VALUE) Float/MAX_VALUE]))
    :beta
    (cl-distribution-model (:beta source-library)
                           :name "beta" :mcmc-logpdf "beta_mcmc_logpdf" :params-size 3
-                          :limits (sge 2 1 [0.0 1.0]))
+                          :limits (fge 2 1 [0.0 1.0]))
    :exponential
    (cl-distribution-model (:exponential source-library)
                           :name "exponential" :params-size 2
-                          :limits (sge 2 1 [Float/MIN_VALUE Float/MAX_VALUE])
+                          :limits (fge 2 1 [Float/MIN_VALUE Float/MAX_VALUE])
                           :sampler-source (:exponential samplers))
    :erlang
    (cl-distribution-model (:erlang source-library)
                           :name "erlang" :params-size 3
-                          :limits (sge 2 1 [0 Float/MAX_VALUE])
+                          :limits (fge 2 1 [0 Float/MAX_VALUE])
                           :sampler-source (:erlang samplers))
    :gamma
    (cl-distribution-model (:gamma source-library)
                           :name "gamma" :params-size 2
-                          :limits (sge 2 1 [0.0 Float/MAX_VALUE]))
+                          :limits (fge 2 1 [0.0 Float/MAX_VALUE]))
    :binomial
    (cl-distribution-model (:binomial source-library)
                           :name "binomial" :mcmc-logpdf "binomial_mcmc_logpdf" :params-size 3
-                          :limits (sge 2 1 [0.0 Float/MAX_VALUE]))})
+                          :limits (fge 2 1 [0.0 Float/MAX_VALUE]))})
 
 (def likelihoods
   {:gaussian (fn [n] (cl-likelihood-model (:gaussian source-library)

@@ -11,14 +11,12 @@
   (:require [midje.sweet :refer :all]
             [quil.core :as q]
             [quil.applet :as qa]
-            [quil.middlewares
-             [pause-on-error :refer [pause-on-error]]
-             [fun-mode :refer [fun-mode]]]
+            [quil.middlewares.pause-on-error :refer [pause-on-error]]
             [uncomplicate.commons.core :refer [with-release]]
             [uncomplicate.fluokitten.core :refer [op]]
             [uncomplicate.neanderthal
              [core :refer [row native scal!]]
-             [native :refer [sv]]]
+             [native :refer [fv]]]
             [uncomplicate.bayadera
              [protocols :as p]
              [core :refer :all]
@@ -46,7 +44,7 @@
                      prior-pdf (pdf prior-dist prior-sample)
                      post (posterior (posterior-model (:binomial likelihoods)
                                                       (:beta distributions)))
-                     post-dist (post (sv (op (binomial-lik-params N z) (beta-params a b))))
+                     post-dist (post (fv (op (binomial-lik-params N z) (beta-params a b))))
                      post-sampler (time (doto (sampler post-dist) (mix!)))
                      post-sample (dataset (sample! post-sampler))
                      post-pdf (scal! (/ 1.0 (evidence post-dist prior-sample))

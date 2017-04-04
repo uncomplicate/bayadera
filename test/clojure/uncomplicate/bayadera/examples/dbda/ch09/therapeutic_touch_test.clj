@@ -17,7 +17,7 @@
             [uncomplicate.neanderthal
              [core :refer [row native dot imax imin scal! col submatrix transfer]]
              [real :refer [entry entry!]]
-             [native :refer [sv sge]]]
+             [native :refer [fv fge]]]
             [uncomplicate.bayadera
              [protocols :as p]
              [core :refer :all]
@@ -49,7 +49,7 @@
                        :name "touch" :params-size (* subjects 2)))
 
 (let [in-file (slurp (io/resource "uncomplicate/bayadera/examples/dbda/ch09/therapeutic-touch-data.csv"))]
-  (def params (sv (seq (reduce (fn [^ints acc [b c]]
+  (def params (fv (seq (reduce (fn [^ints acc [b c]]
                                  (let [c (* 2 (dec (int (bigint (subs c 1)))))]
                                    (aset acc c (inc (aget acc c) ))
                                    (aset acc (inc c) (+ (aget acc (inc c)) (int (read-string b))))
@@ -60,14 +60,14 @@
 (defn analysis []
   (with-default-bayadera
     (let [walker-count (* 256 44)]
-      (with-release [limits  (sge 2 (+ subjects 2)
+      (with-release [limits  (fge 2 (+ subjects 2)
                                         (op (take (+ 2 (* subjects 2))
                                                   (interleave (repeat 0) (repeat 1)))
                                             [0 30]))
                      prior (distribution touch-prior)
-                     prior-dist (prior (sv 1 1 1.105125 1.105125))
+                     prior-dist (prior (fv 1 1 1.105125 1.105125))
                      post (posterior "touch" touch-likelihood prior-dist)
-                     post-dist (post (sv (take (* subjects 2) params)))
+                     post-dist (post (fv (take (* subjects 2) params)))
                      post-sampler (sampler post-dist {:walkers walker-count :limits limits})]
         (println (time (mix! post-sampler {:refining 20})))
         (println (info post-sampler))

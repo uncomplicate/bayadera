@@ -9,14 +9,15 @@
 (ns uncomplicate.bayadera.internal.extensions-test
   (:require [midje.sweet :refer :all]
             [uncomplicate.commons.core :refer [with-release]]
-            [uncomplicate.neanderthal.core :refer [create-vector create-ge-matrix sum]]
-            [uncomplicate.neanderthal.impl.cblas :refer [cblas-single cblas-double]]
+            [uncomplicate.neanderthal
+             [core :refer [vctr ge sum]]
+             [native :refer [native-float native-double]]]
             [uncomplicate.bayadera.internal.extensions :refer :all]
             [uncomplicate.bayadera.core :refer [mean variance sd]]))
 
 (defn vector-test [factory]
-  (with-release [x (create-vector factory (range 10))
-                 x0 (create-vector factory 0)]
+  (with-release [x (vctr factory (range 10))
+                 x0 (vctr factory 0)]
     (facts
      "Vector as a Location and Spread"
      (Double/isNaN (mean x0)) => true
@@ -26,23 +27,23 @@
      (variance x) => (roughly 8.25 0.0001)
      (sd x) => (roughly 2.87223 0.0001))))
 
-(vector-test cblas-single)
-(vector-test cblas-double)
+(vector-test native-float)
+(vector-test native-double)
 
 (defn ge-matrix-test [factory]
-  (with-release [a (create-ge-matrix factory 3 5 (range 15))
-                 a20 (create-ge-matrix factory 2 0)]
+  (with-release [a (ge factory 3 5 (range 15))
+                 a20 (ge factory 2 0)]
     (facts
      "GE Matrix as a Location and Spread"
      (every? #(Double/isNaN %) (mean a20)) => true
-     (variance a20) => (create-vector factory [0 0])
-     (sd a20) => (create-vector factory [0 0])
-     (mean a) => (create-vector factory [6 7 8])
+     (variance a20) => (vctr factory [0 0])
+     (sd a20) => (vctr factory [0 0])
+     (mean a) => (vctr factory [6 7 8])
      (sum (variance a)) =>  (roughly 54)
      (sum (sd a)) => (roughly 12.7278))))
 
-(ge-matrix-test cblas-single)
-(ge-matrix-test cblas-double)
+(ge-matrix-test native-float)
+(ge-matrix-test native-double)
 
 (defn sequence-test [constructor]
   (let [x (apply constructor (range 10))

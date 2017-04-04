@@ -6,9 +6,9 @@
             [clojure.java.io :as io]
             [uncomplicate.clojurecl.core :refer :all]
             [uncomplicate.neanderthal
-             [core :refer [create-ge-matrix create-vector row col ncols]]
+             [core :refer [ge vctr row col ncols]]
              [real :refer [sum entry]]
-             [opencl :refer [opencl-single]]]
+             [opencl :refer [opencl-float]]]
             [uncomplicate.bayadera.protocols :refer :all]
             [uncomplicate.bayadera.opencl
              [models :refer [distributions]]
@@ -19,23 +19,20 @@
                cqueue (command-queue ctx dev)]
 
   (let [data-size (* 44 (long (Math/pow 2 16)))]
-    (with-release [neanderthal-factory (opencl-single ctx cqueue)
+    (with-release [neanderthal-factory (opencl-float ctx cqueue)
                    dataset-engine (gcn-dataset-engine ctx cqueue)
-                   data-matrix (create-ge-matrix neanderthal-factory
-                                                 22 data-size
-                                                 (repeatedly (* 22 data-size) rand))]
+                   data-matrix (ge neanderthal-factory 22 data-size (repeatedly (* 22 data-size) rand))]
       (facts
        "Test histogram"
        (/ (sum (col (:pdf (histogram dataset-engine data-matrix)) 4)) 256) => (roughly 1.0))))
 
   (let [walker-count (* 2 256 44)
         a 8.0]
-    (with-release [neanderthal-factory (opencl-single ctx cqueue)
-                   mcmc-engine-factory (gcn-stretch-factory
-                                        ctx cqueue neanderthal-factory
-                                        (:gaussian distributions))
-                   cl-params (create-vector neanderthal-factory [200 1])
-                   limits (create-ge-matrix neanderthal-factory 2 1 [180.0 220.0])
+    (with-release [neanderthal-factory (opencl-float ctx cqueue)
+                   mcmc-engine-factory (gcn-stretch-factory ctx cqueue neanderthal-factory
+                                                            (:gaussian distributions))
+                   cl-params (vctr neanderthal-factory [200 1])
+                   limits (ge neanderthal-factory 2 1 [180.0 220.0])
                    engine (mcmc-sampler mcmc-engine-factory walker-count cl-params)]
       (facts
        "Test MCMC stretch engine."

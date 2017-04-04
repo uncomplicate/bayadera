@@ -5,15 +5,14 @@
             [uncomplicate.fluokitten.core :refer [fmap!]]
             [uncomplicate.neanderthal
              [math :refer [log exp sqrt]]
-             [core :refer [dim nrm2 copy dot scal! transfer entry row]]
-             [real :refer [sum]]
-             [native :refer [sge sv]]]
+             [core :refer [dim nrm2 copy dot scal! transfer row]]
+             [real :refer [sum entry]]
+             [native :refer [fv]]]
             [uncomplicate.bayadera
              [protocols :as p]
              [core :refer :all]
              [distributions :refer [beta-pdf t-pdf binomial-lik-params]]
              [mcmc :refer [mix!]]
-             ;;[impl :refer :all]
              [math :refer [log-beta]]]
             [uncomplicate.bayadera.opencl :refer [with-default-bayadera]]
             [uncomplicate.bayadera.opencl.models :refer [distributions likelihoods]]))
@@ -126,7 +125,7 @@
                    prior-sampler (sampler prior-dist)
                    prior-sample (dataset (sample prior-sampler))
                    post (posterior "post" (:binomial likelihoods) prior-dist)
-                   post-dist (post (sv (binomial-lik-params N z)))
+                   post-dist (post (fv (binomial-lik-params N z)))
                    post-sampler (doto (sampler post-dist) (mix!))
                    post-sample (dataset (sample post-sampler))
                    post-pdf (pdf post-dist post-sample)

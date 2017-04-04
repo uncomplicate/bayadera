@@ -18,7 +18,7 @@
              [core :refer [dim]]
              [real :refer [entry entry!]]
              [math :refer [sqrt]]
-             [native :refer [sv sge]]]
+             [native :refer [fv fge]]]
             [uncomplicate.bayadera
              [protocols :as p]
              [core :refer :all]
@@ -50,7 +50,7 @@
             subject-count (count persistent-income)]
         (apply op [subject-count] (map (fn [[k v]] (op [(count v)] v)) persistent-income))))))
 
-(def params (sv (read-data (slurp (io/resource  "uncomplicate/bayadera/examples/dbda/ch17/income-famz-state.csv")))))
+(def params (fv (read-data (slurp (io/resource  "uncomplicate/bayadera/examples/dbda/ch17/income-famz-state.csv")))))
 
 (def qt-prior
   (cl-distribution-model [(:gaussian source-library)
@@ -67,10 +67,10 @@
 (defn analysis []
   (with-default-bayadera
     (with-release [prior (distribution qt-prior)
-                   prior-dist (prior (sv (op [4 10000 20000] (take 312 (cycle [10000 10000 20000 5000 -1000 1000])))))
+                   prior-dist (prior (fv (op [4 10000 20000] (take 312 (cycle [10000 10000 20000 5000 -1000 1000])))))
                    post (posterior "qt" (qt-likelihood (dim params)) prior-dist)
                    post-dist (post params)
-                   post-sampler (sampler post-dist {:walkers (* 44 256) :limits (sge 2 158 (op [2 10 10000 20000] (take 312 (interleave (repeat 0) (repeat 2000) (repeat 10000) (repeat 30000) (repeat -2000) (repeat 0)))))})]
+                   post-sampler (sampler post-dist {:walkers (* 44 256) :limits (fge 2 158 (op [2 10 10000 20000] (take 312 (interleave (repeat 0) (repeat 2000) (repeat 10000) (repeat 30000) (repeat -2000) (repeat 0)))))})]
       (println (time (mix! post-sampler {:dimension-power 0.2 :cooling-schedule (pow-n 4)})))
       (println (info post-sampler))
       (println (time (do (burn-in! post-sampler 10000) (acc-rate! post-sampler))))

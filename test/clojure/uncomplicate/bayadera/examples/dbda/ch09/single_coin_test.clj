@@ -16,7 +16,7 @@
             [uncomplicate.neanderthal
              [core :refer [row native dot imax imin scal! col submatrix]]
              [real :refer [entry entry!]]
-             [native :refer [sv sge]]]
+             [native :refer [fv fge]]]
             [uncomplicate.bayadera
              [protocols :as p]
              [core :refer :all]
@@ -37,7 +37,7 @@
 (def single-coin-model
   (cl-distribution-model [(:beta source-library)
                           (slurp (io/resource "uncomplicate/bayadera/examples/dbda/ch09/single-coin.h"))]
-                         :name "single_coin" :params-size 3 :dimension 2 :limits (sge 2 2 [0 1 0 1])))
+                         :name "single_coin" :params-size 3 :dimension 2 :limits (fge 2 2 [0 1 0 1])))
 
 (defn analysis []
   (with-default-bayadera
@@ -45,14 +45,14 @@
           sample-count (* 16 walker-count)
           z 9 N 12]
       (with-release [prior (distribution single-coin-model)
-                     prior-dist (prior (sv 2 2 100))
+                     prior-dist (prior (fv 2 2 100))
                      prior-sampler (time (doto
                                              (sampler prior-dist)
                                            (mix! {:a 2.68})))
                      prior-sample (dataset (sample! prior-sampler sample-count))
                      prior-pdf (pdf prior-dist prior-sample)
                      post (posterior "posterior" (:binomial likelihoods) prior-dist)
-                     post-dist (post (sv (binomial-lik-params N z)))
+                     post-dist (post (fv (binomial-lik-params N z)))
                      post-sampler (time (doto (sampler post-dist) (mix!)))
                      post-sample (dataset (sample! post-sampler sample-count))
                      post-pdf (scal! (/ 1.0 (evidence post-dist prior-sample))

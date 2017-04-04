@@ -16,7 +16,7 @@
             [uncomplicate.neanderthal
              [core :refer [row native dot imax imin scal! col submatrix]]
              [real :refer [entry entry!]]
-             [native :refer [sv sge]]]
+             [native :refer [fv fge]]]
             [uncomplicate.bayadera
              [protocols :as p]
              [core :refer :all]
@@ -37,7 +37,7 @@
   (cl-distribution-model [(slurp (io/resource "uncomplicate/bayadera/opencl/distributions/beta.h"))
                           (slurp (io/resource "uncomplicate/bayadera/examples/dbda/ch09/multiple-coins.h"))]
                          :name "multiple_coins" :params-size 3 :dimension 3
-                         :limits (sge 2 3 [0 1 0 1 0 1])))
+                         :limits (fge 2 3 [0 1 0 1 0 1])))
 
 (def multiple-coins-likelihood
   (cl-likelihood-model [(slurp (io/resource "uncomplicate/bayadera/opencl/distributions/binomial.h"))
@@ -51,16 +51,16 @@
           z0 3 N0 15
           z1 4 N1 5]
       (with-release [prior (distribution multiple-coins-prior)
-                     prior-dist-5 (prior (sv 2 2 5))
+                     prior-dist-5 (prior (fv 2 2 5))
                      prior-sampler-5 (time (doto (sampler prior-dist-5) (mix!)))
-                     prior-dist-75 (prior (sv 2 2 75))
+                     prior-dist-75 (prior (fv 2 2 75))
                      prior-sampler-75 (time (doto (sampler prior-dist-75) (mix!)))
                      post-model (posterior-model multiple-coins-likelihood multiple-coins-prior)
                      post (posterior post-model)
-                     post-dist-5 (post (sv N0 z0 N1 z1 2 2 5))
+                     post-dist-5 (post (fv N0 z0 N1 z1 2 2 5))
                      post-sampler-5 (time (doto (sampler post-dist-5) (mix!)))
                      post-sample-5 (dataset (sample post-sampler-5))
-                     post-dist-75 (post (sv N0 z0 N1 z1 2 2 75))
+                     post-dist-75 (post (fv N0 z0 N1 z1 2 2 75))
                      post-sampler-75 (time (doto (sampler post-dist-75) (mix!)))
                      post-sample-75 (dataset (sample post-sampler-75))]
 
