@@ -141,8 +141,8 @@
           claccessor (na/data-accessor data-matrix)]
       (with-release [cl-min-max (.createDataSource claccessor acc-size)
                      uint-res (cl-buffer ctx (* Integer/BYTES WGS m) :read-write)
-                     result (ge (na/factory data-matrix) WGS m)
                      limits (ge (na/factory data-matrix) 2 m)
+                     result (ge (na/factory data-matrix) WGS m)
                      bin-ranks (ge (na/factory data-matrix) WGS m)
                      min-max-reduction-kernel (kernel prog "min_max_reduction")
                      min-max-kernel (kernel prog "min_max_reduce")
@@ -154,13 +154,10 @@
         (enq-reduce cqueue min-max-kernel min-max-reduction-kernel m n wgsm wgsn)
         (enq-copy! cqueue cl-min-max (buffer limits))
         (enq-fill! cqueue uint-res (wrap-int 0))
-        (set-args! histogram-kernel
-                   (buffer limits) (buffer data-matrix)
+        (set-args! histogram-kernel (buffer limits) (buffer data-matrix)
                    (wrap-int (ecount data-matrix)) uint-res)
-        (enq-nd! cqueue histogram-kernel
-                 (work-size-2d (mrows data-matrix) n wgsm wgsn))
-        (set-args! uint-to-real-kernel
-                   (.wrapPrim claccessor (/ WGS n)) (buffer limits)
+        (enq-nd! cqueue histogram-kernel (work-size-2d (mrows data-matrix) n wgsm wgsn))
+        (set-args! uint-to-real-kernel (.wrapPrim claccessor (/ WGS n)) (buffer limits)
                    uint-res (buffer result))
         (enq-nd! cqueue uint-to-real-kernel (work-size-2d WGS m))
         (set-args! local-sort-kernel (buffer result) (buffer bin-ranks))

@@ -60,10 +60,10 @@
 (defn analysis []
   (with-default-bayadera
     (let [walker-count (* 256 44)]
-      (with-release [limits  (fge 2 (+ subjects 2)
-                                        (op (take (+ 2 (* subjects 2))
-                                                  (interleave (repeat 0) (repeat 1)))
-                                            [0 30]))
+      (with-release [limits (fge 2 (+ subjects 2)
+                                 (op (take (+ 2 (* subjects 2))
+                                           (interleave (repeat 0) (repeat 1)))
+                                     [0 30]))
                      prior (distribution touch-prior)
                      prior-dist (prior (fv 1 1 1.105125 1.105125))
                      post (posterior "touch" touch-likelihood prior-dist)

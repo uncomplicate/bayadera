@@ -92,7 +92,6 @@
   (q/defsketch diagrams
     :renderer :p2d
     :size :fullscreen
-    :display 2
     :setup setup
     :draw draw
     :middleware [pause-on-error]))

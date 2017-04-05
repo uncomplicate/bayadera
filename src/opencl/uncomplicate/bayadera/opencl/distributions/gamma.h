@@ -14,7 +14,7 @@ inline REAL gamma_log(const REAL theta, const REAL k, const REAL x) {
 // ============= With params ========================================
 
 REAL gamma_mcmc_logpdf(__constant const REAL* params, REAL* x) {
-    return gamma_log_unscaled(params[0], params[1], x0);
+    return gamma_log_unscaled(params[0], params[1], x[0]);
 }
 
 REAL gamma_logpdf(__constant const REAL* params, REAL* x) {

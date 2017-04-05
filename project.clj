@@ -18,10 +18,10 @@
                  [uncomplicate/commons "0.3.0"]
                  [uncomplicate/fluokitten "0.6.0"]
                  [uncomplicate/clojurecl "0.7.1"]
-                 [uncomplicate/neanderthal "0.9.1-SNAPSHOT"]
+                 [uncomplicate/neanderthal "0.10.0-SNAPSHOT"]
                  [org.apache.commons/commons-math3 "3.6.1"]
                  [me.raynes/fs "1.4.6"]
-                 [quil "2.5.0"]]
+                 [quil "2.6.0"]]
 
   :aot [;;uncomplicate.bayadera.protocols
                                         ;uncomplicate.bayadera.impl
@@ -41,7 +41,7 @@
                              [codox "0.10.1"]]
                    :global-vars {*warn-on-reflection* true
                                  *unchecked-math* :warn-on-boxed
-                                 *print-length* 128}
+                                 *print-length* 16}
                    :jvm-opts ^:replace ["-Dclojure.compiler.direct-linking=true"
                                         "-XX:MaxDirectMemorySize=16g" "-XX:+UseLargePages"]}}
 

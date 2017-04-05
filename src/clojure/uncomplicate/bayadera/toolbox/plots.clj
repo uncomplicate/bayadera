@@ -33,5 +33,4 @@
                    x (bin-mapper (ps) (limits 0) (limits 1))
                    y-axis (vector-axis ps)
                    y ps
-                   sidelines (hdi-regions limits bin-rank
-                                          (hdi-rank-count hdi-mass bin-rank ps))}))))
+                   sidelines (hdi-regions limits bin-rank (hdi-rank-count hdi-mass bin-rank ps))}))))

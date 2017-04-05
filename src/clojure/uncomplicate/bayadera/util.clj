@@ -6,21 +6,23 @@
 ;;   the terms of this license.
 ;;   You must not remove this notice, or any other, from this software.
 
- (ns ^{:author "Dragan Djuric"}
-    uncomplicate.bayadera.util
+(ns ^{:author "Dragan Djuric"}
+     uncomplicate.bayadera.util
   (:require [uncomplicate.commons.core :refer [release with-release let-release]]
             [uncomplicate.fluokitten.core :refer [fmap!]]
             [uncomplicate.neanderthal
              [math :refer [sqrt]]
-             [core :refer [transfer dim subvector col vctr]]
+             [core :refer [transfer dim subvector col ge copy]]
              [real :refer [entry entry! asum]]
+             [aux :refer [sort+!]]
              [block :refer [buffer]]]
-            [uncomplicate.neanderthal.internal.api :as na])
+            [uncomplicate.neanderthal.internal.api :as na]
+            [uncomplicate.bayadera.protocols :as pr])
   (:import [java.security SecureRandom]
            [java.nio ByteBuffer]
            [java.util Arrays]
            [clojure.lang IFn$DD IFn$DDDD IFn$LD]
-           [uncomplicate.bayadera.protocols Histogram]))
+           uncomplicate.bayadera.protocols.Histogram))
 
 (let [random (SecureRandom.)]
   (defn srand-buffer [^long n]
@@ -51,9 +53,13 @@
         bin-count)))))
 
 (defn hdi-rank-count
-  ([bin-rank pdf]
+  "Counts the smallest number of entries in `pdf` whose (scaled) mass is larger than mass.
+
+  `bin-rank` contains the information about the decreasing order of entries in pdf by mass.
+  This function does not explicitly check bin-rank and pdf for compatibility or errors."
+  (^long [bin-rank pdf]
    (hdi-rank-count 0.95 bin-rank pdf))
-  ([^double mass bin-rank pdf]
+  (^long [^double mass bin-rank pdf]
    (let [n (dim bin-rank)
          density (* mass (asum pdf))]
      (loop [i 0 acc 0.0]
@@ -62,34 +68,42 @@
          i)))))
 
 (defn hdi-bins
+  "Groups the ranked bins from `bin-rank` into distinct regions.
+
+  Returns a vector `[start0 end0 start1 end1 ...]`.
+  This function does not explicitly check its parameters for sanity."
   [bin-rank ^long hdi-cnt]
-  (let [hdi-array (float-array hdi-cnt)]
-    (.get (.asFloatBuffer ^ByteBuffer (buffer (subvector bin-rank 0 hdi-cnt))) hdi-array)
-    (Arrays/sort hdi-array)
+  (with-release [hdi-vector (sort+! (copy (subvector bin-rank 0 hdi-cnt)))]
     (loop [i 1
-           last-bin (aget hdi-array 0)
+           last-bin (entry hdi-vector 0)
            regions (transient [last-bin])]
       (if (< i hdi-cnt)
-        (let [bin (aget hdi-array i)]
+        (let [bin (entry hdi-vector i)]
           (recur (inc i) bin
-                 (if (< 1.0 (- bin last-bin))
+                 (if (< 1.5 (- bin last-bin))
                    (conj! (conj! regions last-bin) bin)
                    regions)))
-        (persistent! (conj! regions (aget hdi-array (dec hdi-cnt))))))))
+        (persistent! (conj! regions (entry hdi-vector (dec hdi-cnt))))))))
 
-(defn hdi-regions [limits bin-rank ^long hdi-cnt]
+(defn hdi-regions
+  "Creates a ge matrix `2 x number-of-distinct-regions` that contains regions within limits to
+  which the first `hdi-cnt` binns from `bin-rank` belong.
+
+  See also [[hdi-bins]]."
+  [limits bin-rank ^long hdi-cnt]
   (let [lower (entry limits 0)
         upper (entry limits 1)
         bin-width (/ (- upper lower) (dim bin-rank))
         hdi-vector (hdi-bins bin-rank hdi-cnt)
         cnt (long (/ (count hdi-vector) 2))
-        regions (vctr (na/factory bin-rank) 2 cnt)]
+        regions (ge (na/factory bin-rank) 2 cnt)]
     (dotimes [i cnt]
       (entry! regions 0 i (+ lower (* bin-width (double (hdi-vector (* 2 i))))))
       (entry! regions 1 i (+ lower (* bin-width (inc (double (hdi-vector (inc (* 2 i)))))))))
     regions))
 
 (defn hdi
+  "Creates hdi regions that contain `mass` density for the particular `index` variable in `histogram`."
   ([^Histogram histogram ^double mass ^long index]
    (let [limits (col (.limits histogram) index)
          bin-rank (col (.bin-ranks histogram) index)
