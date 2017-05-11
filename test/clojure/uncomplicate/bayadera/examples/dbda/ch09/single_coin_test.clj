@@ -46,9 +46,7 @@
           z 9 N 12]
       (with-release [prior (distribution single-coin-model)
                      prior-dist (prior (fv 2 2 100))
-                     prior-sampler (time (doto
-                                             (sampler prior-dist)
-                                           (mix! {:a 2.68})))
+                     prior-sampler (time (doto (sampler prior-dist) (mix! {:a 2.68})))
                      prior-sample (dataset (sample! prior-sampler sample-count))
                      prior-pdf (pdf prior-dist prior-sample)
                      post (posterior "posterior" (:binomial likelihoods) prior-dist)
@@ -77,7 +75,7 @@
                                 (:pdf data)))
            x-position y-position)
   (q/image (show (render-histogram omega (:histogram data) 1 :rotate))
-            (+ x-position 20 (width scatterplot)) y-position)
+           (+ x-position 20 (width scatterplot)) y-position)
   (q/image (show (render-histogram theta (:histogram data) 0))
            x-position (+ y-position 20 (height scatterplot))))
 

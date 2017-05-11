@@ -1,8 +1,6 @@
 __attribute__((reqd_work_group_size(1, WGS, 1)))
-__kernel void histogram(__constant const REAL* limits,
-                        __global const REAL* data,
-                        const uint data_length,
-                        __global uint* res) {
+__kernel void histogram(__constant const REAL* limits, __global const REAL* data,
+                        const uint data_length, __global uint* res) {
 
     const uint dim = get_global_size(0);
     const uint dim_id = get_global_id(0);
@@ -29,10 +27,8 @@ __kernel void histogram(__constant const REAL* limits,
 }
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
-__kernel void uint_to_real(const REAL alpha,
-                           __constant const REAL* limits,
-                           __global const uint* data,
-                           __global REAL* res) {
+__kernel void uint_to_real(const REAL alpha, __constant const REAL* limits,
+                           __global const uint* data, __global REAL* res) {
     const uint bin_id = get_global_id(0);
     const uint dim_id = get_global_id(1);
     const uint data_id = get_global_size(0) * dim_id + bin_id;
@@ -135,8 +131,7 @@ __kernel void sum_reduction_horizontal (__global REAL* acc) {
     }
 }
 
-__kernel void sum_reduce_horizontal (__global REAL* acc,
-                                     __global REAL* data) {
+__kernel void sum_reduce_horizontal (__global REAL* acc, __global REAL* data) {
     uint i = get_global_size(0) * get_global_id(1) + get_global_id(0);
     uint iacc = get_global_size(0) * get_group_id(1) + get_global_id(0);
     REAL sum = work_group_reduction_sum_2(1, data[i]);
@@ -155,8 +150,7 @@ __kernel void mean_reduce(__global ACCUMULATOR* acc, __global const REAL* x) {
 }
 
 __kernel void variance_reduce(__global ACCUMULATOR* acc,
-                              __global const REAL* x,
-                              __constant const REAL* mu) {
+                              __global const REAL* x, __constant const REAL* mu) {
     const uint i = get_global_size(0) * get_global_id(1) + get_global_id(0);
     const uint iacc = get_global_size(0) * get_group_id(1) + get_global_id(0);
     const REAL diff = x[i] - mu[get_global_id(0)];
