@@ -14,8 +14,7 @@
             [uncomplicate.fluokitten.core :refer [op fmap!]]
             [uncomplicate.neanderthal
              [math :refer [sqrt abs]]
-             [core :refer [transfer ge]]
-             [block :refer [ecount]]]
+             [core :refer [transfer ge dim]]]
             [uncomplicate.neanderthal.internal.api :as na]
             [uncomplicate.bayadera
              [protocols :refer :all]
@@ -382,11 +381,11 @@
     (release sampler-factory))
   IFn
   (invoke [_ params]
-    (if (= (params-size dist-model) (ecount params))
+    (if (= (params-size dist-model) (dim params))
       (->DistributionImpl bayadera-factory dist-eng sampler-factory
                           (transfer (na/factory bayadera-factory) params) dist-model)
       (throw (IllegalArgumentException.
-              (format INVALID_PARAMS_MESSAGE (params-size dist-model) (ecount params))))))
+              (format INVALID_PARAMS_MESSAGE (params-size dist-model) (dim params))))))
   (invoke [this data hyperparams]
     (.invoke this (op data hyperparams)))
   ModelProvider

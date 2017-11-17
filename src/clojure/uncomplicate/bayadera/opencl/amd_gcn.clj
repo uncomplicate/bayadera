@@ -18,9 +18,9 @@
              [toolbox :refer [count-work-groups enq-reduce enq-read-long enq-read-double]]]
             [uncomplicate.neanderthal.internal.api :as na]
             [uncomplicate.neanderthal
-             [core :refer [vctr ge ncols mrows scal! transfer raw submatrix]]
+             [core :refer [vctr ge ncols mrows scal! transfer raw submatrix dim]]
              [math :refer [sqrt]]
-             [block :refer [buffer ecount]]
+             [block :refer [buffer]]
              [opencl :refer [opencl-float]]]
             [uncomplicate.bayadera
              [protocols :refer :all]
@@ -155,7 +155,7 @@
         (enq-copy! cqueue cl-min-max (buffer limits))
         (enq-fill! cqueue uint-res (wrap-int 0))
         (set-args! histogram-kernel (buffer limits) (buffer data-matrix)
-                   (wrap-int (ecount data-matrix)) uint-res)
+                   (wrap-int (dim data-matrix)) uint-res)
         (enq-nd! cqueue histogram-kernel (work-size-2d (mrows data-matrix) n wgsm wgsn))
         (set-args! uint-to-real-kernel (.wrapPrim claccessor (/ WGS n)) (buffer limits)
                    uint-res (buffer result))
