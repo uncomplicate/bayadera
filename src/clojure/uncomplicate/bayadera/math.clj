@@ -8,10 +8,11 @@
 
 (ns ^{:author "Dragan Djuric"}
     uncomplicate.bayadera.math
-  (:require [uncomplicate.fluokitten.core :refer [fold]]
+  (:require [uncomplicate.commons.core :refer [with-release]]
             [uncomplicate.neanderthal
-             [core :refer [asum]]
-             [math :refer [exp round? magnitude gamma lgamma]]])
+             [core :refer [asum sum]]
+             [math :refer [exp round? magnitude gamma lgamma]]
+             [vect-math :refer [linear-frac linear-frac! lgamma!]]])
   (:import [org.apache.commons.math3.special Beta Gamma]))
 
 (defn regularized-gamma-q
@@ -30,34 +31,17 @@
   ^double [^double s ^double x]
   (* (gamma s) (regularized-gamma-q s x)))
 
-(let [table-size (double 1000)
-      log-factorial-table (double-array
-                           (map (fn [^double x]
-                                  (lgamma (inc x)))
-                                (range 0 (inc table-size))))]
-  (defn log-factorial
-    "Natural logarithm of a factorial of a positive real x."
-    ^double [^double x]
-    (if (< x 0)
-      (throw (IllegalArgumentException.
-              (format "x have to be positive, but is %f." x)))
-      (if (and (< x table-size) (round? x))
-        (aget log-factorial-table x)
-        (lgamma (inc x))))))
+(defn log-factorial
+  "Natural logarithm of a factorial of a positive real x."
+  ^double [^double x]
+  (lgamma (inc x)))
 
-(let [factorial-table (double-array
-                       (reduce (fn [acc ^double x]
-                                 (conj acc (* (double (peek acc)) x)))
-                               [1.0]
-                               (range 1 171)))]
-  (defn factorial
-    "Factorial function:
+(defn factorial
+  "Factorial function:
   Computes the product of all natural numbers from 0 to x.
   If x is a real number, computes the exponent of log-factorial."
-    ^double [^double x]
-    (if (and (<= 0 x 170) (round? x))
-      (aget factorial-table x)
-      (exp (log-factorial x)))))
+  ^double [^double x]
+  (gamma (inc x)))
 
 (defn log-beta
   "Natural logarithm of the beta function."
@@ -83,9 +67,12 @@
   "Binomial coefficient of n and k:
   Computes the number of ways to choose k items out of n items."
   ^double [^double n ^double k]
-  (if (and (<= 0 n 170) (round? n))
-    (/ (factorial n) (factorial k) (factorial (- n k)))
-    (exp (log-binco n k))))
+  (exp (log-binco n k)))
+
+(defn log-multico!
+  "Destructive version of [[log-multico]] that uses `xks` as working memory.."
+  ^double [xks]
+  (- ^double (log-factorial (asum xks)) ^double (sum (lgamma! (linear-frac! xks 1.0)))))
 
 (defn log-multico
   "Natural logarithm of multinomial coefficient of a RealVector xks:
@@ -93,10 +80,13 @@
   into k groups of size x1, x2, ... , xk;
   where k = (dim xks) and N = (sum xks)"
   ^double [xks]
-  (fold (fn ^double [^double acc ^double xk]
-          (- acc (log-factorial xk)))
-        (log-factorial (asum xks))
-        xks))
+  (with-release [xks-copy (linear-frac xks)]
+    (log-multico! xks-copy)))
+
+(defn multico
+  "Destructive version of [[log-multico]] that uses `xks` as working memory.."
+  ^double [xks]
+  (exp (log-multico! xks)))
 
 (defn multico
   "Multinomial coefficient of a RealVector xks:

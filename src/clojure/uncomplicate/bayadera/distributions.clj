@@ -8,11 +8,12 @@
 
 (ns ^{:author "Dragan Djuric"}
     uncomplicate.bayadera.distributions
-  (:require [uncomplicate.commons.core :refer [double-fn]]
-            [uncomplicate.fluokitten.core :refer [foldmap fmap!]]
+  (:require [uncomplicate.commons.core :refer [double-fn let-release with-release]]
+            [uncomplicate.fluokitten.core :refer [foldmap]]
             [uncomplicate.neanderthal
              [math :refer [log exp pow floor sqrt ceil f= lgamma gamma erf]]
-             [core :refer [scal! copy! copy dim raw]]
+             [vect-math :as vm :refer [sqr! log! mul!]]
+             [core :refer [scal! copy! copy dim raw axpby! ax]]
              [real :refer [asum entry]]]
             [uncomplicate.bayadera.math
              :refer [log-factorial factorial log-binco log-multico
@@ -629,7 +630,16 @@
 
 (def ^:private p+ (double-fn +) )
 
+(defn multinomial-log-unscaled!
+  ^double [ps ks]
+  (asum (mul! ks (log! ps))))
+
 (defn multinomial-log-unscaled
+  ^double [ps ks]
+  (with-release [work (vm/log ps)]
+    (asum (mul! ks work))))
+
+#_(defn multinomial-log-unscaled
   ^double [ps ks]
   (foldmap p+
            (fn ^double [^double p ^double k]
@@ -664,27 +674,34 @@
   ^double [ps ks]
   (exp (multinomial-log-pmf ps ks)))
 
-(defn multinomial-mean
-  ([ps ^long n result]
-   (scal! n (copy! ps result)))
-  ([ps ^long n]
-   (scal! n (copy ps))))
+(defn multinomial-mean [ps ^long n]
+  (ax n ps))
 
-(defn multinomial-mode
+(defn multinomial-mean!
   ([ps ^long n result]
-   (scal! (inc n) (copy! ps result)))
+   (axpby! n ps 0.0 result))
   ([ps ^long n]
-   (scal! (inc n) (copy ps))))
+   (scal! n ps)))
+
+(defn multinomial-mode [ps ^long n]
+  (ax (inc n) ps))
+
+(defn multinomial-mode!
+  ([ps ^long n result]
+   (axpby! (inc n) ps 0.0 result))
+  ([ps ^long n]
+   (scal! (inc n) ps)))
 
 (def multinomial-median multinomial-mean)
+(def multinomial-median! multinomial-mean!)
 
-(defn multinomial-variance
+(defn multinomial-variance!
   ([ps ^long n result]
-   (fmap! (fn ^double [^double p]
-            (* n p (- 1.0 p)))
-          (copy! ps result)))
-  ([ps ^long n]
-   (multinomial-variance ps n (raw ps))))
+   (axpby! n ps (- n) (sqr! ps result))))
+
+(defn multinomial-variance [ps ^long n]
+  (let-release [res (raw ps)]
+    (multinomial-variance! ps n res)))
 
 (defn multinomial-cdf
   ^double [ps ks]
