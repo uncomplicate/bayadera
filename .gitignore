@@ -13,3 +13,4 @@ docs
 hs_*.log
 .#*
 .DS_Store
+/coin.png

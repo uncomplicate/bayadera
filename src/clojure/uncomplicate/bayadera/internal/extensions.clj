@@ -10,18 +10,26 @@
     uncomplicate.bayadera.internal.extensions
   (:require [uncomplicate.commons.core
              :refer [with-release let-release Releaseable release releaseable?]]
-            [uncomplicate.fluokitten.core :refer [fmap! fmap]]
+            [uncomplicate.fluokitten.core :refer [fmap]]
             [uncomplicate.neanderthal.internal.api :as na]
             [uncomplicate.neanderthal
-             [math :refer [sqrt pow]]
-             [core :refer [dim mrows ncols raw zero axpy! imax row col rows
-                           scal! mv trans copy rk! native vctr]]
-             [real :refer [entry! entry sum nrm2]]]
+             [math :refer [sqrt sqr]]
+             [vect-math :refer [sqr! sqrt!]]
+             [core :refer [dim mrows ncols raw axpy! imax row col rows
+                           scal! mv! copy! rk! vctr native!]]
+             [real :refer [entry! sum nrm2]]]
             [uncomplicate.bayadera.protocols :refer :all])
   (:import [clojure.lang Sequential]
-           [uncomplicate.neanderthal.internal.api RealVector RealMatrix]))
+           [uncomplicate.neanderthal.internal.api Vector Matrix]))
 
-(extend-type RealVector
+(defn vector-variance! [x work]
+  (let [n (dim x)]
+    (if (< 0 n)
+      (let [x-mean (axpy! x (entry! work (- (/ (sum x) n))))]
+        (/ (sqr (nrm2 x-mean)) n))
+      0.0)))
+
+(extend-type Vector
   Location
   (mean [x]
     (let [n (dim x)]
@@ -30,46 +38,49 @@
         Double/NaN)))
   Spread
   (variance [x]
-    (let [n (dim x)]
-      (if (< 0 n)
-        (with-release [x-mean (axpy! x (entry! (raw x) (- (/ (sum x) n))))]
-          (/ (- (pow (nrm2 x-mean) 2.0) (/ (pow (sum x-mean) 2.0) n)) n))
-        0.0)))
+    (if (< 0 (dim x))
+      (with-release [work (raw x)]
+        (vector-variance! x work))
+      0.0))
   (sd [x]
     (sqrt (variance x))))
 
-(extend-type RealMatrix
+(defn matrix-mean! [a ones res]
+  (if (and (< 0 (dim a)))
+    (mv! (/ 1.0 (ncols a)) a ones res)
+    (entry! res Double/NaN)))
+
+(defn matrix-variance! [a ones work res]
+  (let [n (ncols a)]
+    (if (< 0 (dim a))
+      (let [row-sum (mv! a ones res)
+            a-mean (rk! (/ -1.0 n) row-sum ones (copy! a work))]
+        (scal! (/ 1 n) (mv! (sqr! a-mean) ones res)))
+      (entry! res 0))))
+
+(extend-type Matrix
   Dataset
   (data [this]
     this)
   Location
-  (mean [a]
-    (let [m (mrows a)
-          n (ncols a)]
-      (if (and (< 0 m) (< 0 n))
-        (if (< 1 m)
-          (with-release [ones (entry! (raw (row a 0)) 1)]
-            (scal! (/ 1.0 n) (native (mv a ones))))
-          (mean (row a 0)))
-        (entry! (vctr (na/native-factory a) m) Double/NaN))))
+  (mean
+    ([a]
+     (let-release [res (na/create-vector (na/factory a) (mrows a) false)]
+       (mean a res)))
+    ([a res]
+     (with-release [ones (entry! (raw (row a 0)) 1.0)]
+       (matrix-mean! a ones res))))
   Spread
-  (variance [a]
-    (let [m (mrows a)
-          n (ncols a)]
-      (if (and (< 0 m) (< 0 n))
-        (if (< 1 m)
-          (with-release [ones (entry! (raw (row a 0)) 1)
-                         sums (mv a ones)
-                         a-mean (rk! (/ -1.0 n) sums ones (copy a))
-                         sum-sqr (fmap! (pow 2.0) (native (mv a-mean ones)))]
-            (let-release [res (raw sum-sqr)]
-              (dotimes [i m]
-                (entry! res i (pow (nrm2 (row a-mean i)) 2.0)))
-              (scal! (/ 1 n) (axpy! (/ -1.0 n) sum-sqr res))))
-          (vctr (na/native-factory a) (variance (row a 0))))
-        (vctr (na/native-factory a) m))))
+  (variance
+    ([a]
+     (let-release [res (na/create-vector (na/factory a) (mrows a) false)]
+       (variance a res)))
+    ([a res]
+     (with-release [ones (entry! (raw (row a 0)) 1.0)
+                    work (raw a)]
+       (matrix-variance! a ones work res))))
   (sd [a]
-    (fmap! sqrt (variance a))))
+    (sqrt! (variance a))))
 
 (extend-type Sequential
   Location

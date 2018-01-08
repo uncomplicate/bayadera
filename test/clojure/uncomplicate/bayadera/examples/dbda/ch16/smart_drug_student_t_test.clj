@@ -37,7 +37,7 @@
 
 (def smart-drug-prior
   (cl-distribution-model [(:gaussian source-library)
-                          (:unifor source-library)
+                          (:uniform source-library)
                           (:exponential source-library)
                           (slurp (io/resource "uncomplicate/bayadera/examples/dbda/ch16/smart-drug-t.h"))]
                          :name "smart_drug" :mcmc-logpdf "smart_drug_mcmc_logpdf" :params-size 5 :dimension 3))
@@ -52,7 +52,7 @@
                      "Smart Drug"
                      (recur (inc s) p (next data) (conj! smart (double (read-string b))) placebo)
                      "Placebo"
-                     (recur s (inc p) (next data) smart  (conj! placebo (double (read-string b))))))
+                     (recur s (inc p) (next data) smart (conj! placebo (double (read-string b))))))
                  [(op [s] (persistent! smart))
                   (op [p] (persistent! placebo))]))]
     (def params {:smart-drug (fv (data 0))

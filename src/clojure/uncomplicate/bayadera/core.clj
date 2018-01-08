@@ -10,7 +10,6 @@
     uncomplicate.bayadera.core
   (:require [uncomplicate.commons.core
              :refer [release with-release let-release double-fn]]
-            [uncomplicate.fluokitten.core :refer [fmap! foldmap]]
             [uncomplicate.neanderthal.core :refer [transfer vctr]]
             [uncomplicate.neanderthal.internal.api :as na]
             [uncomplicate.bayadera

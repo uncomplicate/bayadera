@@ -18,14 +18,14 @@
     (release bin-ranks)))
 
 (defprotocol Location
-  (mean [x])
-  (median [x])
-  (mode [x]))
+  (mean [this] [this res])
+  (median [this])
+  (mode [this]))
 
 (defprotocol Spread
-  (hdi [x])
-  (variance [x])
-  (sd [x]))
+  (hdi [this])
+  (variance [this] [this res])
+  (sd [this]))
 
 (defprotocol Association
   (cov [x y])

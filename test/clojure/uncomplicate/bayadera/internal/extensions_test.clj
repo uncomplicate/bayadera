@@ -10,7 +10,7 @@
   (:require [midje.sweet :refer :all]
             [uncomplicate.commons.core :refer [with-release]]
             [uncomplicate.neanderthal
-             [core :refer [vctr ge sum]]
+             [core :refer [vctr ge sum axpy!]]
              [native :refer [native-float native-double]]]
             [uncomplicate.bayadera.internal.extensions :refer :all]
             [uncomplicate.bayadera.core :refer [mean variance sd]]))
@@ -38,7 +38,7 @@
      (every? #(Double/isNaN %) (mean a20)) => true
      (variance a20) => (vctr factory [0 0])
      (sd a20) => (vctr factory [0 0])
-     (mean a) => (vctr factory [6 7 8])
+     (sum (axpy! -1 (vctr factory [6 7 8]) (mean a))) => (roughly 0.0 0.0000005)
      (sum (variance a)) =>  (roughly 54)
      (sum (sd a)) => (roughly 12.7278))))
 

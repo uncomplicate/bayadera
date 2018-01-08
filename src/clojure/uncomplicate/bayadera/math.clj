@@ -11,19 +11,8 @@
   (:require [uncomplicate.fluokitten.core :refer [fold]]
             [uncomplicate.neanderthal
              [core :refer [asum]]
-             [math :refer [exp round? pow magnitude]]])
-  (:import [org.apache.commons.math3.special Gamma Beta Erf]))
-
-(defn log-gamma
-  "Natural logarithm of the Gamma function:
-  http://en.wikipedia.org/wiki/Gamma_function#The_log-gamma_function"
-  ^double [^double x]
-  (Gamma/logGamma x))
-
-(defn gamma
-  "Gamma function: http://en.wikipedia.org/wiki/Gamma_function"
-  ^double [^double x]
-  (Gamma/gamma x))
+             [math :refer [exp round? magnitude gamma lgamma]]])
+  (:import [org.apache.commons.math3.special Beta Gamma]))
 
 (defn regularized-gamma-q
   ^double [^double a ^double x]
@@ -44,7 +33,7 @@
 (let [table-size (double 1000)
       log-factorial-table (double-array
                            (map (fn [^double x]
-                                  (log-gamma (inc x)))
+                                  (lgamma (inc x)))
                                 (range 0 (inc table-size))))]
   (defn log-factorial
     "Natural logarithm of a factorial of a positive real x."
@@ -54,7 +43,7 @@
               (format "x have to be positive, but is %f." x)))
       (if (and (< x table-size) (round? x))
         (aget log-factorial-table x)
-        (log-gamma (inc x))))))
+        (lgamma (inc x))))))
 
 (let [factorial-table (double-array
                        (reduce (fn [acc ^double x]
@@ -73,7 +62,7 @@
 (defn log-beta
   "Natural logarithm of the beta function."
   ^double [^double a ^double b]
-  (- (+ (log-gamma a) (log-gamma b)) (log-gamma (+ a b))))
+  (- (+ (lgamma a) (lgamma b)) (lgamma (+ a b))))
 
 (defn beta
   "Beta function of a and b."
@@ -116,13 +105,3 @@
   where k = (dim xks) and N = (sum xks)"
   ^double [xks]
   (exp (log-multico xks)))
-
-(defn erfc
-  "The complementary error function: erfc(x) = 1 - erf(x)"
-  ^double [^double x]
-  (Erf/erfc x))
-
-(defn erf
-  "Error function: erf(x) = 2/√π 0∫x e-t2dt"
-  ^double [^double x]
-  (Erf/erf x))

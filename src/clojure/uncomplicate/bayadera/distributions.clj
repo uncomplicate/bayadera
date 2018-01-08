@@ -11,13 +11,12 @@
   (:require [uncomplicate.commons.core :refer [double-fn]]
             [uncomplicate.fluokitten.core :refer [foldmap fmap!]]
             [uncomplicate.neanderthal
-             [math :refer [log exp pow floor sqrt ceil f=]]
+             [math :refer [log exp pow floor sqrt ceil f= lgamma gamma erf]]
              [core :refer [scal! copy! copy dim raw]]
              [real :refer [asum entry]]]
             [uncomplicate.bayadera.math
              :refer [log-factorial factorial log-binco log-multico
-                     log-beta log-gamma gamma erf incomplete-gamma-l
-                     regularized-beta regularized-gamma-q]])
+                     log-beta incomplete-gamma-l regularized-beta regularized-gamma-q]])
   (:import [org.apache.commons.math3.distribution TDistribution]))
 
 (defn probability? [^double p]
@@ -448,8 +447,8 @@
 
   (defn t-log-scale
     (^double [^double nu]
-     (- (log-gamma (* 0.5 (inc nu)))
-        (* 0.5 (log nu)) log-sqrt-pi (log-gamma (* 0.5 nu))))
+     (- (lgamma (* 0.5 (inc nu)))
+        (* 0.5 (log nu)) log-sqrt-pi (lgamma (* 0.5 nu))))
     (^double [^double nu ^double sigma]
      (- (t-log-scale nu) (log sigma)))))
 
@@ -588,7 +587,7 @@
 
 (defn gamma-log-scale
   ^double [^double theta ^double k]
-  (- (+ (log-gamma k) (* k (log theta)))))
+  (- (+ (lgamma k) (* k (log theta)))))
 
 (defn gamma-check
   ([^double theta ^double k]
