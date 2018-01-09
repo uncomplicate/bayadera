@@ -7,7 +7,7 @@
 ;;   You must not remove this notice, or any other, from this software.
 
 (ns ^{:author "Dragan Djuric"}
-    uncomplicate.bayadera.opencl.util
+    uncomplicate.bayadera.internal.opencl.util
   (:require [clojure.java.io :as io]
             [me.raynes.fs :as fsc]))
 

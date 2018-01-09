@@ -10,7 +10,7 @@
              [real :refer [sum entry]]
              [opencl :refer [opencl-float]]]
             [uncomplicate.bayadera.internal.protocols :refer :all]
-            [uncomplicate.bayadera.opencl
+            [uncomplicate.bayadera.internal.opencl
              [models :refer [distributions]]
              [amd-gcn :refer :all]]))
 

@@ -23,7 +23,7 @@
              [mcmc :refer [mix!]]
              [opencl :refer [with-default-bayadera]]]
             [uncomplicate.bayadera.internal.protocols :as p]
-            [uncomplicate.bayadera.opencl.models
+            [uncomplicate.bayadera.internal.opencl.models
              :refer [distributions likelihoods]]
             [uncomplicate.bayadera.toolbox
              [processing :refer :all]

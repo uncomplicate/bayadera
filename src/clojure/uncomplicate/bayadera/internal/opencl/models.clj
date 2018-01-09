@@ -7,7 +7,7 @@
 ;;   You must not remove this notice, or any other, from this software.
 
 (ns ^{:author "Dragan Djuric"}
-    uncomplicate.bayadera.opencl.models
+    uncomplicate.bayadera.internal.opencl.models
   (:require [clojure.java.io :as io]
             [uncomplicate.commons.core :refer [Releaseable release]]
             [uncomplicate.neanderthal.internal.api :as na]
