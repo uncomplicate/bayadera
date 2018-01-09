@@ -22,9 +22,8 @@
              [math :refer [sqrt]]
              [block :refer [buffer]]
              [opencl :refer [opencl-float]]]
-            [uncomplicate.bayadera
-             [protocols :refer :all]
-             [util :refer [srand-int]]]
+            [uncomplicate.bayadera.util :refer [srand-int]]
+            [uncomplicate.bayadera.internal.protocols :refer :all]
             [uncomplicate.bayadera.opencl
              [util :refer [get-tmp-dir-name copy-philox clean-random123 with-philox]]
              [models :refer [source sampler-source distributions samplers likelihoods CLModel]]])

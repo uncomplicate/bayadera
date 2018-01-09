@@ -15,7 +15,7 @@
              [core :refer [scal! axpy!]]
              [real :refer [entry asum nrm2]]
              [native :refer [fv fge]]]
-            [uncomplicate.bayadera.protocols :refer [->Histogram]]
+            [uncomplicate.bayadera.internal.protocols :refer [->Histogram]]
             [uncomplicate.bayadera.util :refer :all]))
 
 (with-release [wgs 79
@@ -23,7 +23,7 @@
                u 7
                step (/ (- u l) wgs)
                tlimits (fv l u)
-               tpdf (fv [0.02 0.01    0.04 0.05 0.07   0.01     0.2 0.1 0.3 0.1    0.02   0.01 0.01 0.01 0.01
+               tpdf (fv [0.02 0.01 0.04 0.05 0.07 0.01 0.2  0.1  0.3  0.1  0.02 0.01 0.01 0.01 0.01
                          0.01 0.01 0.01 0.01 0.01 0.01 0.01 0.01 0.01 0.01 0.01 0.01 0.01 0.01 0.01 0.01
                          0.01 0.01 0.01 0.01 0.01 0.01 0.01 0.01 0.01 0.01 0.01 0.01 0.01 0.01 0.01 0.01
                          0.01 0.01 0.01 0.01 0.01 0.01 0.01 0.01 0.01 0.01 0.01 0.01 0.01 0.01 0.01 0.01

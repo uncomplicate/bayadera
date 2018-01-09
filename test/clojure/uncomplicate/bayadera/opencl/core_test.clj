@@ -9,11 +9,11 @@
              [real :refer [sum entry]]
              [native :refer [fv]]]
             [uncomplicate.bayadera
-             [protocols :as p]
              [core :refer :all]
              [distributions :refer [beta-pdf t-pdf binomial-lik-params]]
              [mcmc :refer [mix!]]
              [math :refer [log-beta]]]
+            [uncomplicate.bayadera.internal.protocols :as p]
             [uncomplicate.bayadera.opencl :refer [with-default-bayadera]]
             [uncomplicate.bayadera.opencl.models :refer [distributions likelihoods]]))
 

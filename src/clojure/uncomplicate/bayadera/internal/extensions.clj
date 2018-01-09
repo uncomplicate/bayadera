@@ -18,7 +18,7 @@
              [core :refer [dim mrows ncols raw axpy! imax row col rows
                            scal! mv! copy! rk! vctr native!]]
              [real :refer [entry! sum nrm2]]]
-            [uncomplicate.bayadera.protocols :refer :all])
+            [uncomplicate.bayadera.internal.protocols :refer :all])
   (:import [clojure.lang Sequential]
            [uncomplicate.neanderthal.internal.api Vector Matrix]))
 

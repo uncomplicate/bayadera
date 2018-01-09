@@ -19,7 +19,6 @@
              [real :refer [entry entry!]]
              [native :refer [fv fge]]]
             [uncomplicate.bayadera
-             [protocols :as p]
              [core :refer :all]
              [util :refer [bin-mapper hdi]]
              [opencl :refer [with-default-bayadera]]

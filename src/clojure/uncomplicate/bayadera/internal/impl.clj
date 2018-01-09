@@ -17,11 +17,11 @@
              [core :refer [transfer ge dim]]]
             [uncomplicate.neanderthal.internal.api :as na]
             [uncomplicate.bayadera
-             [protocols :refer :all]
              [math :refer [log-beta]]
              [distributions :refer :all]
              [util :refer [srand-int]]
-             [mcmc :as mcmc]])
+             [mcmc :as mcmc]]
+            [uncomplicate.bayadera.internal.protocols :refer :all])
   (:import [clojure.lang IFn]))
 
 (def ^:private INVALID_PARAMS_MESSAGE

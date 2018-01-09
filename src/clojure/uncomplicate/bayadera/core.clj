@@ -13,11 +13,11 @@
             [uncomplicate.neanderthal.core :refer [transfer vctr]]
             [uncomplicate.neanderthal.internal.api :as na]
             [uncomplicate.bayadera
-             [protocols :as p]
              [distributions :refer [uniform-params gaussian-params t-params beta-params gamma-params
                                     exponential-params erlang-params]]
              [util :refer [srand-int]]]
             [uncomplicate.bayadera.internal
+             [protocols :as p]
              [extensions :as extensions]
              [impl :refer :all]]))
 

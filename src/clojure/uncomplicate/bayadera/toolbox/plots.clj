@@ -6,7 +6,7 @@
             [uncomplicate.bayadera.toolbox
              [scaling :refer [axis vector-axis]]
              [processing :refer [render]]])
-  (:import [uncomplicate.bayadera.protocols Histogram]))
+  (:import [uncomplicate.bayadera.internal.protocols Histogram]))
 
 (defn render-sample
   ([plot xs ps]

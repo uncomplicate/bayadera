@@ -14,7 +14,7 @@
             [uncomplicate.neanderthal
              [core :refer [copy]]
              [native :refer [fge]]]
-            [uncomplicate.bayadera.protocols :refer :all]))
+            [uncomplicate.bayadera.internal.protocols :refer :all]))
 
 (defprotocol CLModel
   (source [this])

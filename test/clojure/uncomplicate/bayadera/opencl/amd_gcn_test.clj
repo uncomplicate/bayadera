@@ -9,7 +9,7 @@
              [core :refer [ge vctr row col ncols]]
              [real :refer [sum entry]]
              [opencl :refer [opencl-float]]]
-            [uncomplicate.bayadera.protocols :refer :all]
+            [uncomplicate.bayadera.internal.protocols :refer :all]
             [uncomplicate.bayadera.opencl
              [models :refer [distributions]]
              [amd-gcn :refer :all]]))

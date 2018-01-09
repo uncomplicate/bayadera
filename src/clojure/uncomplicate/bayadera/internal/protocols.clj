@@ -7,7 +7,7 @@
 ;;   You must not remove this notice, or any other, from this software.
 
 (ns ^{:author "Dragan Djuric"}
-    uncomplicate.bayadera.protocols
+    uncomplicate.bayadera.internal.protocols
   (:require [uncomplicate.commons.core :refer [Releaseable release]]))
 
 (defrecord Histogram [limits pdf bin-ranks]

@@ -18,11 +18,11 @@
              [core :refer [row native scal!]]
              [native :refer [fv]]]
             [uncomplicate.bayadera
-             [protocols :as p]
              [core :refer :all]
              [distributions :refer [beta-params binomial-lik-params]]
              [mcmc :refer [mix!]]
              [opencl :refer [with-default-bayadera]]]
+            [uncomplicate.bayadera.internal.protocols :as p]
             [uncomplicate.bayadera.opencl.models
              :refer [distributions likelihoods]]
             [uncomplicate.bayadera.toolbox

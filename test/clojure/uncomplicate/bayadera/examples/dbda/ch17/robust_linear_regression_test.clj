@@ -19,7 +19,6 @@
              [core :refer [dim]]
              [native :refer [fv fge]]]
             [uncomplicate.bayadera
-             [protocols :as p]
              [core :refer :all]
              [opencl :refer [with-default-bayadera]]
              [mcmc :refer [mix!]]]

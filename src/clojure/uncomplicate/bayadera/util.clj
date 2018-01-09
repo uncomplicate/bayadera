@@ -17,12 +17,12 @@
              [aux :refer [sort+!]]
              [block :refer [buffer]]]
             [uncomplicate.neanderthal.internal.api :as na]
-            [uncomplicate.bayadera.protocols :as pr])
+            [uncomplicate.bayadera.internal.protocols :as pr])
   (:import [java.security SecureRandom]
            [java.nio ByteBuffer]
            [java.util Arrays]
            [clojure.lang IFn$DD IFn$DDDD IFn$LD]
-           uncomplicate.bayadera.protocols.Histogram))
+           uncomplicate.bayadera.internal.protocols.Histogram))
 
 (let [random (SecureRandom.)]
   (defn srand-buffer [^long n]

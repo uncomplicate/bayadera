@@ -9,9 +9,8 @@
 (ns ^{:author "Dragan Djuric"}
     uncomplicate.bayadera.mcmc
   (:require [uncomplicate.neanderthal.math :refer [pow sqrt abs]]
-            [uncomplicate.bayadera
-             [protocols :as p]
-             [util :refer [srand-int]]]))
+            [uncomplicate.bayadera.internal.protocols :as p]
+            [uncomplicate.bayadera.util :refer [srand-int]]))
 
 (defn init-position!
   ([samp position]
