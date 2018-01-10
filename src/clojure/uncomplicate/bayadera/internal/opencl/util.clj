@@ -8,36 +8,37 @@
 
 (ns ^{:author "Dragan Djuric"}
     uncomplicate.bayadera.internal.opencl.util
-  (:require [clojure.java.io :as io]
-            [me.raynes.fs :as fsc]))
+  (:import [java.nio.file Files Path CopyOption FileVisitOption]
+           java.nio.file.attribute.FileAttribute))
 
-(defn clean-random123 [tmp-dir-name]
-  (fsc/delete-dir tmp-dir-name))
+(defn delete [path]
+  (let [options (make-array FileVisitOption 0)]
+    (doseq [path (reverse (iterator-seq (.iterator (Files/walk path options))))]
+      (Files/deleteIfExists path))))
 
-(defn copy-random123 [tmp-dir-name include-names]
-  (doseq [include-name include-names]
-    (io/copy
-     (io/input-stream
-      (io/resource (format "uncomplicate/bayadera/opencl/rng/include/Random123/%s"
-                           include-name)))
-     (io/file (format "%s/Random123/%s" tmp-dir-name include-name)))))
+(defn copy-philox [^Path path]
+  (let [random123-path (.resolve path "Random123")
+        attributes (make-array java.nio.file.attribute.FileAttribute 0)
+        options (make-array CopyOption 0)]
+    (try
+      (Files/createDirectories (.resolve random123-path "features/dummy") attributes)
+      (doseq [include-name ["philox.h" "array.h" "features/compilerfeatures.h"
+                            "features/openclfeatures.h" "features/sse.h"]]
+        (Files/copy
+         (ClassLoader/getSystemResourceAsStream
+          (format "uncomplicate/bayadera/opencl/rng/include/Random123/%s" include-name))
+         (.resolve random123-path ^String include-name)
+         ^"[Ljava.nio.file.CopyOption;" options))
+      (catch Exception e
+        (delete path)
+        (throw e)))))
 
-(defn copy-philox [tmp-dir-name]
- (try
-   (fsc/mkdirs (format "%s/%s" tmp-dir-name "Random123/features/"))
-   (copy-random123 tmp-dir-name
-                   ["philox.h" "array.h" "features/compilerfeatures.h"
-                    "features/openclfeatures.h" "features/sse.h"])
-   (catch Exception e
-     (clean-random123 tmp-dir-name)
-     (throw e))))
+(defn create-tmp-dir []
+  (java.nio.file.Files/createTempDirectory "uncomplicate_" (make-array FileAttribute 0)))
 
-(defn get-tmp-dir-name []
-  (fsc/temp-dir "uncomplicate/"))
-
-(defmacro with-philox [tmp-dir-name & body]
+(defmacro with-philox [path & body]
   `(try
-     (copy-philox ~tmp-dir-name)
+     (copy-philox ~path)
      (do ~@body)
      (finally
-       (clean-random123 ~tmp-dir-name))))
+       (delete ~path))))

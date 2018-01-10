@@ -25,7 +25,7 @@
             [uncomplicate.bayadera.util :refer [srand-int]]
             [uncomplicate.bayadera.internal.protocols :refer :all]
             [uncomplicate.bayadera.internal.opencl
-             [util :refer [get-tmp-dir-name copy-philox clean-random123 with-philox]]
+             [util :refer [create-tmp-dir copy-philox delete with-philox]]
              [models :refer [source sampler-source distributions samplers likelihoods CLModel]]])
   (:import [uncomplicate.neanderthal.internal.api DataAccessor]))
 
@@ -604,7 +604,7 @@
        (->GCNStretchFactory ctx cqueue prog neanderthal-factory
                             model (dimension model) WGS)))
     ([ctx cqueue neanderthal-factory model]
-     (let [tmp-dir-name (get-tmp-dir-name)]
+     (let [tmp-dir-name (create-tmp-dir)]
        (with-philox tmp-dir-name
          (gcn-stretch-factory ctx cqueue tmp-dir-name neanderthal-factory model 256))))))
 
@@ -629,7 +629,7 @@
     (release-deref (vals distribution-engines))
     (release-deref (vals direct-samplers))
     (release-deref (vals mcmc-factories))
-    (clean-random123 tmp-dir-name)
+    (delete tmp-dir-name)
     true)
   na/MemoryContext
   (compatible? [_ o]
@@ -662,7 +662,7 @@
 
 (defn gcn-bayadera-factory
   ([ctx cqueue compute-units WGS add-dist add-samp]
-   (let [tmp-dir-name (get-tmp-dir-name)
+   (let [tmp-dir-name (create-tmp-dir)
          neanderthal-factory (opencl-float ctx cqueue)
          distributions (merge distributions add-dist)
          samplers (merge samplers add-samp)]

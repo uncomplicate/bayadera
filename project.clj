@@ -14,14 +14,13 @@
         :url "https://github.com/uncomplicate/bayadera"}
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
-  :dependencies [[org.clojure/clojure "1.8.0"]
-                 [uncomplicate/commons "0.3.1"]
-                 [uncomplicate/fluokitten "0.6.0"]
-                 [uncomplicate/clojurecl "0.7.2"]
+  :dependencies [[org.clojure/clojure "1.9.0"]
+                 [uncomplicate/commons "0.4.0-SNAPSHOT"]
+                 [uncomplicate/fluokitten "0.6.1-SNAPSHOT"]
+                 [uncomplicate/clojurecl "0.8.0-SNAPSHOT"]
                  [uncomplicate/clojurecuda "0.3.0-SNAPSHOT"]
                  [uncomplicate/neanderthal "0.18.0-SNAPSHOT"]
                  [org.apache.commons/commons-math3 "3.6.1"]
-                 [me.raynes/fs "1.4.6"]
                  [quil "2.6.0"]]
 
   :aot [;;uncomplicate.bayadera.protocols
@@ -36,15 +35,16 @@
           :src-linenum-anchor-prefix "L"
           :output-dir "docs/codox"}
 
-  :profiles {:dev {:dependencies [[midje "1.8.3"]
-                                  [org.clojure/data.csv "0.1.3"]]
-                   :plugins [[lein-midje "3.2"]
-                             [codox "0.10.1"]]
+  :profiles {:dev {:dependencies [[midje "1.9.1"]
+                                  [org.clojure/data.csv "0.1.4"]]
+                   :plugins [[lein-midje "3.2.1"]
+                             [codox "0.10.3"]]
                    :global-vars {*warn-on-reflection* true
                                  *unchecked-math* :warn-on-boxed
                                  *print-length* 16}
                    :jvm-opts ^:replace ["-Dclojure.compiler.direct-linking=true"
-                                        "-XX:MaxDirectMemorySize=16g" "-XX:+UseLargePages"]}}
+                                        "-XX:MaxDirectMemorySize=16g" "-XX:+UseLargePages"
+                                        #_"--add-opens=java.base/jdk.internal.ref=ALL-UNNAMED"]}}
 
   :javac-options ["-target" "1.8" "-source" "1.8" "-Xlint:-options"]
   :source-paths ["src/clojure" "src/opencl"]
