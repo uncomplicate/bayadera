@@ -41,13 +41,11 @@
   (loglik [_]
     loglik-name))
 
-(defn cl-likelihood-model
-  [source & {:keys [name loglik params-size]
-             :or {name (str (gensym "likelihood"))
-                  loglik (format "%s_loglik" name)
-                  params-size 1}}]
-  (->CLLikelihoodModel name loglik params-size
-                       (if (sequential? source) source [source])))
+(defn cl-likelihood-model [source & {:keys [name loglik params-size]
+                                     :or {name (str (gensym "likelihood"))
+                                          loglik (format "%s_loglik" name)
+                                          params-size 1}}]
+  (->CLLikelihoodModel name loglik params-size (if (sequential? source) source [source])))
 
 ;; ==================== Distribution model ====================================
 
@@ -88,12 +86,8 @@
                   logpdf (format "%s_logpdf" name)
                   mcmc-logpdf logpdf dimension 1 params-size 1}}]
   (->CLDistributionModel name logpdf mcmc-logpdf dimension params-size limits
-                         (if (sequential? source)
-                           source
-                           [source])
-                         (if (sequential? sampler-source)
-                           sampler-source
-                           [sampler-source])))
+                         (if (sequential? source) source [source])
+                         (if (sequential? sampler-source) sampler-source [sampler-source])))
 
 ;; ==================== Posterior model ====================================
 
@@ -136,8 +130,7 @@
     (let [post-name (str (gensym name))
           post-logpdf (format "%s_logpdf" post-name)
           post-mcmc-logpdf (format "%s_mcmc_logpdf" post-name)
-          post-params-size (+ (long (params-size lik))
-                              (long (params-size prior)))]
+          post-params-size (+ ^long (params-size lik) ^long (params-size prior))]
       (->CLPosteriorModel post-name post-logpdf post-mcmc-logpdf
                           (dimension prior) post-params-size
                           (when (limits prior) (copy (limits prior)))

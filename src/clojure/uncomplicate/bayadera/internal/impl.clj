@@ -49,7 +49,7 @@
     (histogram dataset-eng data-matrix)))
 
 (defn ^:private inc-long ^long [^long x]
-  (unchecked-inc x))
+  (inc x))
 
 (deftype DirectSampler [samp-engine params sample-count seed-vol]
   Releaseable
