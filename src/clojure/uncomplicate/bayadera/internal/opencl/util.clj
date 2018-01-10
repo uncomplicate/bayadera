@@ -18,7 +18,7 @@
 
 (defn copy-philox [^Path path]
   (let [random123-path (.resolve path "Random123")
-        attributes (make-array java.nio.file.attribute.FileAttribute 0)
+        attributes (make-array FileAttribute 0)
         options (make-array CopyOption 0)]
     (try
       (Files/createDirectories (.resolve random123-path "features/dummy") attributes)
