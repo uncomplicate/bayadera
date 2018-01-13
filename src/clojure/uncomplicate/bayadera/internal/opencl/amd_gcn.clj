@@ -567,8 +567,7 @@
   (defn gcn-distribution-engine
     ([ctx cqueue tmp-dir-name model WGS]
      (let-release [prog (build-program!
-                         (program-with-source ctx (conj (source model)
-                                                        distribution-src))
+                         (program-with-source ctx (conj (source model) distribution-src))
                          (format distribution-options
                                  (logpdf model) (params-size model) (dimension model)
                                  WGS tmp-dir-name)
@@ -678,12 +677,10 @@
       compute-units WGS
       (gcn-dataset-engine ctx cqueue WGS)
       neanderthal-factory
-      (fmap #(delay (gcn-distribution-engine ctx cqueue tmp-dir-name % WGS))
-            distributions)
+      (fmap #(delay (gcn-distribution-engine ctx cqueue tmp-dir-name % WGS)) distributions)
       (fmap #(delay (gcn-direct-sampler ctx cqueue tmp-dir-name % WGS))
             (select-keys distributions (keys samplers)))
-      (fmap #(delay (gcn-stretch-factory ctx cqueue tmp-dir-name
-                                         neanderthal-factory % WGS))
+      (fmap #(delay (gcn-stretch-factory ctx cqueue tmp-dir-name neanderthal-factory % WGS))
             distributions))))
   ([ctx cqueue compute-units WGS]
    (gcn-bayadera-factory ctx cqueue compute-units WGS nil nil))

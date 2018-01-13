@@ -157,7 +157,7 @@
 (def source-library
   {:uniform (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/uniform.h"))
    :gaussian (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/gaussian.h"))
-   :t (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/t.h"))
+   :student-t (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/student-t.h"))
    :beta (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/beta.h"))
    :exponential (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/exponential.h"))
    :erlang (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/erlang.h"))
@@ -181,9 +181,9 @@
                           :name "gaussian" :params-size 2
                           :limits (fge 2 1 [(- Float/MAX_VALUE) Float/MAX_VALUE])
                           :sampler-source (:gaussian samplers))
-   :t
-   (cl-distribution-model (:t source-library)
-                          :name "t" :params-size 4
+   :student-t
+   (cl-distribution-model (:student-t source-library)
+                          :name "student_t" :params-size 4
                           :limits (fge 2 1 [(- Float/MAX_VALUE) Float/MAX_VALUE]))
    :beta
    (cl-distribution-model (:beta source-library)
@@ -211,6 +211,6 @@
 (def likelihoods
   {:gaussian (fn [n] (cl-likelihood-model (:gaussian source-library)
                                           :name "gaussian" :params-size n))
-   :t (fn [n] (cl-likelihood-model (:t source-library) :name "t" :params-size n))
+   :student-t (fn [n] (cl-likelihood-model (:student-t source-library) :name "student_t" :params-size n))
    :binomial (cl-likelihood-model (:binomial source-library)
                                   :name "binomial" :params-size 2)})

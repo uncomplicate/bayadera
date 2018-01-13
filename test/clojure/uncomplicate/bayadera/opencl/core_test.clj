@@ -55,7 +55,7 @@
         sigma 1]
     (facts
      "Core functions for Student's distribution."
-     (with-release [dist (t nu mu sigma)
+     (with-release [dist (student-t nu mu sigma)
                     t-sampler (sampler dist)]
        (with-release [cl-sample (dataset (sample t-sampler))
                       host-sample (transfer (p/data cl-sample))]

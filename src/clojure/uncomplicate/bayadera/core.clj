@@ -13,8 +13,8 @@
             [uncomplicate.neanderthal.core :refer [transfer vctr]]
             [uncomplicate.neanderthal.internal.api :as na]
             [uncomplicate.bayadera
-             [distributions :refer [uniform-params gaussian-params t-params beta-params gamma-params
-                                    exponential-params erlang-params]]
+             [distributions :refer [uniform-params gaussian-params student-t-params beta-params
+                                    gamma-params exponential-params erlang-params]]
              [util :refer [srand-int]]]
             [uncomplicate.bayadera.internal
              [protocols :as p]
@@ -54,16 +54,16 @@
    (->GaussianDistribution factory (p/distribution-engine factory :gaussian)
                            (vctr (na/factory factory) (gaussian-params mu sigma)) mu sigma)))
 
-(defn t
+(defn student-t
   ([^double nu ^double mu ^double sigma]
-   (t *bayadera-factory* nu mu sigma))
+   (student-t *bayadera-factory* nu mu sigma))
   ([^double nu]
-   (t nu 0.0 1.0))
+   (student-t nu 0.0 1.0))
   ([factory ^double nu ^double mu ^double sigma]
-   (->TDistribution factory (p/distribution-engine factory :t)
-                    (vctr (na/factory factory) (t-params nu mu sigma)) nu mu sigma))
+   (->StudentTDistribution factory (p/distribution-engine factory :student-t)
+                           (vctr (na/factory factory) (student-t-params nu mu sigma)) nu mu sigma))
   ([factory ^double nu]
-   (t factory nu 0.0 1.0)))
+   (student-t factory nu 0.0 1.0)))
 
 (defn beta
   ([^double a ^double b]

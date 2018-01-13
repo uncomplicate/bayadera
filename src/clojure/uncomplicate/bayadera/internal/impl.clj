@@ -140,7 +140,7 @@
   (sd [_]
     (sqrt (uniform-variance a b))))
 
-(deftype TDistribution [factory dist-eng params ^double nu ^double mu ^double sigma]
+(deftype StudentTDistribution [factory dist-eng params ^double nu ^double mu ^double sigma]
   Releaseable
   (release [_]
     (release params))
@@ -150,11 +150,11 @@
   SamplerProvider
   (sampler [this options]
     (let [walkers (or (:walkers options) (* ^long (processing-elements factory) 32))
-          std (sqrt (t-variance nu sigma))
-          m (t-mean nu mu)
+          std (sqrt (student-t-variance nu sigma))
+          m (student-t-mean nu mu)
           seed (int (or (:seed options) (srand-int)))]
       (with-release [limits (ge (na/native-factory factory) 2 1 [(- m (* 10 std)) (+ m (* 10 std))])]
-        (let-release [samp (mcmc-sampler (mcmc-factory factory :t) walkers params)]
+        (let-release [samp (mcmc-sampler (mcmc-factory factory :student-t) walkers params)]
           (init-position! samp seed limits)
           (init! samp (inc seed))
           (burn-in! samp (max 0 (long (or (:warm-up options) 128))) 8.0)
@@ -172,16 +172,16 @@
     (model dist-eng))
   Location
   (mean [_]
-    (t-mean nu mu))
+    (student-t-mean nu mu))
   (mode [_]
-    (t-mode nu mu))
+    (student-t-mode nu mu))
   (median [_]
-    (t-median nu mu))
+    (student-t-median nu mu))
   Spread
   (variance [_]
-    (t-variance nu sigma))
+    (student-t-variance nu sigma))
   (sd [_]
-    (sqrt (t-variance nu sigma))))
+    (sqrt (student-t-variance nu sigma))))
 
 (deftype BetaDistribution [factory dist-eng params ^double a ^double b]
   Releaseable

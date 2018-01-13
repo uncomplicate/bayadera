@@ -446,72 +446,72 @@
 
 (let [log-sqrt-pi (log (sqrt Math/PI))]
 
-  (defn t-log-scale
+  (defn student-t-log-scale
     (^double [^double nu]
      (- (lgamma (* 0.5 (inc nu)))
         (* 0.5 (log nu)) log-sqrt-pi (lgamma (* 0.5 nu))))
     (^double [^double nu ^double sigma]
-     (- (t-log-scale nu) (log sigma)))))
+     (- (student-t-log-scale nu) (log sigma)))))
 
-(defn t-check
+(defn student-t-check
   ([^double nu]
    (< 0.0 nu))
   ([^double nu ^double mu ^double sigma]
    (and (< 0.0 nu) (< 0.0 sigma)))
   ([^double nu ^double mu ^double sigma ^double x]
-   (t-check nu mu sigma)))
+   (student-t-check nu mu sigma)))
 
-(defn t-params
+(defn student-t-params
   ([^double nu ^double mu ^double sigma]
-   (when (t-check nu mu sigma)
-     [nu mu sigma (t-log-scale nu sigma)]))
+   (when (student-t-check nu mu sigma)
+     [nu mu sigma (student-t-log-scale nu sigma)]))
   ([^double nu]
-   (t-params nu 0.0 1.0)))
+   (student-t-params nu 0.0 1.0)))
 
-(defn t-log-unscaled
+(defn student-t-log-unscaled
   (^double [^double nu ^double x]
    (- (* 0.5 (inc nu) (log (inc (/ (* x x) nu))))))
   (^double [^double nu ^double mu ^double sigma ^double x]
-   (t-log-unscaled nu (/ (- x mu) sigma))))
+   (student-t-log-unscaled nu (/ (- x mu) sigma))))
 
-(defn t-log-pdf
+(defn student-t-log-pdf
   (^double [^double nu ^double x]
-   (+ (t-log-unscaled nu x) (t-log-scale nu)))
+   (+ (student-t-log-unscaled nu x) (student-t-log-scale nu)))
   (^double [^double nu ^double mu ^double sigma ^double x]
-   (+ (t-log-unscaled nu mu sigma x) (t-log-scale nu sigma))))
+   (+ (student-t-log-unscaled nu mu sigma x) (student-t-log-scale nu sigma))))
 
 (defn t-pdf
   (^double [^double nu ^double x]
-   (exp (t-log-pdf nu x)))
+   (exp (student-t-log-pdf nu x)))
   (^double [^double nu ^double mu ^double sigma ^double x]
-   (exp (t-log-pdf nu mu sigma x))))
+   (exp (student-t-log-pdf nu mu sigma x))))
 
-(defn t-mean
+(defn student-t-mean
   (^double [^double nu ^double mu]
    (if (< 1.0 nu) mu Double/NaN))
   (^double [^double nu]
-   (t-mean nu 0.0))
+   (student-t-mean nu 0.0))
   (^double [^double nu ^double mu ^double sigma]
-   (t-mean nu mu)))
+   (student-t-mean nu mu)))
 
-(def t-mode t-mean)
+(def student-t-mode student-t-mean)
 
-(def t-median t-mean)
+(def student-t-median student-t-mean)
 
-(defn t-variance
+(defn student-t-variance
   (^double [^double nu ^double sigma]
    (cond
      (< 2.0 nu) (* sigma sigma (/ nu (- nu 2.0)))
      (and (< 1.0 nu) (<= nu 2)) Double/POSITIVE_INFINITY
      :default Double/NaN))
   (^double [^double nu]
-   (t-variance nu 1.0))
+   (student-t-variance nu 1.0))
   (^double [^double nu ^double mu ^double sigma]
-   (t-variance nu sigma)))
+   (student-t-variance nu sigma)))
 
-(defn t-cdf
+(defn student-t-cdf
   (^double [^double nu ^double x]
-   (t-cdf nu 0.0 1.0 x))
+   (student-t-cdf nu 0.0 1.0 x))
   (^double [^double nu ^double mu ^double sigma ^double x]
    (if (= mu x)
      0.5
