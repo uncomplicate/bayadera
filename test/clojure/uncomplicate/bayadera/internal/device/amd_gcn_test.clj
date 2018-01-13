@@ -1,5 +1,5 @@
 (ns ^{:author "Dragan Djuric"}
-    uncomplicate.bayadera.opencl.amd-gcn-test
+    uncomplicate.bayadera.internal.device.amd-gcn-test
   (:require [midje.sweet :refer :all]
             [uncomplicate.commons.core :refer [with-release]]
             [uncomplicate.clojurecl.core :refer :all]
@@ -8,6 +8,7 @@
              [real :refer [sum entry]]
              [opencl :refer [opencl-float]]]
             [uncomplicate.bayadera.internal.protocols :refer :all]
+            [uncomplicate.bayadera.core-test :refer [test-all]]
             [uncomplicate.bayadera.internal.device
              [models :refer [distributions]]
              [amd-gcn :refer :all]]))
@@ -16,10 +17,14 @@
                ctx (context [dev])
                cqueue (command-queue ctx dev)]
 
+  (with-release [factory (gcn-bayadera-factory ctx cqueue)]
+    (test-all factory))
+
   (let [data-size (* 44 (long (Math/pow 2 16)))]
     (with-release [neanderthal-factory (opencl-float ctx cqueue)
                    dataset-engine (gcn-dataset-engine ctx cqueue)
                    data-matrix (ge neanderthal-factory 22 data-size (repeatedly (* 22 data-size) rand))]
+
       (facts
        "Test histogram"
        (/ (sum (col (:pdf (histogram dataset-engine data-matrix)) 4)) 256) => (roughly 1.0))))
