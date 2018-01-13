@@ -7,7 +7,7 @@
 ;;   You must not remove this notice, or any other, from this software.
 
 (ns ^{:author "Dragan Djuric"}
-    uncomplicate.bayadera.internal.opencl.models
+    uncomplicate.bayadera.internal.device.models
   (:require [clojure.java.io :as io]
             [uncomplicate.commons.core :refer [Releaseable release]]
             [uncomplicate.neanderthal.internal.api :as na]
@@ -211,6 +211,7 @@
 (def likelihoods
   {:gaussian (fn [n] (cl-likelihood-model (:gaussian source-library)
                                           :name "gaussian" :params-size n))
-   :student-t (fn [n] (cl-likelihood-model (:student-t source-library) :name "student_t" :params-size n))
+   :student-t (fn [n] (cl-likelihood-model (:student-t source-library)
+                                           :name "student_t" :params-size n))
    :binomial (cl-likelihood-model (:binomial source-library)
                                   :name "binomial" :params-size 2)})

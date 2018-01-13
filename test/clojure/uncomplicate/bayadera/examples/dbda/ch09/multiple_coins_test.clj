@@ -22,7 +22,7 @@
              [util :refer [bin-mapper hdi]]
              [opencl :refer [with-default-bayadera]]
              [mcmc :refer [mix! info anneal! burn-in! acc-rate! run-sampler!]]]
-            [uncomplicate.bayadera.internal.opencl.models
+            [uncomplicate.bayadera.internal.device.models
              :refer [cl-likelihood-model cl-distribution-model]]
             [uncomplicate.bayadera.toolbox
              [processing :refer :all]

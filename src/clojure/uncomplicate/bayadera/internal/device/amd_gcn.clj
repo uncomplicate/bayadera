@@ -7,7 +7,7 @@
 ;;   You must not remove this notice, or any other, from this software.
 
 (ns ^{:author "Dragan Djuric"}
-    uncomplicate.bayadera.internal.opencl.amd-gcn
+    uncomplicate.bayadera.internal.device.amd-gcn
   (:require [clojure.java.io :as io]
             [uncomplicate.commons.core
              :refer [Releaseable release with-release let-release wrap-int double-fn long-fn]]
@@ -25,7 +25,7 @@
              [opencl :refer [opencl-float]]]
             [uncomplicate.bayadera.util :refer [srand-int]]
             [uncomplicate.bayadera.internal.protocols :refer :all]
-            [uncomplicate.bayadera.internal.opencl
+            [uncomplicate.bayadera.internal.device
              [util :refer [create-tmp-dir copy-philox delete with-philox]]
              [models :refer [source sampler-source distributions samplers likelihoods CLModel]]]))
 

@@ -103,18 +103,18 @@
 
 (facts
  "Student's t Distribution"
- (t-check 0.3) => true
- (t-check 0) => false
- (t-check 2.0 3.0 0.5) => true
- (t-check 2.0 3.0 -0.5) => false
- (t-params 0.2) => [0.2 0.0 1.0 -1.6221247803726204]
- (t-params 0.2 -2 -2.0) => nil
- (t-mean 2.3 0.4) => 0.4
- (t-mode 2.3 0.4) => 0.4
- (t-median 2.3 0.4) => 0.4
- (t-variance 2.3 3.1) => 73.67666666666672
- (t-pdf 2.45 2.34) => (roughly 0.047657)
- (- (t-cdf 2.45 3.12) (t-cdf 2.45 2.34)) => (roughly 0.02602))
+ (student-t-check 0.3) => true
+ (student-t-check 0) => false
+ (student-t-check 2.0 3.0 0.5) => true
+ (student-t-check 2.0 3.0 -0.5) => false
+ (student-t-params 0.2) => [0.2 0.0 1.0 -1.6221247803726204]
+ (student-t-params 0.2 -2 -2.0) => nil
+ (student-t-mean 2.3 0.4) => 0.4
+ (student-t-mode 2.3 0.4) => 0.4
+ (student-t-median 2.3 0.4) => 0.4
+ (student-t-variance 2.3 3.1) => 73.67666666666672
+ (student-t-pdf 2.45 2.34) => (roughly 0.047657)
+ (- (student-t-cdf 2.45 3.12) (student-t-cdf 2.45 2.34)) => (roughly 0.02602))
 
 (facts
  "Beta Distribution"

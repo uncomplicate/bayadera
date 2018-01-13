@@ -480,7 +480,7 @@
   (^double [^double nu ^double mu ^double sigma ^double x]
    (+ (student-t-log-unscaled nu mu sigma x) (student-t-log-scale nu sigma))))
 
-(defn t-pdf
+(defn student-t-pdf
   (^double [^double nu ^double x]
    (exp (student-t-log-pdf nu x)))
   (^double [^double nu ^double mu ^double sigma ^double x]

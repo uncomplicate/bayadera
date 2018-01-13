@@ -10,12 +10,12 @@
              [native :refer [fv]]]
             [uncomplicate.bayadera
              [core :refer :all]
-             [distributions :refer [beta-pdf t-pdf binomial-lik-params]]
+             [distributions :refer [beta-pdf binomial-lik-params]]
              [mcmc :refer [mix!]]
              [math :refer [log-beta]]]
             [uncomplicate.bayadera.internal.protocols :as p]
             [uncomplicate.bayadera.opencl :refer [with-default-bayadera]]
-            [uncomplicate.bayadera.internal.opencl.models :refer [distributions likelihoods]]))
+            [uncomplicate.bayadera.internal.device.models :refer [distributions likelihoods]]))
 
 (defmacro roughly100 [exp]
   `(let [v# (double ~exp)]

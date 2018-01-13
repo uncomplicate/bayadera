@@ -23,7 +23,7 @@
              [core :refer :all]
              [opencl :refer [with-default-bayadera]]
              [mcmc :refer [mix!]]]
-            [uncomplicate.bayadera.internal.opencl.models
+            [uncomplicate.bayadera.internal.device.models
              :refer [source-library likelihoods cl-distribution-model]]
             [uncomplicate.bayadera.toolbox
              [processing :refer :all]
@@ -62,13 +62,13 @@
     (with-release [prior (distribution smart-drug-prior)
                    prior-dist (prior (fv 10 100 60 0 100))
                    smart-drug-post (posterior "smart_drug"
-                                              ((:t likelihoods) (dim (:smart-drug params)))
+                                              ((:student-t likelihoods) (dim (:smart-drug params)))
                                               prior-dist)
                    smart-drug-dist (smart-drug-post (:smart-drug params))
                    smart-drug-sampler (sampler smart-drug-dist
                                                {:limits (fge 2 3 [0 30 80 120 0 40])})
                    placebo-post (posterior "placebo"
-                                           ((:t likelihoods) (dim (:placebo params)))
+                                           ((:student-t likelihoods) (dim (:placebo params)))
                                            prior-dist)
                    placebo-dist (placebo-post (:placebo params))
                    placebo-sampler (sampler placebo-dist

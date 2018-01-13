@@ -11,7 +11,7 @@
   (:require [clojure.java.io :as io]
             [uncomplicate.clojurecl.core :refer [with-default *context* *command-queue*]]
             [uncomplicate.bayadera.core :refer [with-bayadera *bayadera-factory*]]
-            [uncomplicate.bayadera.internal.opencl
+            [uncomplicate.bayadera.internal.device
              [models :refer [->CLLikelihoodModel ->CLPosteriorModel]]
              [amd-gcn :refer [gcn-bayadera-factory]]]))
 
