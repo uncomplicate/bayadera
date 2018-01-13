@@ -124,7 +124,7 @@
   (model [this]
     this))
 
-(let [post-source (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/posterior.cl"))]
+(let [post-source (slurp (io/resource "uncomplicate/bayadera/internal/opencl/distributions/posterior.cl"))]
 
   (defn cl-posterior-model [prior name lik]
     (let [post-name (str (gensym name))
@@ -155,20 +155,20 @@
 ;; ==================== Distribution Models ====================================
 
 (def source-library
-  {:uniform (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/uniform.h"))
-   :gaussian (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/gaussian.h"))
-   :student-t (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/student-t.h"))
-   :beta (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/beta.h"))
-   :exponential (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/exponential.h"))
-   :erlang (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/erlang.h"))
-   :gamma (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/gamma.h"))
-   :binomial (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/binomial.h"))})
+  {:uniform (slurp (io/resource "uncomplicate/bayadera/internal/opencl/distributions/uniform.h"))
+   :gaussian (slurp (io/resource "uncomplicate/bayadera/internal/opencl/distributions/gaussian.h"))
+   :student-t (slurp (io/resource "uncomplicate/bayadera/internal/opencl/distributions/student-t.h"))
+   :beta (slurp (io/resource "uncomplicate/bayadera/internal/opencl/distributions/beta.h"))
+   :exponential (slurp (io/resource "uncomplicate/bayadera/internal/opencl/distributions/exponential.h"))
+   :erlang (slurp (io/resource "uncomplicate/bayadera/internal/opencl/distributions/erlang.h"))
+   :gamma (slurp (io/resource "uncomplicate/bayadera/internal/opencl/distributions/gamma.h"))
+   :binomial (slurp (io/resource "uncomplicate/bayadera/internal/opencl/distributions/binomial.h"))})
 
 (def samplers
-  {:uniform (slurp (io/resource "uncomplicate/bayadera/opencl/rng/uniform-sampler.cl"))
-   :gaussian (slurp (io/resource "uncomplicate/bayadera/opencl/rng/gaussian-sampler.cl"))
-   :exponential (slurp (io/resource "uncomplicate/bayadera/opencl/rng/exponential-sampler.cl"))
-   :erlang (slurp (io/resource "uncomplicate/bayadera/opencl/rng/erlang-sampler.cl"))})
+  {:uniform (slurp (io/resource "uncomplicate/bayadera/internal/opencl/rng/uniform-sampler.cl"))
+   :gaussian (slurp (io/resource "uncomplicate/bayadera/internal/opencl/rng/gaussian-sampler.cl"))
+   :exponential (slurp (io/resource "uncomplicate/bayadera/internal/opencl/rng/exponential-sampler.cl"))
+   :erlang (slurp (io/resource "uncomplicate/bayadera/internal/opencl/rng/erlang-sampler.cl"))})
 
 (def distributions
   {:uniform

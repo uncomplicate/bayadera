@@ -37,13 +37,13 @@
 (def subjects 28)
 
 (def touch-prior
-  (cl-distribution-model [(slurp (io/resource "uncomplicate/bayadera/opencl/distributions/beta.h"))
-                          (slurp (io/resource "uncomplicate/bayadera/opencl/distributions/gamma.h"))
+  (cl-distribution-model [(slurp (io/resource "uncomplicate/bayadera/internal/opencl/distributions/beta.h"))
+                          (slurp (io/resource "uncomplicate/bayadera/internal/opencl/distributions/gamma.h"))
                           (slurp (io/resource "uncomplicate/bayadera/examples/dbda/ch09/therapeutic-touch.h"))]
                          :name "touch" :params-size 4 :dimension (+ subjects 2)))
 
 (def touch-likelihood
-  (cl-likelihood-model [(slurp (io/resource "uncomplicate/bayadera/opencl/distributions/binomial.h"))
+  (cl-likelihood-model [(slurp (io/resource "uncomplicate/bayadera/internal/opencl/distributions/binomial.h"))
                         (slurp (io/resource "uncomplicate/bayadera/examples/dbda/ch09/therapeutic-touch-lik.h"))]
                        :name "touch" :params-size (* subjects 2)))
 

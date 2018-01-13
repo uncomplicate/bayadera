@@ -23,14 +23,6 @@
                  [org.apache.commons/commons-math3 "3.6.1"]
                  [quil "2.6.0"]]
 
-  :aot [;;uncomplicate.bayadera.protocols
-                                        ;uncomplicate.bayadera.impl
-                                        ;uncomplicate.bayadera.core
-                                        ;uncomplicate.bayadera.opencl.amd-gcn
-                                        ;uncomplicate.bayadera.mcmc.opencl.amd-gcn-stretch
-        uncomplicate.bayadera.toolbox.theme
-      ]
-
   :codox {:src-dir-uri "http://github.com/uncomplicate/bayadera/blob/master"
           :src-linenum-anchor-prefix "L"
           :output-dir "docs/codox"}
@@ -47,7 +39,6 @@
                                         #_"--add-opens=java.base/jdk.internal.ref=ALL-UNNAMED"]}}
 
   :javac-options ["-target" "1.8" "-source" "1.8" "-Xlint:-options"]
-  :source-paths ["src/clojure" "src/opencl"]
-  :java-source-paths ["src/java"]
-  :resource-paths ["src/opencl"]
+  :source-paths ["src/clojure" "src/device"]
+  :resource-paths ["src/device"]
   :test-paths ["test" "test/clojure"])

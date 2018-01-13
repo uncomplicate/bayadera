@@ -33,13 +33,13 @@
 (def state (atom nil))
 
 (def multiple-coins-prior
-  (cl-distribution-model [(slurp (io/resource "uncomplicate/bayadera/opencl/distributions/beta.h"))
+  (cl-distribution-model [(slurp (io/resource "uncomplicate/bayadera/internal/opencl/distributions/beta.h"))
                           (slurp (io/resource "uncomplicate/bayadera/examples/dbda/ch09/multiple-coins.h"))]
                          :name "multiple_coins" :params-size 3 :dimension 3
                          :limits (fge 2 3 [0 1 0 1 0 1])))
 
 (def multiple-coins-likelihood
-  (cl-likelihood-model [(slurp (io/resource "uncomplicate/bayadera/opencl/distributions/binomial.h"))
+  (cl-likelihood-model [(slurp (io/resource "uncomplicate/bayadera/internal/opencl/distributions/binomial.h"))
                         (slurp (io/resource "uncomplicate/bayadera/examples/dbda/ch09/multiple-coins-lik.h"))]
                        :name "multiple_coins" :params-size 4))
 

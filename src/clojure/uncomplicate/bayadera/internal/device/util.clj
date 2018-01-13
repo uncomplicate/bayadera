@@ -26,7 +26,7 @@
                             "features/openclfeatures.h" "features/sse.h"]]
         (Files/copy
          (ClassLoader/getSystemResourceAsStream
-          (format "uncomplicate/bayadera/opencl/rng/include/Random123/%s" include-name))
+          (format "uncomplicate/bayadera/internal/include/Random123/%s" include-name))
          (.resolve random123-path ^String include-name)
          ^"[Ljava.nio.file.CopyOption;" options))
       (catch Exception e

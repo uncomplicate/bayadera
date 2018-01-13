@@ -545,11 +545,11 @@
 ;; ======================== Constructor functions ==============================
 
 (let [reduction-src (slurp (io/resource "uncomplicate/clojurecl/kernels/reduction.cl"))
-      estimate-src (slurp (io/resource "uncomplicate/bayadera/opencl/engines/amd-gcn-estimate.cl"))
-      distribution-src (slurp (io/resource "uncomplicate/bayadera/opencl/engines/amd-gcn-distribution.cl"))
-      likelihood-src (slurp (io/resource "uncomplicate/bayadera/opencl/engines/amd-gcn-likelihood.cl"))
-      uniform-sampler-src (slurp (io/resource "uncomplicate/bayadera/opencl/rng/uniform-sampler.cl"))
-      mcmc-stretch-src (slurp (io/resource "uncomplicate/bayadera/opencl/engines/amd-gcn-mcmc-stretch.cl"))
+      estimate-src (slurp (io/resource "uncomplicate/bayadera/internal/opencl/engines/amd-gcn-estimate.cl"))
+      distribution-src (slurp (io/resource "uncomplicate/bayadera/internal/opencl/engines/amd-gcn-distribution.cl"))
+      likelihood-src (slurp (io/resource "uncomplicate/bayadera/internal/opencl/engines/amd-gcn-likelihood.cl"))
+      uniform-sampler-src (slurp (io/resource "uncomplicate/bayadera/internal/opencl/rng/uniform-sampler.cl"))
+      mcmc-stretch-src (slurp (io/resource "uncomplicate/bayadera/internal/opencl/engines/amd-gcn-mcmc-stretch.cl"))
       dataset-options "-cl-std=CL2.0 -DREAL=float -DREAL2=float2 -DACCUMULATOR=float -DWGS=%d"
       distribution-options "-cl-std=CL2.0 -DREAL=float -DACCUMULATOR=float -DLOGPDF=%s -DPARAMS_SIZE=%d -DDIM=%d -DWGS=%d -I%s"
       posterior-options "-cl-std=CL2.0 -DREAL=float -DACCUMULATOR=double -DLOGPDF=%s -DLOGLIK=%s -DPARAMS_SIZE=%d -DDIM=%d -DWGS=%d -I%s"
