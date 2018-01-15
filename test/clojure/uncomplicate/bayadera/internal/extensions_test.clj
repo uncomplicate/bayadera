@@ -9,9 +9,13 @@
 (ns uncomplicate.bayadera.internal.extensions-test
   (:require [midje.sweet :refer :all]
             [uncomplicate.commons.core :refer [with-release]]
+            [uncomplicate.clojurecl
+             [core :refer [*command-queue*]]
+             [legacy :refer [with-default-1]]]
             [uncomplicate.neanderthal
-             [core :refer [vctr ge sum axpy!]]
-             [native :refer [native-float native-double]]]
+             [core :refer [vctr ge sum axpy! native transfer]]
+             [native :refer [native-float native-double]]
+             [opencl :refer [opencl-float opencl-double with-engine *opencl-factory*]]]
             [uncomplicate.bayadera.internal.extensions :refer :all]
             [uncomplicate.bayadera.core :refer [mean variance sd]]))
 
@@ -32,18 +36,27 @@
 
 (defn ge-matrix-test [factory]
   (with-release [a (ge factory 3 5 (range 15))
-                 a20 (ge factory 2 0)]
+                 a20 (ge factory 2 0)
+                 native-provider (transfer a20)]
     (facts
      "GE Matrix as a Location and Spread"
      (every? #(Double/isNaN %) (mean a20)) => true
-     (variance a20) => (vctr factory [0 0])
-     (sd a20) => (vctr factory [0 0])
-     (sum (axpy! -1 (vctr factory [6 7 8]) (mean a))) => (roughly 0.0 0.0000005)
+     (variance a20) => (vctr native-provider [0 0])
+     (sd a20) => (vctr native-provider [0 0])
+     (sum (axpy! -1 (vctr native-provider [6 7 8]) (mean a))) => (roughly 0.0 0.0000005)
      (sum (variance a)) =>  (roughly 54)
      (sum (sd a)) => (roughly 12.7278))))
 
 (ge-matrix-test native-float)
 (ge-matrix-test native-double)
+
+(with-default-1
+  (with-engine opencl-float *command-queue*
+    (vector-test *opencl-factory*)
+    (ge-matrix-test *opencl-factory*))
+  (with-engine opencl-double *command-queue*
+    (vector-test *opencl-factory*)
+    (ge-matrix-test *opencl-factory*)))
 
 (defn sequence-test [constructor]
   (let [x (apply constructor (range 10))

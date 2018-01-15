@@ -47,7 +47,7 @@
 
 (defn matrix-mean! [a ones res]
   (if (and (< 0 (dim a)))
-    (mv! (/ 1.0 (ncols a)) a ones res)
+    (mv! (/ 1.0 (ncols a)) a ones 0.0 res)
     (entry! res Double/NaN)))
 
 (defn matrix-variance! [a ones work res]
@@ -66,19 +66,15 @@
   (mean
     ([a]
      (let-release [res (na/create-vector (na/factory a) (mrows a) false)]
-       (mean a res)))
-    ([a res]
-     (with-release [ones (entry! (raw (row a 0)) 1.0)]
-       (matrix-mean! a ones res))))
+       (with-release [ones (entry! (raw (row a 0)) 1.0)]
+         (matrix-mean! a ones res)))))
   Spread
   (variance
     ([a]
      (let-release [res (na/create-vector (na/factory a) (mrows a) false)]
-       (variance a res)))
-    ([a res]
-     (with-release [ones (entry! (raw (row a 0)) 1.0)
-                    work (raw a)]
-       (matrix-variance! a ones work res))))
+       (with-release [ones (entry! (raw (row a 0)) 1.0)
+                      work (raw a)]
+         (matrix-variance! a ones work res)))))
   (sd [a]
     (sqrt! (variance a))))
 

@@ -10,7 +10,7 @@
     uncomplicate.bayadera.core
   (:require [uncomplicate.commons.core
              :refer [release with-release let-release double-fn]]
-            [uncomplicate.neanderthal.core :refer [transfer vctr]]
+            [uncomplicate.neanderthal.core :refer [transfer vctr native!]]
             [uncomplicate.neanderthal.internal.api :as na]
             [uncomplicate.bayadera
              [distributions :refer [uniform-params gaussian-params student-t-params beta-params
@@ -138,19 +138,19 @@
 ;; ====================== Measures =============================================
 
 (defn mean [x]
-  (p/mean x))
+  (native! (p/mean x)))
 
 (defn mode [x]
-  (p/mode x))
+  (native! (p/mode x)))
 
 (defn median [x]
-  (p/median x))
+  (native! (p/median x)))
 
 (defn variance [x]
-  (p/variance x))
+  (native! (p/variance x)))
 
 (defn sd [x]
-  (p/sd x))
+  (native! (p/sd x)))
 
 ;;TODO rename to pd or density
 (defn pdf [dist xs]
