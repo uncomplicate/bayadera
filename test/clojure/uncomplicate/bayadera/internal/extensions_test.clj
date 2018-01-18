@@ -9,13 +9,9 @@
 (ns uncomplicate.bayadera.internal.extensions-test
   (:require [midje.sweet :refer :all]
             [uncomplicate.commons.core :refer [with-release]]
-            [uncomplicate.clojurecl
-             [core :refer [*command-queue*]]
-             [legacy :refer [with-default-1]]]
             [uncomplicate.neanderthal
              [core :refer [vctr ge sum axpy! native transfer]]
-             [native :refer [native-float native-double]]
-             [opencl :refer [opencl-float opencl-double with-engine *opencl-factory*]]]
+             [native :refer [native-float native-double]]]
             [uncomplicate.bayadera.internal.extensions :refer :all]
             [uncomplicate.bayadera.core :refer [mean variance sd]]))
 
@@ -49,14 +45,6 @@
 
 (ge-matrix-test native-float)
 (ge-matrix-test native-double)
-
-(with-default-1
-  (with-engine opencl-float *command-queue*
-    (vector-test *opencl-factory*)
-    (ge-matrix-test *opencl-factory*))
-  (with-engine opencl-double *command-queue*
-    (vector-test *opencl-factory*)
-    (ge-matrix-test *opencl-factory*)))
 
 (defn sequence-test [constructor]
   (let [x (apply constructor (range 10))
