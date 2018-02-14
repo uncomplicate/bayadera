@@ -24,8 +24,10 @@
              [util :refer [bin-mapper hdi]]
              [opencl :refer [with-default-bayadera]]
              [mcmc :refer [mix! burn-in! pow-n acc-rate! run-sampler!]]]
-            [uncomplicate.bayadera.internal.device.models
-             :refer [source-library cl-distribution-model cl-likelihood-model]]
+            [uncomplicate.bayadera.opencl
+             :refer [gaussian-source uniform-source exponential-source student-t-source
+                     cl-distribution-model]]
+            [uncomplicate.bayadera.internal.models :refer [likelihood-model]]
             [uncomplicate.bayadera.toolbox
              [processing :refer :all]
              [plots :refer [render-sample render-histogram]]]
@@ -53,15 +55,12 @@
 (def params (fv (read-data (slurp (io/resource "uncomplicate/bayadera/examples/dbda/ch17/hier-lin-regress-data.csv")))))
 
 (def rhlr-prior
-  (cl-distribution-model [(:gaussian source-library)
-                          (:uniform source-library)
-                          (:exponential source-library)
-                          (:t source-library)
+  (cl-distribution-model [gaussian-source uniform-source exponential-source student-t-source
                           (slurp (io/resource "uncomplicate/bayadera/examples/dbda/ch17/robust-hierarchical-linear-regression.h"))]
                          :name "rhlr" :mcmc-logpdf "rhlr_mcmc_logpdf" :params-size 103 :dimension 52))
 
 (defn rhlr-likelihood [n]
-  (cl-likelihood-model (slurp (io/resource "uncomplicate/bayadera/examples/dbda/ch17/robust-hierarchical-linear-regression.h"))
+  (likelihood-model (slurp (io/resource "uncomplicate/bayadera/examples/dbda/ch17/robust-hierarchical-linear-regression.h"))
                        :name "rhlr" :params-size n))
 
 (defn analysis []

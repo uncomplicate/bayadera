@@ -17,15 +17,15 @@ inline REAL student_t_log(const REAL nu, const REAL mu, const REAL sigma, const 
 
 // ============= With params ========================================
 
-REAL student_t_mcmc_logpdf(__constant const REAL* params, const REAL* x) {
+REAL student_t_mcmc_logpdf(const REAL* params, const REAL* x) {
     return student_t_log_unscaled(params[0], params[1], params[2], x[0]);
 }
 
-REAL student_t_logpdf(__constant const REAL* params, const REAL* x) {
+REAL student_t_logpdf(const REAL* params, const REAL* x) {
     return student_t_log_unscaled(params[0], params[1], params[2], x[0]) + params[3];
 }
 
-REAL student_t_loglik(__constant const REAL* data, const REAL* nu_mu_sigma) {
+REAL student_t_loglik(const REAL* data, const REAL* nu_mu_sigma) {
     const uint n = (uint) data[0];
     const REAL nu = nu_mu_sigma[0];
     const REAL mu = nu_mu_sigma[1];

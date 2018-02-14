@@ -79,7 +79,7 @@
    (->BetaDistribution factory (p/distribution-engine factory :gamma)
                        (vctr (na/factory factory) (gamma-params theta k)) theta k)))
 
-(defn exponential
+ (defn exponential
   ([^double lambda]
    (exponential *bayadera-factory* lambda))
   ([factory ^double lambda]
@@ -109,8 +109,7 @@
    (if (na/compatible? likelihood (p/model prior))
      (p/posterior-model (p/model prior) name likelihood)
      (throw (IllegalArgumentException.
-             (format "Incompatible model types: %s and %s."
-                     (type likelihood) (type (p/mode prior)))))))
+             (format "Incompatible model types: %s and %s." (type likelihood) (type (p/model prior)))))))
   ([likelihood prior]
    (posterior-model (str (gensym "posterior")) likelihood prior)))
 
@@ -125,8 +124,7 @@
   ([^String name likelihood prior]
    (posterior *bayadera-factory* name likelihood prior))
   ([factory ^String name likelihood prior]
-   (let-release [dist-creator
-                 (posterior factory (posterior-model name likelihood prior))]
+   (let-release [dist-creator (posterior factory (posterior-model name likelihood prior))]
      (if (satisfies? p/Distribution prior)
        (if (na/compatible? factory (p/parameters prior))
          (->PosteriorCreator dist-creator (transfer (p/parameters prior)))

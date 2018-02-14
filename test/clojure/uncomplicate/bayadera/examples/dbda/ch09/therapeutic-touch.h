@@ -1,4 +1,4 @@
-REAL touch_logpdf(__constant const REAL* params, REAL* x) {
+REAL touch_logpdf(const REAL* params, REAL* x) {
     const REAL a = params[0];
     const REAL b = params[1];
     const REAL omega = x[DIM - 2];

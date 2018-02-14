@@ -28,9 +28,8 @@ inline float4 box_muller(float4 uniform) {
 }
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
-__kernel void sample( __constant const float* params
-                      __attribute__ ((max_constant_size(2))),
-                      const uint seed, __global float4* x) {
+__kernel void sample(__global const float* params,
+                     const uint seed, __global float4* x) {
 
     const uint gid = get_global_id(0);
     // Generate uniform(0,1) floats

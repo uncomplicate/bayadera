@@ -8,15 +8,15 @@
 
 (ns uncomplicate.bayadera.internal.extensions-cuda-test
   (:require [midje.sweet :refer :all]
-            [uncomplicate.commons.core :refer [with-release]]
+            [uncomplicate.clojurecuda.core :refer [with-default default-stream]]
             [uncomplicate.neanderthal.cuda
-             :refer [with-engine cuda-float cuda-double *cuda-factory* cuda-handle]]
+             :refer [with-engine cuda-float cuda-double *cuda-factory*]]
             [uncomplicate.bayadera.internal.extensions-test :refer [vector-test ge-matrix-test]]))
 
-(with-release [handle (cuda-handle)]
-  (with-engine cuda-float handle
+(with-default
+  (with-engine cuda-float default-stream
     (vector-test *cuda-factory*)
     (ge-matrix-test *cuda-factory*))
-  (with-engine cuda-double handle
+  (with-engine cuda-double default-stream
     (vector-test *cuda-factory*)
     (ge-matrix-test *cuda-factory*)))

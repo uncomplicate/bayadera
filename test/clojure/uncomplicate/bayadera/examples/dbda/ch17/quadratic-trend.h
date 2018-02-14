@@ -1,4 +1,4 @@
-REAL qt_loglik(__constant const REAL* params, REAL* x) {
+REAL qt_loglik(const REAL* params, REAL* x) {
 
     const REAL nu = x[0];
     const REAL sigma = x[1];
@@ -28,7 +28,7 @@ REAL qt_loglik(__constant const REAL* params, REAL* x) {
     return NAN;
 }
 
-REAL qt_mcmc_logpdf(__constant const REAL* params, REAL* x) {
+REAL qt_mcmc_logpdf(const REAL* params, REAL* x) {
     const REAL nu = x[0];
     const bool valid = (1.0f < nu);
 
@@ -43,7 +43,7 @@ REAL qt_mcmc_logpdf(__constant const REAL* params, REAL* x) {
     return NAN;
 }
 
-REAL qt_logpdf(__constant const REAL* params, REAL* x) {
+REAL qt_logpdf(const REAL* params, REAL* x) {
     const REAL nu = x[0];
     const bool valid = (1.0f < nu);
 

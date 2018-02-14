@@ -22,7 +22,7 @@
              [core :refer :all]
              [opencl :refer [with-default-bayadera]]
              [mcmc :refer [mix!]]]
-            [uncomplicate.bayadera.internal.device.models
+            [uncomplicate.bayadera.internal.models
              :refer [source-library cl-distribution-model cl-likelihood-model]]
             [uncomplicate.bayadera.toolbox
              [processing :refer :all]

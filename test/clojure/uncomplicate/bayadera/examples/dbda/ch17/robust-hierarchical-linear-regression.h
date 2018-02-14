@@ -1,11 +1,11 @@
-REAL rhlr_loglik(__constant const REAL* params, REAL* x) {
+REAL rhlr_loglik(const REAL* params, REAL* x) {
 
     const REAL nu = x[0];
     const REAL sigma = x[1];
     const bool valid = (0.0f < nu) && (0.0f < sigma);
 
     if (valid) {
-        const REAL scale = t_log_scale(nu, sigma);
+        const REAL scale = student_t_log_scale(nu, sigma);
         REAL res = 0.0;
         uint idx = 1;
         for (uint i = 2; i < DIM; i+=2) {
@@ -13,7 +13,7 @@ REAL rhlr_loglik(__constant const REAL* params, REAL* x) {
             const REAL b1 = x[i+1];
             const uint next = idx + (uint)params[idx];
             while (idx < next) {
-                res += t_log_unscaled(nu, b0 + b1 * params[idx+1], sigma, params[idx+2])
+                res += student_t_log_unscaled(nu, b0 + b1 * params[idx+1], sigma, params[idx+2])
                     + scale;
                 idx += 2;
             }
@@ -25,7 +25,7 @@ REAL rhlr_loglik(__constant const REAL* params, REAL* x) {
     return NAN;
 }
 
-REAL rhlr_mcmc_logpdf(__constant const REAL* params, REAL* x) {
+REAL rhlr_mcmc_logpdf(const REAL* params, REAL* x) {
     const bool valid = (1.0f < x[0]);
 
     if (valid) {
@@ -40,7 +40,7 @@ REAL rhlr_mcmc_logpdf(__constant const REAL* params, REAL* x) {
 
 }
 
-REAL rhlr_logpdf(__constant const REAL* params, REAL* x) {
+REAL rhlr_logpdf(const REAL* params, REAL* x) {
     const bool valid = (1.0f < x[0]);
 
     if (valid) {

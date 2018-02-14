@@ -1,3 +1,3 @@
-REAL %s(__constant const REAL* params, REAL* x) {
+REAL %s(const REAL* params, REAL* x) {
     %s;
 }

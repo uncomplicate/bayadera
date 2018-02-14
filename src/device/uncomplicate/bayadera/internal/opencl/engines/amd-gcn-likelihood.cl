@@ -1,9 +1,8 @@
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
-__kernel void loglik(__constant const REAL* params
-                     __attribute__ ((max_constant_size(PARAMS_SIZE))),
+__kernel void loglik(__global const REAL* params,
                      __global const REAL* x, __global REAL* res) {
 
-    uint start = DIM * get_global_id(0);
+    const uint start = DIM * get_global_id(0);
     REAL px[DIM];
     for (uint i = 0; i < DIM; i++) {
         px[i] = x[start + i];
@@ -12,11 +11,10 @@ __kernel void loglik(__constant const REAL* params
 }
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
-__kernel void lik(__constant const REAL* params
-                  __attribute__ ((max_constant_size(PARAMS_SIZE))),
+__kernel void lik(__global const REAL* params,
                   __global const REAL* x, __global REAL* res) {
 
-    uint start = DIM * get_global_id(0);
+    const uint start = DIM * get_global_id(0);
     REAL px[DIM];
     for (uint i = 0; i < DIM; i++) {
         px[i] = x[start + i];
@@ -25,20 +23,11 @@ __kernel void lik(__constant const REAL* params
 }
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
-__kernel void sum_reduction (__global ACCUMULATOR* acc) {
-    ACCUMULATOR sum = work_group_reduction_sum(acc[get_global_id(0)]);
-    if (get_local_id(0) == 0) {
-        acc[get_group_id(0)] = sum;
-    }
-}
-
-__attribute__((reqd_work_group_size(WGS, 1, 1)))
 __kernel void evidence_reduce(__global ACCUMULATOR* x_acc,
-                              __constant const REAL* params
-                              __attribute__ ((max_constant_size(PARAMS_SIZE))),
+                              __global const REAL* params,
                               __global const REAL* x) {
 
-    uint start = DIM * get_global_id(0);
+    const uint start = DIM * get_global_id(0);
     REAL px[DIM];
     for (uint i = 0; i < DIM; i++) {
         px[i] = x[start + i];

@@ -1,4 +1,4 @@
-REAL rlr_loglik(__constant const REAL* params, REAL* x) {
+REAL rlr_loglik(const REAL* params, REAL* x) {
 
     const REAL nu = x[0];
     const REAL b0 = x[1];
@@ -22,7 +22,7 @@ REAL rlr_loglik(__constant const REAL* params, REAL* x) {
 
 }
 
-REAL rlr_mcmc_logpdf(__constant const REAL* params, REAL* x) {
+REAL rlr_mcmc_logpdf(const REAL* params, REAL* x) {
     const bool valid = (1.0f < x[0]);
     if (valid) {
         return exponential_log_unscaled(params[0], x[0] - 1)
@@ -34,7 +34,7 @@ REAL rlr_mcmc_logpdf(__constant const REAL* params, REAL* x) {
 
 }
 
-REAL rlr_logpdf(__constant const REAL* params, REAL* x) {
+REAL rlr_logpdf(const REAL* params, REAL* x) {
     return exponential_log(params[0], x[0] - 1)
         + gaussian_log(params[1], params[2], x[1])
         + gaussian_log(params[3], params[4], x[2])

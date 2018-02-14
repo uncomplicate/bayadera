@@ -1,5 +1,5 @@
 /*
-Copyright 2010-2011, D. E. Shaw Research.
+Copyright 2010-2016, D. E. Shaw Research.
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -42,6 +42,19 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #ifndef R123_USE_CXX11_STATIC_ASSERT
 #define R123_USE_CXX11_STATIC_ASSERT __has_feature(cxx_static_assert)
+#endif
+
+// With clang-3.6, -Wall warns about unused-local-typedefs.
+// The "obvious" thing to do is to ignore -Wunused-local-typedefs,
+// but that doesn't work because earlier versions of clang blow
+// up on an 'unknown warning group'.  So we briefly ignore -Wall...
+// It's tempting to just give up on static assertions in pre-c++11 code.
+#if !R123_USE_CXX11_STATIC_ASSERT && !defined(R123_STATIC_ASSERT)
+#define R123_STATIC_ASSERT(expr, msg) \
+_Pragma("clang diagnostic push")                      \
+_Pragma("clang diagnostic ignored \"-Wall\"")     \
+typedef char static_assertion[(!!(expr))*2-1] \
+_Pragma("clang diagnostic pop")
 #endif
 
 #ifndef R123_USE_CXX11_CONSTEXPR

@@ -1,24 +1,19 @@
 __attribute__((reqd_work_group_size(1, WGS, 1)))
-__kernel void histogram(__constant const REAL* limits, __global const REAL* data,
-                        const uint data_length, __global uint* res) {
+__kernel void histogram(__global const REAL* limits, __global const REAL* data, __global uint* res) {
 
     const uint dim = get_global_size(0);
     const uint dim_id = get_global_id(0);
     const uint lid = get_local_id(1);
     const uint gid = get_global_id(1);
-    const uint step_size = dim * get_global_size(1);
-    const REAL lower = limits[dim_id * 2] - FLT_MIN;
-    const REAL upper = limits[dim_id * 2 + 1] + FLT_MIN;
+    const REAL lower = limits[dim_id * 2];
+    const REAL upper = limits[dim_id * 2 + 1];
 
     __local uint hist[WGS];
-    hist[lid] = 0.0f;
+    hist[lid] = 0;
     work_group_barrier(CLK_LOCAL_MEM_FENCE);
 
-    uint bin;
-    REAL x;
-
-    x = data[dim * gid + dim_id];
-    bin = (uint) (WGS * (x - lower) / (upper - lower));
+    const REAL x = data[dim * gid + dim_id];
+    const uint bin = (uint) (WGS * ((x - lower) / (upper - lower) + FLT_MIN));
     atomic_add(&hist[bin], 1);
 
     work_group_barrier(CLK_LOCAL_MEM_FENCE);
@@ -27,23 +22,23 @@ __kernel void histogram(__constant const REAL* limits, __global const REAL* data
 }
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
-__kernel void uint_to_real(const REAL alpha, __constant const REAL* limits,
+__kernel void uint_to_real(const REAL alpha, __global const REAL* limits,
                            __global const uint* data, __global REAL* res) {
     const uint bin_id = get_global_id(0);
     const uint dim_id = get_global_id(1);
     const uint data_id = get_global_size(0) * dim_id + bin_id;
-    res[data_id] = alpha / (limits[2 * dim_id + 1] - limits[2 * dim_id] + 2.0f * FLT_MIN)
+    res[data_id] = alpha / (limits[2 * dim_id + 1] - limits[2 * dim_id] + FLT_MIN)
         * (REAL)data[data_id];
 }
 
 // ================ Max reduction ==============================================
 
-REAL2 work_group_reduction_min_max_2 (const uint orientation, const REAL2 val) {
+REAL2 work_group_reduction_min_max_2 (const REAL2 val) {
 
-    uint local_row = get_local_id(1 - orientation);
-    uint local_col = get_local_id(orientation);
-    uint local_m = get_local_size(1 - orientation);
-    uint id = local_row + local_col * local_m;
+    const uint local_row = get_local_id(0);
+    const uint local_col = get_local_id(1);
+    const uint local_m = get_local_size(0);
+    const uint id = local_row + local_col * local_m;
 
     REAL pmin = val.x;
     REAL pmax = val.y;
@@ -54,7 +49,7 @@ REAL2 work_group_reduction_min_max_2 (const uint orientation, const REAL2 val) {
 
     work_group_barrier(CLK_LOCAL_MEM_FENCE);
 
-    uint i = get_local_size(orientation);
+    uint i = get_local_size(1);
     while (i > 0) {
         bool include_odd = (i > ((i >> 1) << 1)) && (local_col == ((i >> 1) - 1));
         i >>= 1;
@@ -77,8 +72,8 @@ REAL2 work_group_reduction_min_max_2 (const uint orientation, const REAL2 val) {
 }
 
 __kernel void min_max_reduction (__global REAL2* acc) {
-    uint ia = get_global_size(0) * get_global_id(1) + get_global_id(0);
-    REAL2 min_max = work_group_reduction_min_max_2(1, acc[ia]);
+    const uint ia = get_global_size(0) * get_global_id(1) + get_global_id(0);
+    const REAL2 min_max = work_group_reduction_min_max_2(acc[ia]);
     if (get_local_id(1) == 0) {
         acc[get_global_size(0) * get_group_id(1) + get_global_id(0)] = min_max;
     }
@@ -86,7 +81,7 @@ __kernel void min_max_reduction (__global REAL2* acc) {
 
 __kernel void min_max_reduce (__global REAL2* acc, __global const REAL* a) {
     const REAL val = a[get_global_size(0) * get_global_id(1) + get_global_id(0)];
-    const REAL2 min_max = work_group_reduction_min_max_2(1, (REAL2)(val, val));
+    const REAL2 min_max = work_group_reduction_min_max_2((REAL2)(val, val));
     if (get_local_id(1) == 0) {
         acc[get_global_size(0) * get_group_id(1) + get_global_id(0)] = min_max;
     }
@@ -122,19 +117,10 @@ __kernel void bitonic_local(__global const REAL* in, __global REAL* out) {
 
 }
 
-__kernel void sum_reduction_horizontal (__global REAL* acc) {
-    uint i = get_global_size(0) * get_global_id(1) + get_global_id(0);
-    uint iacc = get_global_size(0) * get_group_id(1) + get_global_id(0);
-    REAL sum = work_group_reduction_sum_2(1, acc[i]);
-    if (get_local_id(1) == 0) {
-        acc[iacc] = sum;
-    }
-}
-
 __kernel void sum_reduce_horizontal (__global REAL* acc, __global REAL* data) {
-    uint i = get_global_size(0) * get_global_id(1) + get_global_id(0);
-    uint iacc = get_global_size(0) * get_group_id(1) + get_global_id(0);
-    REAL sum = work_group_reduction_sum_2(1, data[i]);
+    const uint i = get_global_size(0) * get_global_id(1) + get_global_id(0);
+    const uint iacc = get_global_size(0) * get_group_id(1) + get_global_id(0);
+    const REAL sum = work_group_reduction_sum_2(data[i]);
     if (get_local_id(1) == 0) {
         acc[iacc] = sum;
     }
@@ -143,18 +129,18 @@ __kernel void sum_reduce_horizontal (__global REAL* acc, __global REAL* data) {
 __kernel void mean_reduce(__global ACCUMULATOR* acc, __global const REAL* x) {
     const uint i = get_global_size(0) * get_global_id(1) + get_global_id(0);
     const uint iacc = get_global_size(0) * get_group_id(1) + get_global_id(0);
-    const ACCUMULATOR sum = work_group_reduction_sum_2(1, x[i]);
+    const ACCUMULATOR sum = work_group_reduction_sum_2(x[i]);
     if (get_local_id(1) == 0) {
         acc[iacc] = sum;
     }
 }
 
 __kernel void variance_reduce(__global ACCUMULATOR* acc,
-                              __global const REAL* x, __constant const REAL* mu) {
+                              __global const REAL* x, __global const REAL* mu) {
     const uint i = get_global_size(0) * get_global_id(1) + get_global_id(0);
     const uint iacc = get_global_size(0) * get_group_id(1) + get_global_id(0);
     const REAL diff = x[i] - mu[get_global_id(0)];
-    const ACCUMULATOR sum = work_group_reduction_sum_2(1, diff * diff);
+    const ACCUMULATOR sum = work_group_reduction_sum_2(diff * diff);
     if (get_local_id(1) == 0) {
         acc[iacc] = sum;
     }

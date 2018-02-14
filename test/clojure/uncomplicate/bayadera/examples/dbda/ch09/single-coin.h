@@ -1,4 +1,4 @@
-inline REAL single_coin_logpdf(__constant const REAL* params, REAL* x) {
+inline REAL single_coin_logpdf(const REAL* params, REAL* x) {
     const REAL a = params[0];
     const REAL b = params[1];
     const REAL k = params[2];

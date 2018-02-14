@@ -12,10 +12,10 @@
              [core :refer :all]
              [distributions :refer [beta-pdf binomial-lik-params]]
              [mcmc :refer [mix!]]
-             [math :refer [log-beta]]]
-            [uncomplicate.bayadera.internal.protocols :as p]
-            [uncomplicate.bayadera.opencl :refer [with-default-bayadera]]
-            [uncomplicate.bayadera.internal.device.models :refer [distributions likelihoods]]))
+             [math :refer [log-beta]]
+             [opencl :refer [binomial-lik-model]]]
+            [uncomplicate.bayadera.internal
+             [protocols :as p]]))
 
 (defmacro roughly100 [exp]
   `(let [v# (double ~exp)]
@@ -31,9 +31,15 @@
                     cl-sample (dataset factory (sample uniform-sampler))
                     cl-pdf (pdf dist cl-sample)]
 
-       (entry (mean cl-sample) 0) => (roughly100 (mean dist))
-       (entry (sd cl-sample) 0) => (roughly100 (sd dist))
-       (/ (sum cl-pdf) (dim cl-pdf)) => (roughly (/ 1.0 (- b a)))))))
+       (entry (mean cl-sample) 0) => (mean dist)
+       (entry (sd cl-sample) 0) => (sd dist)
+       (/ (sum cl-pdf) (dim cl-pdf)) => (/ 1.0 (- b a))
+       (loop [i 0 acc 0.0]
+         (if ( i 100)
+           acc
+           (recur (inc i)
+                  (double (with-release [cl-sample (sample uniform-sampler)]
+                            (+ acc ^double (mean (row cl-sample 0)))))))) => (mean dist)))))
 
 (defn test-gaussian [factory]
   (let [mu 200.0
@@ -129,7 +135,7 @@
     (with-release [prior-dist (beta factory a b)
                    prior-sampler (sampler prior-dist)
                    prior-sample (dataset factory (sample prior-sampler))
-                   post (posterior factory "post" (:binomial likelihoods) prior-dist)
+                   post (posterior factory "post" binomial-lik-model prior-dist)
                    post-dist (post (fv (binomial-lik-params N z)))
                    post-sampler (doto (sampler post-dist) (mix!))
                    post-sample (dataset factory (sample post-sampler))
@@ -153,9 +159,9 @@
 (defn test-all [factory]
   (test-uniform factory)
   (test-gaussian factory)
+  (test-exponential factory)
+  (test-erlang factory)
   (test-student-t factory)
   (test-beta factory)
   (test-gamma factory)
-  (test-exponential factory)
-  (test-erlang factory)
   (test-beta-bernouli factory))

@@ -1,4 +1,4 @@
-REAL ff_loglik(__constant const REAL* params, const REAL* x) {
+REAL ff_loglik(const REAL* params, const REAL* x) {
 
     const REAL sigma = x[0];
 
@@ -29,7 +29,7 @@ REAL ff_loglik(__constant const REAL* params, const REAL* x) {
     return res;
 }
 
-REAL ff_mcmc_logpdf(__constant const REAL* params, const REAL* x) {
+REAL ff_mcmc_logpdf(const REAL* params, const REAL* x) {
     REAL logp = uniform_log(params[0], params[1], x[0])
         + gaussian_log_unscaled(params[2], params[3], x[1])
         + gaussian_log_unscaled(params[9], params[10], x[DIM-1]);
@@ -39,7 +39,7 @@ REAL ff_mcmc_logpdf(__constant const REAL* params, const REAL* x) {
     return logp;
 }
 
-REAL ff_logpdf(__constant const REAL* params, const REAL* x) {
+REAL ff_logpdf(const REAL* params, const REAL* x) {
     REAL logp = uniform_log(params[0], params[1], x[0])
         + gaussian_log(params[2], params[3], x[1])
         + gaussian_log(params[9], params[10], x[DIM-1]);

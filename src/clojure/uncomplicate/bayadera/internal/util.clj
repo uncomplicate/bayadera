@@ -7,7 +7,7 @@
 ;;   You must not remove this notice, or any other, from this software.
 
 (ns ^{:author "Dragan Djuric"}
-    uncomplicate.bayadera.internal.device.util
+    uncomplicate.bayadera.internal.util
   (:import [java.nio.file Files Path CopyOption FileVisitOption]
            java.nio.file.attribute.FileAttribute))
 
@@ -23,7 +23,7 @@
     (try
       (Files/createDirectories (.resolve random123-path "features/dummy") attributes)
       (doseq [include-name ["philox.h" "array.h" "features/compilerfeatures.h"
-                            "features/openclfeatures.h" "features/sse.h"]]
+                            "features/openclfeatures.h"]]
         (Files/copy
          (ClassLoader/getSystemResourceAsStream
           (format "uncomplicate/bayadera/internal/include/Random123/%s" include-name))

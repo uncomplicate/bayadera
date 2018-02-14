@@ -1,11 +1,10 @@
 #include "Random123/philox.h"
 
-
 // =========================== Stretch move ====================================
 
 uint work_group_reduction_sum_uint (const uint value) {
 
-    uint local_id = get_local_id(0);
+    const uint local_id = get_local_id(0);
 
     __local uint lacc[WGS];
     lacc[local_id] = value;
@@ -31,9 +30,9 @@ uint work_group_reduction_sum_uint (const uint value) {
 }
 
 bool stretch_move(const uint seed,
-                  __constant const REAL *params,
-                  const REAL *Scompl,
-                  REAL *X,
+                  const REAL* params,
+                  const REAL* Scompl,
+                  REAL* X,
                   REAL* logfn_X,
                   const REAL a,
                   const REAL beta,
@@ -83,8 +82,7 @@ bool stretch_move(const uint seed,
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
 __kernel void stretch_move_accu(const uint seed,
                                 const uint odd_or_even,
-                                __constant const REAL* params
-                                __attribute__ ((max_constant_size(PARAMS_SIZE))),
+                                __global const REAL* params,
                                 __global const REAL* Scompl,
                                 __global REAL* X,
                                 __global REAL* logfn_X,
@@ -115,8 +113,7 @@ __kernel void stretch_move_accu(const uint seed,
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
 __kernel void stretch_move_bare(const uint seed,
                                 const uint odd_or_even,
-                                __constant const REAL* params
-                                __attribute__ ((max_constant_size(PARAMS_SIZE))),
+                                __global const REAL* params,
                                 __global const REAL* Scompl,
                                 __global REAL* X,
                                 __global REAL* logfn_X,
@@ -129,10 +126,9 @@ __kernel void stretch_move_bare(const uint seed,
 }
 
 // ====================== Walkers initialization ===============================
-
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
 __kernel void init_walkers(const uint seed,
-                           __constant const REAL2* limits,
+                           __global const REAL2* limits,
                            __global REAL* xs){
 
     const uint i = get_global_id(0) * 4;
@@ -154,10 +150,9 @@ __kernel void init_walkers(const uint seed,
 }
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
-__kernel void logfn(__constant const REAL* params
-                    __attribute__ ((max_constant_size(PARAMS_SIZE))),
+__kernel void logfn(__global const REAL* params,
                     __global const REAL* x, __global REAL* res) {
-    uint start = DIM * get_global_id(0);
+    const uint start = DIM * get_global_id(0);
     REAL px[DIM];
     for (uint i = 0; i < DIM; i++) {
         px[i] = x[start + i];
@@ -167,8 +162,7 @@ __kernel void logfn(__constant const REAL* params
 
 // ======================== Acceptance =========================================
 
-void work_group_reduction_sum_ulong (__global ulong* acc,
-                                     const ulong value) {
+void work_group_reduction_sum_ulong (__global ulong* acc, const ulong value) {
 
     const uint local_size = get_local_size(0);
     const uint local_id = get_local_id(0);
@@ -204,24 +198,21 @@ __kernel void sum_accept_reduction (__global ulong* acc) {
 }
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
-__kernel void sum_accept_reduce (__global ulong* acc,
-                                 __global const uint* data) {
+__kernel void sum_accept_reduce (__global ulong* acc, __global const uint* data) {
     work_group_reduction_sum_ulong(acc, (ulong)data[get_global_id(0)]);
 }
 
-__kernel void sum_means_vertical (__global REAL* acc,
-                                  __global const REAL* data) {
-    size_t i = get_global_size(0) * get_global_id(1) + get_global_id(0);
-    size_t iacc = get_global_size(1) * get_group_id(0) + get_global_id(1);
-    REAL sum = work_group_reduction_sum_2(0, data[i]);
-    if (get_local_id(0) == 0) {
+__kernel void sum_means_vertical (__global REAL* acc, __global const REAL* data) {
+    const uint i = get_global_size(1) * get_global_id(0) + get_global_id(1);
+    const uint iacc = get_global_size(0) * get_group_id(1) + get_global_id(0);
+    const REAL sum = work_group_reduction_sum_2(data[i]);
+    if (get_local_id(1) == 0) {
         acc[iacc] = sum;
     }
 }
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
-__kernel void subtract_mean (__global REAL* means,
-                             __global const REAL* mean) {
+__kernel void subtract_mean (__global REAL* means, __global const REAL* mean) {
     const uint dim_id = get_global_id(0);
     const uint dim_size = get_global_size(0);
     const uint n_id = get_global_id(1);
