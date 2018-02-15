@@ -53,9 +53,41 @@
              => (list 175.25137329101562 7.7207489013671875 126.18175506591797 -69.49845886230469)
              (entry sample-1d (imax sample-1d)) => 868.6443481445312
              (entry sample-1d (imin sample-1d)) => -610.0803833007812
-             (mean sample-1d) => 95.134725)
+             (mean sample-1d) => 95.134725)))
+
+        (facts
+         "OpenCL GCN direct sampler for Erlang distribution"
+         (with-release [erlang-sampler (gcn-direct-sampler *context* *command-queue* tmp-dir-name
+                                                           erlang-model wgs)
+                        cu-params (vctr neanderthal-factory [2 3])
+                        smpl (sample erlang-sampler 123 cu-params 10000)
+                        native-sample (native smpl)]
+           (let [sample-1d (row native-sample 0)]
+             (seq (subvector sample-1d 0 4))
+             => (list 1.571028709411621 1.4484457969665527 0.7983559370040894 1.1712465286254883)
+             (seq (subvector sample-1d 9996 4))
+             => (list 0.7548800706863403 2.28580379486084 1.1975524425506592 1.3439302444458008)
+             (entry sample-1d (imax sample-1d)) => 7.159594535827637
+             (entry sample-1d (imin sample-1d)) => 0.0482538677752018
+             (mean sample-1d) => 1.50084453125)
            ))
 
+        (facts
+         "OpenCL GCN direct sampler for Exponential distribution"
+         (with-release [exponential-sampler (gcn-direct-sampler *context* *command-queue* tmp-dir-name
+                                                           exponential-model wgs)
+                        cu-params (vctr neanderthal-factory [4])
+                        smpl (sample exponential-sampler 123 cu-params 10000)
+                        native-sample (native smpl)]
+           (let [sample-1d (row native-sample 0)]
+             (seq (subvector sample-1d 0 4))
+             => (list 0.29777517914772034 0.39906948804855347 0.015068267472088337 0.1688637137413025)
+             (seq (subvector sample-1d 9996 4))
+             => (list 0.12403401732444763 0.4546346068382263 0.16137930750846863 0.29489007592201233)
+             (entry sample-1d (imax sample-1d)) => 2.3556253910064697
+             (entry sample-1d (imin sample-1d)) => 2.8567157642100938E-5
+             (mean sample-1d) => 0.252631103515625)
+           ))
 
         ))))
 

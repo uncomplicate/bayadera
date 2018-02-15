@@ -38,7 +38,7 @@
            (mean sample-1d) => 51.33118125)))
 
       (facts
-       "OpenCL GCN direct sampler for Gaussian distribution"
+       "Nvidia GTX direct sampler for Gaussian distribution"
        (with-release [gaussian-sampler (gtx-direct-sampler (current-context) default-stream
                                                            gaussian-model wgs cudart-version)
                       cu-params (vctr neanderthal-factory [100 200.1])
@@ -51,8 +51,41 @@
            => (list 175.25135803222656 7.720771312713623 126.18173217773438 -69.4984359741211)
            (entry sample-1d (imax sample-1d)) => 868.6444702148438
            (entry sample-1d (imin sample-1d)) => -610.0802612304688
-           (mean sample-1d) => 95.13473125)
-         ))
+           (mean sample-1d) => 95.13473125)))
+
+      (facts
+       "Nvidia GTX direct sampler for Erlang distribution"
+       (with-release [erlang-sampler (gtx-direct-sampler (current-context) default-stream
+                                                         erlang-model wgs cudart-version)
+                      cu-params (vctr neanderthal-factory [2 3])
+                      smpl (sample erlang-sampler 123 cu-params 10000)
+                      native-sample (native smpl)]
+         (let [sample-1d (row native-sample 0)]
+           (seq (subvector sample-1d 0 4))
+           => (list 1.571028470993042 1.4484456777572632 0.798355758190155 1.1712464094161987)
+           (seq (subvector sample-1d 9996 4))
+           => (list 0.7548800110816956 2.2858035564422607 1.19755220413208 1.3439300060272217)
+           (entry sample-1d (imax sample-1d)) => 7.1595940589904785
+           (entry sample-1d (imin sample-1d)) => 0.04825383424758911
+           (mean sample-1d) => 1.5008443359375)))
+
+      (facts
+         "OpenCL GCN direct sampler for Exponential distribution"
+         (with-release [exponential-sampler (gtx-direct-sampler (current-context) default-stream
+                                                                exponential-model wgs cudart-version)
+                        cu-params (vctr neanderthal-factory [4])
+                        smpl (sample exponential-sampler 123 cu-params 10000)
+                        native-sample (native smpl)]
+           (let [sample-1d (row native-sample 0)]
+             (seq (subvector sample-1d 0 4))
+             => (list 0.29777514934539795 0.3990693986415863 0.015068254433572292 0.1688637137413025)
+             (seq (subvector sample-1d 9996 4))
+             => (list 0.12403398752212524 0.45463457703590393 0.16137929260730743 0.29489004611968994)
+             (entry sample-1d (imax sample-1d)) => 2.3556251525878906
+             (entry sample-1d (imin sample-1d)) => 2.8555818062159233E-5
+             (mean sample-1d) => 0.2526310546875)))
+
+
       )))
 
 #_(with-default
