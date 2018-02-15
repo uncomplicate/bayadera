@@ -2,13 +2,17 @@
     uncomplicate.bayadera.internal.amd-gcn-test
   (:require [midje.sweet :refer :all]
             [uncomplicate.commons.core :refer [with-release]]
+            [uncomplicate.fluokitten.core :refer [fmap! op]]
             [uncomplicate.clojurecl
              [core :refer :all]
              [info :refer [queue-device max-compute-units max-work-group-size]]]
             [uncomplicate.neanderthal
-             [core :refer [vctr native subvector sum entry imax imin row]]
+             [core :refer [vctr ge native native! subvector sum entry imax imin row raw copy axpy! nrm2]]
+             [vect-math :refer [linear-frac!]]
              [opencl :refer [opencl-float]]]
-            [uncomplicate.bayadera.opencl :refer :all :as ocl :exclude [gcn-bayadera-factory]]
+            [uncomplicate.bayadera
+             [distributions :refer [gaussian-pdf gaussian-log-pdf binomial-lik-params beta-params]]
+             [opencl :refer :all :as ocl :exclude [gcn-bayadera-factory]]]
             [uncomplicate.bayadera.internal
              [protocols :refer :all]
              [amd-gcn :refer :all]
@@ -27,8 +31,8 @@
          "OpenCL GCN direct sampler for Uniform distribution"
          (with-release [uniform-sampler (gcn-direct-sampler *context* *command-queue* tmp-dir-name
                                                            uniform-model wgs)
-                        cu-params (vctr neanderthal-factory [-99.9 200.1])
-                        smpl (sample uniform-sampler 123 cu-params 10000)
+                        params (vctr neanderthal-factory [-99.9 200.1])
+                        smpl (sample uniform-sampler 123 params 10000)
                         native-sample (native smpl)]
            (let [sample-1d (row native-sample 0)]
              (seq (subvector sample-1d 0 4))
@@ -43,8 +47,8 @@
          "OpenCL GCN direct sampler for Gaussian distribution"
          (with-release [gaussian-sampler (gcn-direct-sampler *context* *command-queue* tmp-dir-name
                                                              gaussian-model wgs)
-                        cu-params (vctr neanderthal-factory [100 200.1])
-                        smpl (sample gaussian-sampler 123 cu-params 10000)
+                        params (vctr neanderthal-factory [100 200.1])
+                        smpl (sample gaussian-sampler 123 params 10000)
                         native-sample (native smpl)]
            (let [sample-1d (row native-sample 0)]
              (seq (subvector sample-1d 0 4))
@@ -59,8 +63,8 @@
          "OpenCL GCN direct sampler for Erlang distribution"
          (with-release [erlang-sampler (gcn-direct-sampler *context* *command-queue* tmp-dir-name
                                                            erlang-model wgs)
-                        cu-params (vctr neanderthal-factory [2 3])
-                        smpl (sample erlang-sampler 123 cu-params 10000)
+                        params (vctr neanderthal-factory [2 3])
+                        smpl (sample erlang-sampler 123 params 10000)
                         native-sample (native smpl)]
            (let [sample-1d (row native-sample 0)]
              (seq (subvector sample-1d 0 4))
@@ -76,8 +80,8 @@
          "OpenCL GCN direct sampler for Exponential distribution"
          (with-release [exponential-sampler (gcn-direct-sampler *context* *command-queue* tmp-dir-name
                                                            exponential-model wgs)
-                        cu-params (vctr neanderthal-factory [4])
-                        smpl (sample exponential-sampler 123 cu-params 10000)
+                        params (vctr neanderthal-factory [4])
+                        smpl (sample exponential-sampler 123 params 10000)
                         native-sample (native smpl)]
            (let [sample-1d (row native-sample 0)]
              (seq (subvector sample-1d 0 4))
@@ -86,10 +90,55 @@
              => (list 0.12403401732444763 0.4546346068382263 0.16137930750846863 0.29489007592201233)
              (entry sample-1d (imax sample-1d)) => 2.3556253910064697
              (entry sample-1d (imin sample-1d)) => 2.8567157642100938E-5
-             (mean sample-1d) => 0.252631103515625)
-           ))
+             (mean sample-1d) => 0.252631103515625)))))))
 
-        ))))
+(with-default
+  (let [dev (queue-device *command-queue*)
+        wgs (max-work-group-size dev)
+        tmp-dir-name (create-tmp-dir)]
+    (with-philox tmp-dir-name
+      (with-release [neanderthal-factory (opencl-float *context* *command-queue*)]
+
+        (facts
+         "OpenCL GCN distribution engine with Gaussian distribution"
+         (with-release [gaussian-engine (gcn-distribution-engine *context* *command-queue* tmp-dir-name
+                                                                 gaussian-model wgs)
+                        params (vctr neanderthal-factory [0.0 1.0])
+                        x (ge neanderthal-factory 1 200 (range -10 10 0.1))
+                        native-x-pdf (native! (pdf gaussian-engine params x))
+                        native-x-log-pdf (native! (log-pdf gaussian-engine params x))
+                        native-x0 (native x)
+                        native-x1 (copy native-x0)]
+
+           (nrm2 (axpy! -1 (row (fmap! (fn ^double [^double x] (gaussian-pdf 0.0 1.0 x)) native-x0) 0)
+                        native-x-pdf)) => (roughly 0.0 0.00001)
+
+           (nrm2 (axpy! -1 (row (fmap! (fn ^double [^double x] (gaussian-log-pdf 0.0 1.0 x)) native-x1) 0)
+                        native-x-log-pdf)) => (roughly 0.0 0.0001)
+           (Double/isNaN (evidence gaussian-engine params x)) => truthy))
+
+        (facts
+         "OpenCL GCN posterior engine with Beta-Binomial model."
+         (let [n 50
+               z 15
+               a 3
+               b 2]
+           (with-release [post-engine (gcn-posterior-engine
+                                       *context* *command-queue* tmp-dir-name
+                                       (posterior-model beta-model "beta_binomial" binomial-lik-model)
+                                       wgs)
+                          beta-engine (gcn-distribution-engine *context* *command-queue* tmp-dir-name
+                                                               beta-model wgs)
+                          params (vctr neanderthal-factory (op (binomial-lik-params n z) (beta-params a b)))
+                          beta-params (vctr neanderthal-factory (beta-params (+ a z) (+ b (- n z))))
+                          x (ge neanderthal-factory 1 200 (range 0.001 1 0.001))
+                          x-pdf (pdf post-engine params x)
+                          x-log-pdf (log-pdf post-engine params x)
+                          x-beta-pdf (pdf beta-engine beta-params x)
+                          x-beta-log-pdf (log-pdf beta-engine beta-params x)]
+
+             (nrm2 (linear-frac! (axpy! -1 x-log-pdf x-beta-log-pdf) -32.61044)) => (roughly 0.0 0.0001)
+             (evidence post-engine params x) => 1.6357374080751345E-15)))))))
 
 #_(with-default
 

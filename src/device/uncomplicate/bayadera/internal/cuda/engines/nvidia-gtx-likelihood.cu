@@ -1,7 +1,7 @@
 extern "C" {
 
     __global__ void loglik(const int n,  const REAL* params, const REAL* x, REAL* res) {
-        const gid = blockIdx.x * blockDim.x + threadIdx.x;
+        const int gid = blockIdx.x * blockDim.x + threadIdx.x;
         if (gid < n) {
             const int start = DIM * gid;
             REAL px[DIM];
@@ -13,10 +13,10 @@ extern "C" {
     }
 
     __global__ void lik(const int n, const REAL* params, const REAL* x, REAL* res) {
-        const gid = blockIdx.x * blockDim.x + threadIdx.x;
+        const int gid = blockIdx.x * blockDim.x + threadIdx.x;
         if (gid < n) {
             const int start = DIM * gid;
-            const REAL px[DIM];
+            REAL px[DIM];
             for (int i = 0; i < DIM; i++) {
                 px[i] = x[start + i];
             }
@@ -25,7 +25,7 @@ extern "C" {
     }
 
     __global__ void evidence_reduce(const int n, ACCUMULATOR* x_acc, const REAL* params, const REAL* x) {
-        const gid = blockIdx.x * blockDim.x + threadIdx.x;
+        const int gid = blockIdx.x * blockDim.x + threadIdx.x;
         const int start = DIM * gid;
         if (gid < n) {
             REAL px[DIM];

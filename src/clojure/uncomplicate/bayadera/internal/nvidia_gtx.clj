@@ -579,12 +579,12 @@
    (format "-DLOGPDF=%s" logpdf) (format "-DDIM=%d" dim) (format "-DWGS=%d" wgs)
    (format "-DCUDART_VERSION=%s" cudart-version)])
 
-(defn ^:private posterior-options [logpdf loglik param-size dim wgs cudart-version]
+(defn ^:private posterior-options [logpdf loglik dim wgs cudart-version]
   ["-DREAL=float" "-DACCUMULATOR=double" "-arch=compute_30" "-default-device" "-use_fast_math"
    (format "-DLOGPDF=%s" logpdf) (format "-DLOGLIK=%s" loglik) (format "-DDIM=%d" dim)
    (format "-DWGS=%d" wgs) (format "-DCUDART_VERSION=%s" cudart-version)])
 
-(defn ^:private stretch-options [logfn params-size dim wgs cudart-version]
+(defn ^:private stretch-options [logfn dim wgs cudart-version]
   ["-DREAL=float" "-DREAL2=float2" "-DACCUMULATOR=float" "-arch=compute_30" "-default-device"
    "-use_fast_math" (format "-DLOGFN=%s" logfn) (format "-DDIM=%d" dim) (format "-DWGS=%d" wgs)
    (format "-DCUDART_VERSION=%s" cudart-version)])

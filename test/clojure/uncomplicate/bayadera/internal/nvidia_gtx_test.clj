@@ -2,13 +2,17 @@
     uncomplicate.bayadera.internal.nvidia-gtx-test
   (:require [midje.sweet :refer :all]
             [uncomplicate.commons.core :refer [with-release]]
+            [uncomplicate.fluokitten.core :refer [fmap! op]]
             [uncomplicate.clojurecuda
              [core :refer :all :exclude [parameters]]
              [info :refer [ctx-device max-block-dim-x driver-version]]]
             [uncomplicate.neanderthal
-             [core :refer [vctr native subvector row entry imax imin]]
+             [core :refer [vctr ge native native! subvector sum entry imax imin row raw copy axpy! nrm2]]
+             [vect-math :refer [linear-frac!]]
              [cuda :refer [cuda-float]]]
-            [uncomplicate.bayadera.cuda :refer :all :exclude [gtx-bayadera-factory]]
+            [uncomplicate.bayadera
+             [distributions :refer [gaussian-pdf gaussian-log-pdf binomial-lik-params beta-params]]
+             [cuda :refer :all :exclude [gtx-bayadera-factory]]]
             [uncomplicate.bayadera.internal
              [protocols :refer :all]
              [nvidia-gtx :refer :all]]
@@ -25,8 +29,8 @@
        "Nvidia GTX direct sampler for Uniform distribution"
        (with-release [normal-sampler (gtx-direct-sampler (current-context) default-stream
                                                          uniform-model wgs cudart-version)
-                      cu-params (vctr neanderthal-factory [-99.9 200.1])
-                      smpl (sample normal-sampler 123 cu-params 10000)
+                      params (vctr neanderthal-factory [-99.9 200.1])
+                      smpl (sample normal-sampler 123 params 10000)
                       native-sample (native smpl)]
          (let [sample-1d (row native-sample 0)]
            (seq (subvector sample-1d 0 4))
@@ -41,8 +45,8 @@
        "Nvidia GTX direct sampler for Gaussian distribution"
        (with-release [gaussian-sampler (gtx-direct-sampler (current-context) default-stream
                                                            gaussian-model wgs cudart-version)
-                      cu-params (vctr neanderthal-factory [100 200.1])
-                      smpl (sample gaussian-sampler 123 cu-params 10000)
+                      params (vctr neanderthal-factory [100 200.1])
+                      smpl (sample gaussian-sampler 123 params 10000)
                       native-sample (native smpl)]
          (let [sample-1d (row native-sample 0)]
            (seq (subvector sample-1d 0 4))
@@ -57,8 +61,8 @@
        "Nvidia GTX direct sampler for Erlang distribution"
        (with-release [erlang-sampler (gtx-direct-sampler (current-context) default-stream
                                                          erlang-model wgs cudart-version)
-                      cu-params (vctr neanderthal-factory [2 3])
-                      smpl (sample erlang-sampler 123 cu-params 10000)
+                      params (vctr neanderthal-factory [2 3])
+                      smpl (sample erlang-sampler 123 params 10000)
                       native-sample (native smpl)]
          (let [sample-1d (row native-sample 0)]
            (seq (subvector sample-1d 0 4))
@@ -73,8 +77,8 @@
          "OpenCL GCN direct sampler for Exponential distribution"
          (with-release [exponential-sampler (gtx-direct-sampler (current-context) default-stream
                                                                 exponential-model wgs cudart-version)
-                        cu-params (vctr neanderthal-factory [4])
-                        smpl (sample exponential-sampler 123 cu-params 10000)
+                        params (vctr neanderthal-factory [4])
+                        smpl (sample exponential-sampler 123 params 10000)
                         native-sample (native smpl)]
            (let [sample-1d (row native-sample 0)]
              (seq (subvector sample-1d 0 4))
@@ -83,10 +87,55 @@
              => (list 0.12403398752212524 0.45463457703590393 0.16137929260730743 0.29489004611968994)
              (entry sample-1d (imax sample-1d)) => 2.3556251525878906
              (entry sample-1d (imin sample-1d)) => 2.8555818062159233E-5
-             (mean sample-1d) => 0.2526310546875)))
+             (mean sample-1d) => 0.2526310546875))))))
 
+(with-default
+  (let [dev (ctx-device)
+        wgs (max-block-dim-x dev)
+        cudart-version (driver-version)]
+    (with-release [neanderthal-factory (cuda-float (current-context) default-stream)]
 
-      )))
+      (facts
+       "Nvidia GTX distribution engine with Gaussian distribution"
+       (with-release [gaussian-engine (gtx-distribution-engine (current-context) default-stream
+                                                               gaussian-model wgs cudart-version)
+                      params (vctr neanderthal-factory [0.0 1.0])
+                      x (ge neanderthal-factory 1 200 (range -10 10 0.1))
+                      native-x-pdf (native! (pdf gaussian-engine params x))
+                      native-x-log-pdf (native! (log-pdf gaussian-engine params x))
+                      native-x0 (native x)
+                      native-x1 (copy native-x0)]
+
+         (nrm2 (axpy! -1 (row (fmap! (fn ^double [^double x] (gaussian-pdf 0.0 1.0 x)) native-x0) 0)
+                      native-x-pdf)) => (roughly 0.0 0.00001)
+
+         (nrm2 (axpy! -1 (row (fmap! (fn ^double [^double x] (gaussian-log-pdf 0.0 1.0 x)) native-x1) 0)
+                      native-x-log-pdf)) => (roughly 0.0 0.0001)
+         (Double/isNaN (evidence gaussian-engine params x)) => truthy))
+
+      (facts
+       "Nvidia GTX posterior engine with Beta-Binomial model."
+       (let [n 50
+             z 15
+             a 3
+             b 2]
+         (with-release [post-engine (gtx-posterior-engine
+                                     (current-context) default-stream
+                                     (posterior-model beta-model "beta_binomial" binomial-lik-model)
+                                     wgs cudart-version)
+                        beta-engine (gtx-distribution-engine (current-context) default-stream
+                                                             beta-model wgs cudart-version)
+                        params (vctr neanderthal-factory (op (binomial-lik-params n z) (beta-params a b)))
+                        beta-params (vctr neanderthal-factory (beta-params (+ a z) (+ b (- n z))))
+                        x (ge neanderthal-factory 1 200 (range 0.001 1 0.001))
+                        x-pdf (pdf post-engine params x)
+                        x-log-pdf (log-pdf post-engine params x)
+                        x-beta-pdf (pdf beta-engine beta-params x)
+                        x-beta-log-pdf (log-pdf beta-engine beta-params x)]
+
+           (nrm2 (linear-frac! (axpy! -1 x-log-pdf x-beta-log-pdf) -32.61044)) => (roughly 0.0 0.0001)
+           (evidence post-engine params x) => 1.6357453252754427E-15))))))
+
 
 #_(with-default
 

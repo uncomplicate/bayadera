@@ -70,13 +70,13 @@
     dist-model)
   DistributionEngine
   (log-pdf [this cl-params x]
-    (let-release [res (vctr cl-params (ncols x))]
+    (let-release [res (vctr x (ncols x))]
       (with-release [logpdf-kernel (kernel prog "logpdf")]
         (set-args! logpdf-kernel 0 (buffer cl-params) (buffer x) (buffer res))
         (enq-nd! cqueue logpdf-kernel (work-size-1d (ncols x)))
         res)))
   (pdf [this cl-params x]
-    (let-release [res (vctr cl-params (ncols x))]
+    (let-release [res (vctr x (ncols x))]
       (with-release [pdf-kernel (kernel prog "pdf")]
         (set-args! pdf-kernel 0 (buffer cl-params) (buffer x) (buffer res))
         (enq-nd! cqueue pdf-kernel (work-size-1d (ncols x)))
