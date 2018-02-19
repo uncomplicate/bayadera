@@ -33,13 +33,7 @@
 
        (entry (mean cl-sample) 0) => (mean dist)
        (entry (sd cl-sample) 0) => (sd dist)
-       (/ (sum cl-pdf) (dim cl-pdf)) => (/ 1.0 (- b a))
-       (loop [i 0 acc 0.0]
-         (if ( i 100)
-           acc
-           (recur (inc i)
-                  (double (with-release [cl-sample (sample uniform-sampler)]
-                            (+ acc ^double (mean (row cl-sample 0)))))))) => (mean dist)))))
+       (/ (sum cl-pdf) (dim cl-pdf)) => (/ 1.0 (- b a))))))
 
 (defn test-gaussian [factory]
   (let [mu 200.0

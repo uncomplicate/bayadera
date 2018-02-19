@@ -240,9 +240,9 @@
       (set-args! stretch-move-even-kernel 7 cl-means-acc a))
     this)
   (move! [this]
-    (set-args! stretch-move-odd-kernel 9 move-counter)
+    (set-arg! stretch-move-odd-kernel 9 move-counter)
     (enq-nd! cqueue stretch-move-odd-kernel wsize)
-    (set-args! stretch-move-even-kernel 9 move-counter)
+    (set-arg! stretch-move-even-kernel 9 move-counter)
     (enq-nd! cqueue stretch-move-even-kernel wsize)
     (inc! move-counter)
     this)
@@ -305,11 +305,15 @@
      :iteration-counter @iteration-counter})
   RandomSampler
   (init! [this seed]
-    (set-arg! stretch-move-odd-bare-kernel 0 (wrap-int seed))
-    (set-arg! stretch-move-even-bare-kernel 0 (wrap-int (inc (int seed))))
-    (aset move-bare-counter 0 0)
-    (aset move-seed 0 (int seed))
-    this)
+    (let [a (wrap-prim claccessor 2.0)]
+      (set-arg! stretch-move-odd-bare-kernel 0 (wrap-int seed))
+      (set-arg! stretch-move-even-bare-kernel 0 (wrap-int (inc (int seed))))
+      (set-arg! stretch-move-odd-bare-kernel 6 a)
+      (set-arg! stretch-move-even-bare-kernel 6 a)
+      (set-temperature! this 1.0)
+      (aset move-bare-counter 0 0)
+      (aset move-seed 0 (int seed))
+      this))
   (sample [this]
     (sample this walker-count))
   (sample [this n]

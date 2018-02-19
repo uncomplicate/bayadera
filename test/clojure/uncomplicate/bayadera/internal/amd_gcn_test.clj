@@ -1,7 +1,7 @@
 (ns ^{:author "Dragan Djuric"}
     uncomplicate.bayadera.internal.amd-gcn-test
   (:require [midje.sweet :refer :all]
-            [uncomplicate.commons.core :refer [with-release]]
+            [uncomplicate.commons.core :refer [with-release wrap-int wrap-float]]
             [uncomplicate.fluokitten.core :refer [fmap! op]]
             [uncomplicate.clojurecl
              [core :refer :all]
@@ -9,7 +9,8 @@
             [uncomplicate.neanderthal
              [core :refer [vctr ge native native! subvector sum entry imax imin row raw copy axpy! nrm2]]
              [vect-math :refer [linear-frac!]]
-             [opencl :refer [opencl-float]]]
+             [opencl :refer [opencl-float]]
+             [block :refer :all]]
             [uncomplicate.bayadera
              [distributions :refer [gaussian-pdf gaussian-log-pdf binomial-lik-params beta-params]]
              [opencl :refer :all :as ocl :exclude [gcn-bayadera-factory]]]
@@ -18,7 +19,8 @@
              [amd-gcn :refer :all]
              [util :refer [create-tmp-dir with-philox]]]
             [uncomplicate.bayadera.core-test :refer [test-all]]
-            [uncomplicate.bayadera.internal.device-test :refer :all]))
+            [uncomplicate.bayadera.internal.device-test :refer :all])
+  (:import [uncomplicate.bayadera.internal.amd_gcn GCNStretch]))
 
 (with-default
   (let [dev (queue-device *command-queue*)
@@ -73,8 +75,7 @@
              => (list 0.7548800706863403 2.28580379486084 1.1975524425506592 1.3439302444458008)
              (entry sample-1d (imax sample-1d)) => 7.159594535827637
              (entry sample-1d (imin sample-1d)) => 0.0482538677752018
-             (mean sample-1d) => 1.50084453125)
-           ))
+             (mean sample-1d) => 1.50084453125)))
 
         (facts
          "OpenCL GCN direct sampler for Exponential distribution"
@@ -140,7 +141,143 @@
              (nrm2 (linear-frac! (axpy! -1 x-log-pdf x-beta-log-pdf) -32.61044)) => (roughly 0.0 0.0001)
              (evidence post-engine params x) => 1.6357374080751345E-15)))))))
 
-#_(with-default
+(with-default
+  (let [dev (queue-device *command-queue*)
+        wgs (max-work-group-size dev)
+        tmp-dir-name (create-tmp-dir)
+        walkers (* (max-compute-units dev) wgs)
+        seed 123
+        a 2.0]
+    (with-philox tmp-dir-name
+      (with-release [neanderthal-factory (opencl-float *context* *command-queue*)]
+        (facts
+         "OpenCL GCN stretch with Uniform model."
+         (with-release [params (vctr neanderthal-factory [-1 2])
+                        limits (ge neanderthal-factory 2 1 [-1 2])
+                        uniform-sampler (mcmc-sampler (gcn-stretch-factory
+                                                        *context* *command-queue* tmp-dir-name
+                                                        neanderthal-factory uniform-model wgs)
+                                                       walkers params)]
+           (init-position! uniform-sampler seed limits)
+           (take 4 (native (row (sample uniform-sampler) 0)))
+           => [1.0883402824401855 1.3920516967773438 -0.8245221972465515 0.47322529554367065]
+           (init! uniform-sampler seed) => uniform-sampler
+           (move-bare! uniform-sampler) => uniform-sampler
+           (take 4 (native (row (sample uniform-sampler) 0)))
+           => [0.7279692888259888 1.8140764236450195 0.04031801223754883 0.4697103500366211]
+           (move-bare! uniform-sampler)
+           (take 4 (native (row (sample uniform-sampler) 0)))
+           => [1.0403573513031006 1.4457943439483643 0.37618488073349 1.5768483877182007]))))))
+
+(with-default
+  (let [dev (queue-device *command-queue*)
+        wgs 256
+        tmp-dir-name (create-tmp-dir)
+        walkers (* 44 256)
+        seed 123
+        a 2.0]
+    (with-philox tmp-dir-name
+      (with-release [neanderthal-factory (opencl-float *context* *command-queue*)]
+        (facts
+         "OpenCL GCN stretch with Uniform model."
+         (with-release [params (vctr neanderthal-factory [-1 2])
+                        limits (ge neanderthal-factory 2 1 [-1 2])
+                        uniform-sampler (mcmc-sampler (gcn-stretch-factory
+                                                        *context* *command-queue* tmp-dir-name
+                                                        neanderthal-factory uniform-model wgs)
+                                                      walkers params)]
+           (let [stretch-move-odd-bare-kernel (.stretch-move-odd-bare-kernel ^GCNStretch uniform-sampler)
+                 cl-params (.cl-params ^GCNStretch uniform-sampler)
+                 cl-xs (.cl-xs ^GCNStretch uniform-sampler)
+                 cl-s0 (.cl-s0 ^GCNStretch uniform-sampler)
+                 cl-logfn-s0 (.cl-logfn-s0 ^GCNStretch uniform-sampler)
+                 cl-s1 (.cl-s1 ^GCNStretch uniform-sampler)
+                 cl-logfn-s1 (.cl-logfn-s1 ^GCNStretch uniform-sampler)
+                 cqueue (.cqueue ^GCNStretch uniform-sampler)]
+
+             (init-position! uniform-sampler seed limits)
+             (take 4 (native (row (sample uniform-sampler) 0)))
+             => [1.0883402824401855 1.3920516967773438 -0.8245221972465515 0.47322529554367065]
+             (init! uniform-sampler seed) => uniform-sampler
+             (move-bare! uniform-sampler) => uniform-sampler
+             (take 4 (native (row (sample uniform-sampler) 0)))
+             => [0.7279692888259888 1.8140764236450195 0.04031801223754883 0.4697103500366211]
+             (move-bare! uniform-sampler)
+             (take 4 (native (row (sample uniform-sampler) 0)))
+             => [1.0403573513031006 1.4457943439483643 0.37618488073349 1.5768483877182007]
+
+             (init-position! uniform-sampler seed limits)
+             (take 4 (native (row (sample uniform-sampler) 0)))
+             => [1.0883402824401855 1.3920516967773438 -0.8245221972465515 0.47322529554367065]
+             (set-args! stretch-move-odd-bare-kernel 0 (wrap-int seed) (wrap-int 3333)
+                        cl-params cl-s1 cl-s0 cl-logfn-s0 (wrap-float a) (wrap-float 1.0) (wrap-int 0))
+             (enq-nd! cqueue stretch-move-odd-bare-kernel (work-size-1d (/ walkers 2)))
+             (set-args! stretch-move-odd-bare-kernel 0 (wrap-int (inc seed)) (wrap-int 4444)
+                        cl-params cl-s0 cl-s1 cl-logfn-s1 (wrap-float a) (wrap-float 1.0) (wrap-int 0))
+             (enq-nd! cqueue stretch-move-odd-bare-kernel (work-size-1d (/ walkers 2)))
+             (take 4 (native (row (sample uniform-sampler) 0)))
+             => [0.7279692888259888 1.8140764236450195 0.04031801223754883 0.4697103500366211]
+             (set-args! stretch-move-odd-bare-kernel 0 (wrap-int seed) (wrap-int 3333)
+                       cl-params cl-s1 cl-s0 cl-logfn-s0 (wrap-float a) (wrap-float 1.0) (wrap-int 1))
+             (enq-nd! cqueue stretch-move-odd-bare-kernel (work-size-1d (/ walkers 2)))
+             (set-args! stretch-move-odd-bare-kernel 0 (wrap-int (inc seed)) (wrap-int 4444)
+                        cl-params cl-s0 cl-s1 cl-logfn-s1 (wrap-float a) (wrap-float 1.0) (wrap-int 1))
+             (enq-nd! cqueue stretch-move-odd-bare-kernel (work-size-1d (/ walkers 2)))
+             (take 4 (native (row (sample uniform-sampler) 0)))
+             => [1.0403573513031006 1.4457943439483643 0.37618488073349 1.5768483877182007])))))))
+
+(with-default
+  (let [dev (queue-device *command-queue*)
+        wgs (max-work-group-size dev)
+        tmp-dir-name (create-tmp-dir)
+        walkers (* (max-compute-units dev) wgs)
+        seed 123
+        a 2.0]
+    (with-philox tmp-dir-name
+      (with-release [neanderthal-factory (opencl-float *context* *command-queue*)]
+        (facts
+         "OpenCL GCN stretch with Gaussian model."
+         (with-release [params (vctr neanderthal-factory [3 1.0])
+                        limits (ge neanderthal-factory 2 1 [-7 7])
+                        gaussian-sampler (mcmc-sampler (gcn-stretch-factory
+                                                        *context* *command-queue* tmp-dir-name
+                                                        neanderthal-factory gaussian-model wgs)
+                                                       walkers params)]
+           (init-position! gaussian-sampler seed limits)
+           (take 4 (native (row (sample gaussian-sampler) 0)))
+           => [2.7455875873565674 4.162908554077148 -6.181103706359863 -0.12494850158691406]
+           (init! gaussian-sampler seed) => gaussian-sampler
+           (move-bare! gaussian-sampler) => gaussian-sampler
+           (take 4 (native (row (sample gaussian-sampler) 0)))
+           => [2.7455875873565674 4.162908554077148 -2.1451826095581055 -0.14135169982910156]
+           (move-bare! gaussian-sampler)
+           (take 4 (native (row (sample gaussian-sampler) 0)))
+           => [3.962130546569824 2.9586503505706787 -0.5778036117553711 5.02529239654541]))))))
+
+(with-default
+  (let [dev (queue-device *command-queue*)
+        wgs (max-work-group-size dev)
+        tmp-dir-name (create-tmp-dir)
+        walkers (* (max-compute-units dev) wgs)
+        seed 123
+        a 2.0]
+    (with-philox tmp-dir-name
+      (with-release [neanderthal-factory (opencl-float *context* *command-queue*)]
+        (facts
+         "OpenCL GCN stretch with Gaussian model."
+         (with-release [params (vctr neanderthal-factory [3 1.0])
+                        limits (ge neanderthal-factory 2 1 [-7 7])
+                        gaussian-sampler (mcmc-sampler (gcn-stretch-factory
+                                                        *context* *command-queue* tmp-dir-name
+                                                        neanderthal-factory gaussian-model wgs)
+                                                       walkers params)]
+           (init-position! gaussian-sampler seed limits)
+           (init! gaussian-sampler (inc seed))
+           (burn-in! gaussian-sampler 150 8.0)
+           (first (native! (mean (sample gaussian-sampler)))) => (roughly 3.0 0.01)
+           (first (native! (sd (sample gaussian-sampler)))) => (roughly 1.0 0.01)))))))
+
+(with-default
 
   (with-release [factory (ocl/gcn-bayadera-factory *context* *command-queue*)]
     (test-all factory)

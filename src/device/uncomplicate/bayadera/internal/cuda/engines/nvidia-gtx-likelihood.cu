@@ -1,41 +1,30 @@
 extern "C" {
 
-    __global__ void loglik(const int n,  const REAL* params, const REAL* x, REAL* res) {
-        const int gid = blockIdx.x * blockDim.x + threadIdx.x;
+    #include <stdint.h>
+    
+    __global__ void loglik(const uint32_t n,  const REAL* params, const REAL* x, REAL* res) {
+        const uint32_t gid = blockIdx.x * blockDim.x + threadIdx.x;
         if (gid < n) {
-            const int start = DIM * gid;
-            REAL px[DIM];
-            for (int i = 0; i < DIM; i++) {
-                px[i] = x[start + i];
-            }
-            res[gid] = LOGLIK(params, px);
+            const uint32_t start = DIM * gid;
+            res[gid] = LOGLIK(params, x + start);
         }
     }
 
-    __global__ void lik(const int n, const REAL* params, const REAL* x, REAL* res) {
-        const int gid = blockIdx.x * blockDim.x + threadIdx.x;
+    __global__ void lik(const uint32_t n, const REAL* params, const REAL* x, REAL* res) {
+        const uint32_t gid = blockIdx.x * blockDim.x + threadIdx.x;
         if (gid < n) {
-            const int start = DIM * gid;
-            REAL px[DIM];
-            for (int i = 0; i < DIM; i++) {
-                px[i] = x[start + i];
-            }
-            res[gid] = exp(LOGLIK(params, px));
+            const uint32_t start = DIM * gid;
+            res[gid] = exp(LOGLIK(params, x + start));
         }
     }
-
-    __global__ void evidence_reduce(const int n, ACCUMULATOR* x_acc, const REAL* params, const REAL* x) {
-        const int gid = blockIdx.x * blockDim.x + threadIdx.x;
-        const int start = DIM * gid;
-        if (gid < n) {
-            REAL px[DIM];
-            for (int i = 0; i < DIM; i++) {
-                px[i] = x[start + i];
-            }
-            const ACCUMULATOR sum = block_reduction_sum(exp(LOGLIK(params, px)));
-            if (threadIdx.x == 0) {
-                x_acc[blockIdx.x] = sum;
-            }
+    
+    __global__ void evidence_reduce(const uint32_t n, ACCUMULATOR* x_acc, const REAL* params, const REAL* x) {
+        const uint32_t gid = blockIdx.x * blockDim.x + threadIdx.x;
+        const uint32_t start = DIM * gid;
+        const ACCUMULATOR sum = block_reduction_sum((gid < n) ? exp(LOGLIK(params, x + start)) : 0.0f);
+        if (threadIdx.x == 0) {
+            x_acc[blockIdx.x] = sum;
         }
+        
     }
 }

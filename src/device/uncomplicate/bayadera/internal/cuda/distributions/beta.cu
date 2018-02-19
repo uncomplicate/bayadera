@@ -18,11 +18,11 @@ extern "C" {
 
     // ============= With params ========================================
 
-    REAL beta_mcmc_logpdf(const REAL* params, REAL* x) {
+    REAL beta_mcmc_logpdf(const REAL* params, const REAL* x) {
         return beta_log_unscaled(params[0], params[1], x[0]);
     }
 
-    REAL beta_logpdf(const REAL* params, REAL* x) {
+    REAL beta_logpdf(const REAL* params, const REAL* x) {
         return beta_log_unscaled(params[0], params[1], x[0]) + params[2];
     }
 }

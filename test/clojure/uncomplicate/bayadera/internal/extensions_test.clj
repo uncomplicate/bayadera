@@ -16,7 +16,7 @@
             [uncomplicate.bayadera.core :refer [mean variance sd]]))
 
 (defn vector-test [factory]
-  (with-release [x (vctr factory (range 10))
+  (with-release [x (vctr factory (take 10000 (cycle (range 10))))
                  x0 (vctr factory 0)]
     (facts
      "Vector as a Location and Spread"

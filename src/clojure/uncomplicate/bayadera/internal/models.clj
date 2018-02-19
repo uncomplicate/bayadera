@@ -155,7 +155,7 @@
 
 (defn uniform-model [post-template source sampler]
   (distribution-model post-template source
-                      :name "uniform":mcmc-logpdf "uniform_mcmc_logpdf"
+                      :name "uniform"
                       :params-size 2
                       :limits (fge 2 1 [(- Float/MAX_VALUE) Float/MAX_VALUE])
                       :sampler-source sampler))

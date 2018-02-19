@@ -2,13 +2,13 @@ extern "C" {
 
 #include <stdint.h>
     
-    __global__ void histogram(const int dim, const int n,
+    __global__ void histogram(const uint32_t dim, const uint32_t n,
                               const REAL* limits, const REAL* data,
                               uint32_t* res) {
 
-        const int dim_id = blockIdx.x * blockDim.x + threadIdx.x;
-        const int lid = threadIdx.y;
-        const int gid = blockIdx.y * blockDim.y + threadIdx.y;
+        const uint32_t dim_id = blockIdx.x * blockDim.x + threadIdx.x;
+        const uint32_t lid = threadIdx.y;
+        const uint32_t gid = blockIdx.y * blockDim.y + threadIdx.y;
         const bool valid = (dim_id < dim) && (gid < n);
 
         __shared__ uint32_t hist[WGS];
@@ -29,12 +29,12 @@ extern "C" {
         }
     }
 
-    __global__ void uint_to_real(const int wgs, const int m,
+    __global__ void uint_to_real(const uint32_t wgs, const uint32_t m,
                                  const REAL alpha, const REAL* limits,
                                  const uint32_t* data, REAL* res) {
-        const int bin_id = blockIdx.x * blockDim.x + threadIdx.x;
-        const int dim_id = blockIdx.y * blockDim.y + threadIdx.y;
-        const int data_id = gridDim.x * blockDim.x * dim_id + bin_id;
+        const uint32_t bin_id = blockIdx.x * blockDim.x + threadIdx.x;
+        const uint32_t dim_id = blockIdx.y * blockDim.y + threadIdx.y;
+        const uint32_t data_id = gridDim.x * blockDim.x * dim_id + bin_id;
         const bool valid = (bin_id < wgs) && (dim_id < m);
         if (valid) {
             const REAL part = limits[2 * dim_id + 1] - limits[2 * dim_id];
@@ -46,10 +46,10 @@ extern "C" {
 
     REAL2 block_reduction_min_max_2 (const REAL val_x, const REAL val_y) {
 
-        const int local_row = threadIdx.x;
-        const int local_col = threadIdx.y;
-        const int local_m = blockDim.x;
-        const int id = local_row + local_col * local_m;
+        const uint32_t local_row = threadIdx.x;
+        const uint32_t local_col = threadIdx.y;
+        const uint32_t local_m = blockDim.x;
+        const uint32_t id = local_row + local_col * local_m;
 
         REAL pmin = val_x;
         REAL pmax = val_y;
@@ -60,11 +60,11 @@ extern "C" {
 
         __syncthreads();
 
-        int i = blockDim.y;
+        uint32_t i = blockDim.y;
         while (i > 0) {
             bool include_odd = (i > ((i >> 1) << 1)) && (local_col == ((i >> 1) - 1));
             i >>= 1;
-            int other_id = local_row + (local_col + i) * local_m;
+            uint32_t other_id = local_row + (local_col + i) * local_m;
             if (include_odd) {
                 pmax = max(pmax, lmax[other_id + local_m]);
                 pmin = min(pmin, lmin[other_id + local_m]);
@@ -85,10 +85,10 @@ extern "C" {
 
     }
 
-    __global__ void min_max_reduction (const int m, const int n, REAL2* acc) {
-        const int gid_0 = blockIdx.x * blockDim.x + threadIdx.x;
-        const int gid_1 = blockIdx.y * blockDim.y + threadIdx.y;
-        const int ia = m * gid_1 + gid_0;
+    __global__ void min_max_reduction (const uint32_t m, const uint32_t n, REAL2* acc) {
+        const uint32_t gid_0 = blockIdx.x * blockDim.x + threadIdx.x;
+        const uint32_t gid_1 = blockIdx.y * blockDim.y + threadIdx.y;
+        const uint32_t ia = m * gid_1 + gid_0;
         const bool valid = (gid_0 < m) && (gid_1 < n);
         REAL2 val;
         if (valid)
@@ -100,9 +100,9 @@ extern "C" {
         }
     }
 
-    __global__ void min_max_reduce (const int m, const int n, REAL2* acc, const REAL* a) {
-        const int gid_0 = blockIdx.x * blockDim.x + threadIdx.x;
-        const int gid_1 = blockIdx.y * blockDim.y + threadIdx.y;
+    __global__ void min_max_reduce (const uint32_t m, const uint32_t n, REAL2* acc, const REAL* a) {
+        const uint32_t gid_0 = blockIdx.x * blockDim.x + threadIdx.x;
+        const uint32_t gid_1 = blockIdx.y * blockDim.y + threadIdx.y;
         const bool valid = (gid_0 < m) && (gid_1 < n);
         const REAL val = (valid) ? a[m * gid_1 + gid_0] : 0.0;
         const REAL2 min_max = block_reduction_min_max_2(val, val);
@@ -112,10 +112,10 @@ extern "C" {
         }
     }
 
-    __global__ void bitonic_local(const int n, const REAL* in, REAL* out) {
-        const int gid = blockIdx.x * blockDim.x + threadIdx.x;
+    __global__ void bitonic_local(const uint32_t n, const REAL* in, REAL* out) {
+        const uint32_t gid = blockIdx.x * blockDim.x + threadIdx.x;
         if (gid < n) {
-            const int lid = threadIdx.x;
+            const uint32_t lid = threadIdx.x;
 
             REAL2 value;
             value.x = (REAL)lid;
@@ -125,10 +125,10 @@ extern "C" {
 
             __syncthreads();
 
-            for (int length = 1; length < WGS; length <<= 1) {
+            for (uint32_t length = 1; length < WGS; length <<= 1) {
                 const bool direction = ((lid & (length << 1)) != 0);
-                for (int inc = length; inc > 0; inc >>= 1) {
-                    const int j = lid ^ inc;
+                for (uint32_t inc = length; inc > 0; inc >>= 1) {
+                    const uint32_t j = lid ^ inc;
                     const REAL2 other_value = aux[j];
                     const bool smaller = (value.y < other_value.y)
                         || (other_value.y == value.y && j < lid);
@@ -144,10 +144,10 @@ extern "C" {
         }
     }
     
-    __global__ void sum_reduce_horizontal (const int m, const int n, REAL* acc, const REAL* data) {
-        const int gid_0 = blockIdx.x * blockDim.x + threadIdx.x;
-        const int gid_1 = blockIdx.y * blockDim.y + threadIdx.y;
-        const int i = m * gid_1 + gid_0;
+    __global__ void sum_reduce_horizontal (const uint32_t m, const uint32_t n, REAL* acc, const REAL* data) {
+        const uint32_t gid_0 = blockIdx.x * blockDim.x + threadIdx.x;
+        const uint32_t gid_1 = blockIdx.y * blockDim.y + threadIdx.y;
+        const uint32_t i = m * gid_1 + gid_0;
         const bool valid = (gid_0 < m) && (gid_1 < n);
         const REAL sum = block_reduction_sum_2( (valid) ? data[i] : 0.0);
         const bool write = valid && (threadIdx.y == 0);
@@ -156,10 +156,10 @@ extern "C" {
         }
     }
 
-    __global__ void mean_reduce (const int m, const int n, ACCUMULATOR* acc, const REAL* a) {
-        const int gid_0 = blockIdx.x * blockDim.x + threadIdx.x;
-        const int gid_1 = blockIdx.y * blockDim.y + threadIdx.y;
-        const int i = m * gid_1 + gid_0;
+    __global__ void mean_reduce (const uint32_t m, const uint32_t n, ACCUMULATOR* acc, const REAL* a) {
+        const uint32_t gid_0 = blockIdx.x * blockDim.x + threadIdx.x;
+        const uint32_t gid_1 = blockIdx.y * blockDim.y + threadIdx.y;
+        const uint32_t i = m * gid_1 + gid_0;
         const bool valid = (gid_0 < m) && (gid_1 < n);
         const ACCUMULATOR sum = block_reduction_sum_2( (valid) ? a[i] : 0.0);
         const bool write = valid && (threadIdx.y == 0);
@@ -168,10 +168,10 @@ extern "C" {
         }
     }
 
-    __global__ void variance_reduce (const int m, const int n, ACCUMULATOR* acc, const REAL* x, const REAL* mu) {
-        const int gid_0 = blockIdx.x * blockDim.x + threadIdx.x;
-        const int gid_1 = blockIdx.y * blockDim.y + threadIdx.y;
-        const int i = m * gid_1 + gid_0;
+    __global__ void variance_reduce (const uint32_t m, const uint32_t n, ACCUMULATOR* acc, const REAL* x, const REAL* mu) {
+        const uint32_t gid_0 = blockIdx.x * blockDim.x + threadIdx.x;
+        const uint32_t gid_1 = blockIdx.y * blockDim.y + threadIdx.y;
+        const uint32_t i = m * gid_1 + gid_0;
         const bool valid = (gid_0 < m) && (gid_1 < n);
         const REAL diff = (valid) ? x[i] - mu[gid_0] : 0.0;
         const ACCUMULATOR sum = block_reduction_sum_2(diff * diff);

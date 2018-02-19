@@ -15,11 +15,11 @@ extern "C" {
 
 // ============= With params ========================================
 
-    REAL gamma_mcmc_logpdf(const REAL* params, REAL* x) {
+    REAL gamma_mcmc_logpdf(const REAL* params, const REAL* x) {
         return gamma_log_unscaled(params[0], params[1], x[0]);
     }
 
-    REAL gamma_logpdf(const REAL* params, REAL* x) {
+    REAL gamma_logpdf(const REAL* params, const REAL* x) {
         return gamma_log_unscaled(params[0], params[1], x[0]) + params[2];
     }
 }

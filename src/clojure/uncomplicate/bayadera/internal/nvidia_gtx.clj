@@ -48,7 +48,7 @@
 
 ;; ============================ Direct sampler =================================
 
-(deftype GTXDirectSampler [ctx modl hstream ^long DIM]
+(deftype GTXDirectSampler [ctx modl hstream ^long DIM ^long WGS]
   Releaseable
   (release [_]
     (release modl))
@@ -58,7 +58,7 @@
      ctx
      (let-release [res (ge cu-params DIM n)]
        (with-release [sample-kernel (function modl "sample")]
-         (launch! sample-kernel (grid-1d n) hstream
+         (launch! sample-kernel (grid-1d n WGS) hstream
                   (cuda/parameters (int n) (buffer cu-params) seed (buffer res)))
          res)))))
 
@@ -81,14 +81,14 @@
     (in-context
      ctx
      (let-release [res (vctr cu-params (ncols x))]
-       (launch! logpdf-kernel (grid-1d (ncols x)) hstream
+       (launch! logpdf-kernel (grid-1d (ncols x) WGS) hstream
                 (cuda/parameters (ncols x) (buffer cu-params) (buffer x) (buffer res)))
        res)))
   (pdf [this cu-params x]
     (in-context
      ctx
      (let-release [res (vctr cu-params (ncols x))]
-       (launch! pdf-kernel (grid-1d (ncols x)) hstream
+       (launch! pdf-kernel (grid-1d (ncols x) WGS) hstream
                 (cuda/parameters (ncols x) (buffer cu-params) (buffer x) (buffer res)))
        res)))
   (evidence [this cu-params x]
@@ -178,7 +178,7 @@
          (launch! uint-to-real-kernel (grid-2d WGS m WGS 1) hstream
                   (cuda/parameters WGS m (cast-prim cuaccessor (/ WGS n)) (buffer limits)
                                    uint-res (buffer result)))
-         (launch! local-sort-kernel (grid-1d (* m WGS)) hstream
+         (launch! local-sort-kernel (grid-1d (* m WGS) WGS) hstream
                   (cuda/parameters (* m WGS) (buffer result) (buffer bin-ranks)))
          (->Histogram (transfer limits) (transfer result) (transfer bin-ranks)))))))
 
@@ -258,16 +258,16 @@
       (set-parameters! stretch-move-even-params 8 cu-means-acc a))
     this)
   (move! [this]
-    (set-parameters! stretch-move-odd-params 10 (aget move-counter 0))
+    (set-parameter! stretch-move-odd-params 10 (aget move-counter 0))
     (launch! stretch-move-odd-kernel wsize hstream stretch-move-odd-params)
-    (set-parameters! stretch-move-even-params 10 (aget move-counter 0))
+    (set-parameter! stretch-move-even-params 10 (aget move-counter 0))
     (launch! stretch-move-even-kernel wsize hstream stretch-move-even-params)
     (inc! move-counter)
     this)
   (move-bare! [this]
-    (set-parameters! stretch-move-odd-bare-params 9 (aget move-bare-counter 0))
+    (set-parameter! stretch-move-odd-bare-params 9 (aget move-bare-counter 0))
     (launch! stretch-move-odd-bare-kernel wsize hstream stretch-move-odd-bare-params)
-    (set-parameters! stretch-move-even-bare-params 9 (aget move-bare-counter 0))
+    (set-parameter! stretch-move-even-bare-params 9 (aget move-bare-counter 0))
     (launch! stretch-move-even-bare-kernel wsize hstream stretch-move-even-bare-params)
     (inc! move-bare-counter)
     this)
@@ -296,19 +296,19 @@
                          d-acc (create-data-source cuaccessor (* DIM wg-count))
                          sum-reduce-params (make-parameters 4)
                          sum-reduction-params (make-parameters 3)]
-            (set-parameters! sum-reduction-params 2 cu-acc)
+            (set-parameter! sum-reduction-params 2 cu-acc)
             (set-parameters! sum-reduce-params 2 cu-acc (buffer sample-matrix))
             (launch-reduce! hstream sum-reduce-kernel sum-reduction-kernel
                             sum-reduce-params sum-reduction-params DIM n wgsm wgsn)
             (memcpy! cu-acc (buffer mean-vec) hstream)
             (scal! (/ 1.0 n) mean-vec)
-            (launch! subtract-mean-kernel (grid-2d DIM n) hstream
+            (launch! subtract-mean-kernel (grid-2d DIM n 1 WGS) hstream
                      (cuda/parameters DIM n (buffer sample-matrix) (buffer mean-vec)))
             (memset! cu-acc 1 hstream)
             (memset! d-acc 1 hstream)
-            (launch! autocovariance-kernel (grid-1d n) hstream
+            (launch! autocovariance-kernel (grid-1d n WGS) hstream
                      (cuda/parameters n (int lag) cu-acc d-acc (buffer sample-matrix) (int i-max)))
-            (set-parameters! sum-reduce-params 3 cu-acc)
+            (set-parameter! sum-reduce-params 3 cu-acc)
             (launch-reduce! hstream sum-reduce-kernel sum-reduction-kernel
                             sum-reduce-params sum-reduction-params DIM wg-count wgsm wgsn)
             (memcpy-host! cu-acc (buffer c0) hstream)
@@ -327,11 +327,15 @@
      :iteration-counter @iteration-counter})
   RandomSampler
   (init! [this seed]
-    (set-parameter! stretch-move-odd-bare-params 1 (int seed))
-    (set-parameter! stretch-move-even-bare-params 1 (inc (int seed)))
-    (aset move-bare-counter 0 0)
-    (aset move-seed 0 (int seed))
-    this)
+    (let [a (cast-prim cuaccessor 2.0)]
+      (set-parameter! stretch-move-odd-bare-params 1 (int seed))
+      (set-parameter! stretch-move-even-bare-params 1 (inc (int seed)))
+      (set-parameter! stretch-move-odd-bare-params 7 a)
+      (set-parameter! stretch-move-even-bare-params 7 a)
+      (set-temperature! this 1.0)
+      (aset move-bare-counter 0 0)
+      (aset move-seed 0 (int seed))
+      this))
   (sample [this]
     (sample this walker-count))
   (sample [this n]
@@ -366,7 +370,7 @@
      ctx
      (let [cu-position (.cu-xs ^GTXStretch position)]
        (memcpy! cu-position cu-xs hstream)
-       (launch! logfn-kernel (grid-1d walker-count) hstream logfn-params)
+       (launch! logfn-kernel (grid-1d walker-count WGS) hstream logfn-params)
        (vreset! iteration-counter 0)
        this)))
   (init-position! [this seed limits]
@@ -374,9 +378,9 @@
      ctx
      (with-release [cu-limits (transfer neanderthal-factory limits)]
        (set-parameters! init-walkers-params 1 (int seed) (buffer cu-limits))
-       (launch! init-walkers-kernel (grid-1d (* DIM (long (/ walker-count 4)))) hstream
+       (launch! init-walkers-kernel (grid-1d (* DIM (long (/ walker-count 4))) WGS) hstream
                 init-walkers-params)
-       (launch! logfn-kernel (grid-1d walker-count) hstream logfn-params)
+       (launch! logfn-kernel (grid-1d walker-count WGS) hstream logfn-params)
        (vreset! iteration-counter 0)
        this)))
   (burn-in! [this n a]
@@ -438,7 +442,7 @@
          (init-move! this cu-means-acc a)
          (move! this)
          (vswap! iteration-counter inc-long)
-         #_(launch-reduce! hstream sum-accept-kernel sum-accept-reduction-kernel
+         #_(launch-reduce! hstream sum-accept-kernel sum-accept-reduction-kernel ;;TODO
                          sum-accept-params sum-accept-reduction-params
                          (count-blocks WGS (/ walker-count 2)) WGS)
          (/ (double (read-long hstream cu-accept-acc)) walker-count)))))
@@ -470,10 +474,10 @@
              (move-bare! this)
              (launch! histogram-kernel histogram-worksize hstream histogram-params))
            (vswap! iteration-counter add-long (dec cycles))
-           (launch! uint-to-real-kernel (grid-2d WGS DIM) hstream
+           (launch! uint-to-real-kernel (grid-2d WGS DIM WGS 1) hstream
                     (cuda/parameters WGS DIM (cast-prim cuaccessor (/ WGS n)) (buffer limits)
                                      uint-res (buffer result)))
-           (launch! local-sort-kernel (grid-1d (* DIM WGS)) hstream
+           (launch! local-sort-kernel (grid-1d (* DIM WGS) WGS) hstream
                     (cuda/parameters (* DIM WGS) (buffer result) (buffer bin-ranks)))
            (->Histogram (transfer limits) (transfer result) (transfer bin-ranks)))))))
   Location
@@ -512,14 +516,15 @@
   (mcmc-sampler [_ walker-count params]
     (in-context
      ctx
-     (let [walker-count (long walker-count)]
+     (let [walker-count (int walker-count)]
        (if (and (<= (* 2 WGS) walker-count) (zero? (rem walker-count (* 2 WGS))))
          (let [acc-count (* DIM (count-blocks WGS walker-count))
                accept-count (count-blocks WGS (/ walker-count 2))
                accept-acc-count (count-blocks WGS accept-count)
                cuaccessor (data-accessor neanderthal-factory)
                sub-bytesize (* DIM (long (/ walker-count 2)) (entry-width cuaccessor))
-               cu-params (buffer params)]
+               cu-params (buffer params)
+               half-walker-count (int (/ walker-count 2))]
            (let-release [cu-xs (create-data-source cuaccessor (* DIM walker-count))
                          cu-s0 (mem-sub-region cu-xs 0 sub-bytesize)
                          cu-s1 (mem-sub-region cu-xs sub-bytesize sub-bytesize)
@@ -531,26 +536,26 @@
                          cu-acc (create-data-source cuaccessor acc-count)]
              (->GTXStretch
               ctx hstream neanderthal-factory cuaccessor walker-count
-              (grid-1d (/ walker-count 2)) model DIM WGS
+              (grid-1d (/ walker-count 2) WGS) model DIM WGS
               (int-array 1) (int-array 1) (volatile! 0) (int-array 1)
               cu-params cu-xs cu-s0 cu-s1 cu-logfn-xs cu-logfn-s0 cu-logfn-s1
               cu-accept cu-accept-acc cu-acc
               (function modl "stretch_move_accu")
-              (cuda/parameters (int walker-count) 1 (int 1111) cu-params cu-s1 cu-s0 cu-logfn-s0 cu-accept 8 9 10)
+              (cuda/parameters half-walker-count 1 (int 1111) cu-params cu-s1 cu-s0 cu-logfn-s0 cu-accept 8 9 10)
               (function modl "stretch_move_accu") ;;TODO unnecessary. remove. kernels are stateless in CUDA.
-              (cuda/parameters (int walker-count) 1 (int 2222) cu-params cu-s0 cu-s1 cu-logfn-s1 cu-accept 8 9 10)
+              (cuda/parameters half-walker-count 1 (int 2222) cu-params cu-s0 cu-s1 cu-logfn-s1 cu-accept 8 9 10)
               (function modl "stretch_move_bare")
-              (cuda/parameters (int walker-count) 1 (int 3333) cu-params cu-s1 cu-s0 cu-logfn-s0 7 8 9)
+              (cuda/parameters half-walker-count 1 (int 3333) cu-params cu-s1 cu-s0 cu-logfn-s0 7 8 9)
               (function modl "stretch_move_bare")
-              (cuda/parameters (int walker-count) 1 (int 4444) cu-params cu-s0 cu-s1 cu-logfn-s1 7 8 9)
+              (cuda/parameters half-walker-count 1 (int 4444) cu-params cu-s0 cu-s1 cu-logfn-s1 7 8 9)
               (function modl "init_walkers")
               (cuda/parameters (int (/ walker-count 4)) 1 2 cu-xs)
               (function modl "logfn")
-              (cuda/parameters (int walker-count) cu-params cu-xs cu-logfn-xs)
+              (cuda/parameters walker-count cu-params cu-xs cu-logfn-xs)
               (function modl "sum_accept_reduction")
-              (cuda/parameters (int walker-count) cu-accept-acc)
+              (cuda/parameters walker-count cu-accept-acc)
               (function modl "sum_accept_reduce")
-              (cuda/parameters (int walker-count) cu-accept-acc cu-accept)
+              (cuda/parameters walker-count cu-accept-acc cu-accept)
               (function modl "sum_means_vertical")
               (function modl "sum_reduction_horizontal")
               (function modl "sum_reduce_horizontal")
@@ -574,7 +579,7 @@
   ["-DREAL=float" "-DREAL2=float2" "-DACCUMULATOR=float" "-arch=compute_30" "-default-device"
    "-use_fast_math" (format "-DWGS=%d" wgs)])
 
-(defn ^:private distribution-options [logpdf params-size dim wgs cudart-version]
+(defn ^:private distribution-options [logpdf dim wgs cudart-version]
   ["-DREAL=float" "-DACCUMULATOR=float" "-arch=compute_30" "-default-device" "-use_fast_math"
    (format "-DLOGPDF=%s" logpdf) (format "-DDIM=%d" dim) (format "-DWGS=%d" wgs)
    (format "-DCUDART_VERSION=%s" cudart-version)])
@@ -589,7 +594,7 @@
    "-use_fast_math" (format "-DLOGFN=%s" logfn) (format "-DDIM=%d" dim) (format "-DWGS=%d" wgs)
    (format "-DCUDART_VERSION=%s" cudart-version)])
 
-(defn ^:private direct-sampler-options [params-size wgs cudart-version]
+(defn ^:private direct-sampler-options [wgs cudart-version]
   ["-DREAL=float" (format "-DWGS=%d" wgs) "-use_fast_math" "-default-device"
    (format "-DCUDART_VERSION=%s" cudart-version)])
 
@@ -631,8 +636,7 @@
       (let [include-likelihood (satisfies? LikelihoodModel model)]
         (with-release [prog (compile! (program (format "%s\n%s" (apply str (source model)) distribution-src)
                                                philox-headers)
-                                      (distribution-options (logpdf model) (params-size model)
-                                                            (dimension model) WGS cudart-version))]
+                                      (distribution-options (logpdf model) (dimension model) WGS cudart-version))]
           (let-release [modl (module prog)
                         logpdf-kernel (function modl "logpdf")
                         pdf-kernel (function modl "pdf")
@@ -667,9 +671,9 @@
                                                      (apply str (source model))
                                                      (apply str (sampler-source model)))
                                              philox-headers)
-                                    (direct-sampler-options (params-size model) WGS cudart-version))]
+                                    (direct-sampler-options WGS cudart-version))]
         (let-release [modl (module prog)]
-          (->GTXDirectSampler ctx modl hstream (dimension model)))))))
+          (->GTXDirectSampler ctx modl hstream (dimension model) WGS))))))
 
   (defn gtx-stretch-factory [ctx hstream neanderthal-factory model WGS cudart-version]
     (in-context
@@ -679,8 +683,7 @@
                                                     (apply str (source model))
                                                     estimate-src mcmc-stretch-src)
                                             philox-headers)
-                                   (stretch-options (mcmc-logpdf model) (params-size model)
-                                                    (dimension model) WGS cudart-version))]
+                                   (stretch-options (mcmc-logpdf model) (dimension model) WGS cudart-version))]
        (let-release [modl (module prog)]
          (->GTXStretchFactory ctx modl hstream neanderthal-factory model (dimension model) WGS))))))
 

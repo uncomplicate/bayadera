@@ -153,11 +153,7 @@ __attribute__((reqd_work_group_size(WGS, 1, 1)))
 __kernel void logfn(__global const REAL* params,
                     __global const REAL* x, __global REAL* res) {
     const uint start = DIM * get_global_id(0);
-    REAL px[DIM];
-    for (uint i = 0; i < DIM; i++) {
-        px[i] = x[start + i];
-    }
-    res[get_global_id(0)] = LOGFN(params, px);
+    res[get_global_id(0)] = LOGFN(params, x + start);
 }
 
 // ======================== Acceptance =========================================
@@ -211,7 +207,7 @@ __kernel void sum_means_vertical (__global REAL* acc, __global const REAL* data)
     }
 }
 
-__attribute__((reqd_work_group_size(WGS, 1, 1)))
+__attribute__((reqd_work_group_size(1, WGS, 1)))
 __kernel void subtract_mean (__global REAL* means, __global const REAL* mean) {
     const uint dim_id = get_global_id(0);
     const uint dim_size = get_global_size(0);
