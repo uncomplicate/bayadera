@@ -40,7 +40,7 @@
      (variance a20) => (vctr native-provider [0 0])
      (sd a20) => (vctr native-provider [0 0])
      (sum (axpy! -1 (vctr native-provider [6 7 8]) (mean a))) => (roughly 0.0 0.0000005)
-     (sum (variance a)) =>  (roughly 54)
+     (sum (variance a)) => (roughly 54)
      (sum (sd a)) => (roughly 12.7278))))
 
 (ge-matrix-test native-float)

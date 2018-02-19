@@ -22,7 +22,7 @@
 
 (with-default
   (let [dev (ctx-device)
-        wgs (max-block-dim-x dev)
+        wgs 256
         cudart-version (driver-version)]
     (with-release [neanderthal-factory (cuda-float (current-context) default-stream)]
 
@@ -92,7 +92,7 @@
 
 (with-default
   (let [dev (ctx-device)
-        wgs (max-block-dim-x dev)
+        wgs 256
         cudart-version (driver-version)]
     (with-release [neanderthal-factory (cuda-float (current-context) default-stream)]
 
@@ -139,7 +139,7 @@
 
 (with-default
   (let [dev (ctx-device)
-        wgs 256 #_(max-block-dim-x dev)
+        wgs 256
         cudart-version (driver-version)
         walkers (* 44 wgs)
         seed 123
@@ -196,7 +196,7 @@
 
 (with-default
   (let [dev (ctx-device)
-        wgs 256 #_(max-block-dim-x dev)
+        wgs 256
         cudart-version (driver-version)
         walkers (* 44 wgs)
         seed 123
@@ -213,18 +213,18 @@
                                                      walkers params)]
          (init-position! gaussian-sampler seed limits)
          (take 4 (native (row (sample gaussian-sampler) 0)))
-         => [2.7455875873565674 4.162908554077148 -6.181103706359863 -0.12494850158691406]
+         => [2.7455878257751465 4.16290807723999 -6.181103706359863 -0.12494856119155884]
          (init! gaussian-sampler seed) => gaussian-sampler
          (move-bare! gaussian-sampler) => gaussian-sampler
          (take 4 (native (row (sample gaussian-sampler) 0)))
-         => [2.7455875873565674 4.162908554077148 -2.1451826095581055 -0.14135169982910156]
+         => [2.7455878257751465 4.16290807723999 -2.1451826095581055 -0.14135171473026276]
          (move-bare! gaussian-sampler)
          (take 4 (native (row (sample gaussian-sampler) 0)))
-         => [3.962130546569824 2.9586503505706787 -0.5778036117553711 5.02529239654541])))))
+         => [3.9621310234069824 2.9586496353149414 -0.5778038501739502 5.025292873382568])))))
 
 (with-default
   (let [dev (ctx-device)
-        wgs 256 #_(max-block-dim-x dev)
+        wgs 256
         cudart-version (driver-version)
         walkers (* 44 wgs)
         seed 123
@@ -241,10 +241,12 @@
                                                      walkers params)]
          (init-position! gaussian-sampler seed limits)
          (init! gaussian-sampler (inc seed))
-         (burn-in! gaussian-sampler 150 8.0)
-         (first (native! (mean (sample gaussian-sampler)))) => 3.0
-         (sum (sample gaussian-sampler)) => :a
-         (first (native! (sd (sample gaussian-sampler)))) => 1.0)))))
+         (burn-in! gaussian-sampler 100 1.5)
+         (first (native! (mean (sample gaussian-sampler)))) => 2.955857992172241
+         (take-nth 1500 (native! (row (sample gaussian-sampler) 0)))
+         => [3.222633123397827 2.4723587036132812 3.094208240509033 3.0372467041015625
+             5.75404167175293 2.7033119201660156 2.5398690700531006 3.4444446563720703]
+         (first (native! (sd (sample gaussian-sampler)))) => 0.9953223466873169)))))
 
 
 #_(with-default

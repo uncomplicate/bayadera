@@ -24,7 +24,7 @@
 
 (with-default
   (let [dev (queue-device *command-queue*)
-        wgs (max-work-group-size dev)
+        wgs 256
         tmp-dir-name (create-tmp-dir)]
     (with-philox tmp-dir-name
       (with-release [neanderthal-factory (opencl-float *context* *command-queue*)]
@@ -95,7 +95,7 @@
 
 (with-default
   (let [dev (queue-device *command-queue*)
-        wgs (max-work-group-size dev)
+        wgs 256
         tmp-dir-name (create-tmp-dir)]
     (with-philox tmp-dir-name
       (with-release [neanderthal-factory (opencl-float *context* *command-queue*)]
@@ -143,7 +143,7 @@
 
 (with-default
   (let [dev (queue-device *command-queue*)
-        wgs (max-work-group-size dev)
+        wgs 256
         tmp-dir-name (create-tmp-dir)
         walkers (* (max-compute-units dev) wgs)
         seed 123
@@ -228,7 +228,7 @@
 
 (with-default
   (let [dev (queue-device *command-queue*)
-        wgs (max-work-group-size dev)
+        wgs 256
         tmp-dir-name (create-tmp-dir)
         walkers (* (max-compute-units dev) wgs)
         seed 123
@@ -256,9 +256,9 @@
 
 (with-default
   (let [dev (queue-device *command-queue*)
-        wgs (max-work-group-size dev)
+        wgs 256
         tmp-dir-name (create-tmp-dir)
-        walkers (* (max-compute-units dev) wgs)
+        walkers (* 44 wgs)
         seed 123
         a 2.0]
     (with-philox tmp-dir-name
@@ -273,9 +273,12 @@
                                                        walkers params)]
            (init-position! gaussian-sampler seed limits)
            (init! gaussian-sampler (inc seed))
-           (burn-in! gaussian-sampler 150 8.0)
-           (first (native! (mean (sample gaussian-sampler)))) => (roughly 3.0 0.01)
-           (first (native! (sd (sample gaussian-sampler)))) => (roughly 1.0 0.01)))))))
+           (burn-in! gaussian-sampler 100 1.5)
+           (first (native! (mean (sample gaussian-sampler)))) => 2.9559195041656494
+           (take-nth 1500 (native! (row (sample gaussian-sampler) 0)))
+           => [3.222665309906006 2.4721696376800537 3.094174385070801 3.0374388694763184
+               5.753951072692871 2.7033936977386475 2.5397140979766846 3.4444146156311035]
+           (first (native! (sd (sample gaussian-sampler)))) => 0.9953131079673767))))))
 
 (with-default
 

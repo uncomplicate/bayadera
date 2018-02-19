@@ -16,7 +16,7 @@
              [core :refer :all :as cuda :exclude [parameters]]
              [nvrtc :refer [compile! program]]
              [info :refer [multiprocessor-count max-block-dim-x ctx-device driver-version]]
-             [toolbox :refer [count-blocks launch-reduce! read-long read-double]]]
+             [toolbox :refer [launch-reduce! read-long read-double]]]
             [uncomplicate.neanderthal.internal.api :as na]
             [uncomplicate.neanderthal
              [core :refer [vctr ge ncols mrows scal! transfer raw submatrix dim copy!]]
@@ -96,7 +96,7 @@
       (in-context
        ctx
        (let [n (ncols x)
-             acc-size (* Double/BYTES (count-blocks WGS n))]
+             acc-size (* Double/BYTES (blocks-count WGS n))]
          (with-release [cu-acc (mem-alloc acc-size)]
            (launch-reduce! hstream evidence-kernel sum-reduction-kernel
                            [cu-acc (buffer cu-params) (buffer x)] [cu-acc] n WGS)
@@ -117,7 +117,7 @@
            n (ncols data-matrix)
            wgsn (min n WGS)
            wgsm (/ WGS wgsn)
-           acc-size (max 1 (* m (count-blocks wgsn n)))]
+           acc-size (max 1 (* m (blocks-count wgsn n)))]
        (with-release [acc (vctr data-matrix acc-size)
                       sum-reduction-kernel (function modl "sum_reduction_horizontal")
                       mean-kernel (function modl "mean_reduce")]
@@ -132,7 +132,7 @@
            n (ncols data-matrix)
            wgsn (min n WGS)
            wgsm (/ WGS wgsn)
-           acc-size (max 1 (* m (count-blocks wgsn n)))]
+           acc-size (max 1 (* m (blocks-count wgsn n)))]
        (with-release [res (vctr data-matrix m)
                       cu-acc (create-data-source data-matrix acc-size)
                       sum-reduction-kernel (function modl "sum_reduction_horizontal")
@@ -156,7 +156,7 @@
            n (ncols data-matrix)
            wgsn (min n WGS)
            wgsm (/ WGS wgsn)
-           acc-size (* 2 (max 1 (* m (count-blocks wgsn n))))
+           acc-size (* 2 (max 1 (* m (blocks-count wgsn n))))
            cuaccessor (data-accessor data-matrix)]
        (with-release [cu-min-max (create-data-source data-matrix acc-size)
                       uint-res (mem-alloc (* Integer/BYTES WGS m))
@@ -286,7 +286,7 @@
           i-max (- n lag)
           wgsm (min 16 DIM WGS)
           wgsn (long (/ WGS wgsm))
-          wg-count (count-blocks wgsn n)
+          wg-count (blocks-count wgsn n)
           native-fact (na/native-factory sample-matrix)]
       (if (<= (* lag min-fac) n)
         (let-release [d (vctr native-fact DIM)]
@@ -410,10 +410,10 @@
      ctx
      (let [a (cast-prim cuaccessor a)
            n (long n)
-           means-count (long (count-blocks WGS (/ walker-count 2)))
+           means-count (long (blocks-count WGS (/ walker-count 2)))
            local-m (min means-count WGS)
            local-n (long (/ WGS local-m))
-           acc-count (long (count-blocks local-m means-count))
+           acc-count (long (blocks-count local-m means-count))
            wgsn (min acc-count WGS)
            wgsm (long (/ WGS wgsn))]
        (with-release [cu-means-acc (create-data-source cuaccessor (* DIM  means-count n))
@@ -429,7 +429,7 @@
          (scal! (/ 0.5 (* WGS means-count)) means)
          (launch-reduce! hstream sum-accept-kernel sum-accept-reduction-kernel
                          sum-accept-params sum-accept-reduction-params
-                         (count-blocks WGS (/ walker-count 2)) WGS)
+                         (blocks-count WGS (/ walker-count 2)) WGS)
          {:acceptance-rate (/ (double (read-long hstream cu-accept-acc)) (* walker-count n))
           :a (get a 0)
           :autocorrelation (acor this means)}))))
@@ -437,14 +437,14 @@
     (in-context
      ctx
      (let [a (cast-prim cuaccessor a)
-           means-count (long (count-blocks WGS (/ walker-count 2)))]
+           means-count (long (blocks-count WGS (/ walker-count 2)))]
        (with-release [cu-means-acc (create-data-source cuaccessor (* DIM means-count))]
          (init-move! this cu-means-acc a)
          (move! this)
          (vswap! iteration-counter inc-long)
          #_(launch-reduce! hstream sum-accept-kernel sum-accept-reduction-kernel ;;TODO
                          sum-accept-params sum-accept-reduction-params
-                         (count-blocks WGS (/ walker-count 2)) WGS)
+                         (blocks-count WGS (/ walker-count 2)) WGS)
          (/ (double (read-long hstream cu-accept-acc)) walker-count)))))
   EstimateEngine
   (histogram [this]
@@ -457,7 +457,7 @@
            wgsm (min DIM (long (sqrt WGS)))
            wgsn (long (/ WGS wgsm))
            histogram-worksize (grid-2d DIM walker-count 1 WGS)
-           acc-size (* 2 (max 1 (* DIM (count-blocks WGS walker-count))))]
+           acc-size (* 2 (max 1 (* DIM (blocks-count WGS walker-count))))]
        (with-release [cu-min-max (create-data-source cuaccessor acc-size)
                       uint-res (mem-alloc (* Integer/BYTES WGS DIM))
                       result (ge neanderthal-factory WGS DIM)
@@ -518,9 +518,9 @@
      ctx
      (let [walker-count (int walker-count)]
        (if (and (<= (* 2 WGS) walker-count) (zero? (rem walker-count (* 2 WGS))))
-         (let [acc-count (* DIM (count-blocks WGS walker-count))
-               accept-count (count-blocks WGS (/ walker-count 2))
-               accept-acc-count (count-blocks WGS accept-count)
+         (let [acc-count (* DIM (blocks-count WGS walker-count))
+               accept-count (blocks-count WGS (/ walker-count 2))
+               accept-acc-count (blocks-count WGS accept-count)
                cuaccessor (data-accessor neanderthal-factory)
                sub-bytesize (* DIM (long (/ walker-count 2)) (entry-width cuaccessor))
                cu-params (buffer params)
@@ -549,7 +549,7 @@
               (function modl "stretch_move_bare")
               (cuda/parameters half-walker-count 1 (int 4444) cu-params cu-s0 cu-s1 cu-logfn-s1 7 8 9)
               (function modl "init_walkers")
-              (cuda/parameters (int (/ walker-count 4)) 1 2 cu-xs)
+              (cuda/parameters (int (/ (* DIM walker-count) 4)) 1 2 cu-xs)
               (function modl "logfn")
               (cuda/parameters walker-count cu-params cu-xs cu-logfn-xs)
               (function modl "sum_accept_reduction")
