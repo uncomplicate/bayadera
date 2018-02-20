@@ -416,7 +416,7 @@
            acc-count (long (blocks-count local-m means-count))
            wgsn (min acc-count WGS)
            wgsm (long (/ WGS wgsn))]
-       (with-release [cu-means-acc (create-data-source cuaccessor (* DIM  means-count n))
+       (with-release [cu-means-acc (create-data-source cuaccessor (* DIM means-count n))
                       acc (ge neanderthal-factory DIM (* acc-count n))
                       means (submatrix acc 0 0 DIM n)]
          (init-move! this cu-means-acc a)
@@ -428,8 +428,7 @@
                          means-count (* DIM n) local-m local-n)
          (scal! (/ 0.5 (* WGS means-count)) means)
          (launch-reduce! hstream sum-accept-kernel sum-accept-reduction-kernel
-                         sum-accept-params sum-accept-reduction-params
-                         (blocks-count WGS (/ walker-count 2)) WGS)
+                         sum-accept-params sum-accept-reduction-params means-count WGS)
          {:acceptance-rate (/ (double (read-long hstream cu-accept-acc)) (* walker-count n))
           :a (get a 0)
           :autocorrelation (acor this means)}))))
@@ -442,7 +441,7 @@
          (init-move! this cu-means-acc a)
          (move! this)
          (vswap! iteration-counter inc-long)
-         #_(launch-reduce! hstream sum-accept-kernel sum-accept-reduction-kernel ;;TODO
+         (launch-reduce! hstream sum-accept-kernel sum-accept-reduction-kernel ;;TODO
                          sum-accept-params sum-accept-reduction-params
                          (blocks-count WGS (/ walker-count 2)) WGS)
          (/ (double (read-long hstream cu-accept-acc)) walker-count)))))

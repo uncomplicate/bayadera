@@ -5,7 +5,8 @@
             [uncomplicate.fluokitten.core :refer [fmap! op]]
             [uncomplicate.clojurecl
              [core :refer :all]
-             [info :refer [queue-device max-compute-units max-work-group-size]]]
+             [info :refer [queue-device max-compute-units max-work-group-size]]
+             [toolbox :refer [count-work-groups]]]
             [uncomplicate.neanderthal
              [core :refer [vctr ge native native! subvector sum entry imax imin row raw copy axpy! nrm2]]
              [vect-math :refer [linear-frac!]]
@@ -145,7 +146,9 @@
   (let [dev (queue-device *command-queue*)
         wgs 256
         tmp-dir-name (create-tmp-dir)
-        walkers (* (max-compute-units dev) wgs)
+        walker-count (* (max-compute-units dev) wgs)
+        means-count (long (count-work-groups wgs (/ walker-count 2)))
+        acc-count (long (count-work-groups wgs means-count))
         seed 123
         a 2.0]
     (with-philox tmp-dir-name
@@ -157,14 +160,21 @@
                         uniform-sampler (mcmc-sampler (gcn-stretch-factory
                                                        *context* *command-queue* tmp-dir-name
                                                        neanderthal-factory uniform-model wgs)
-                                                      walkers params)]
-           (let [stretch-move-odd-bare-kernel (.stretch-move-odd-bare-kernel ^GCNStretch uniform-sampler)
+                                                      walker-count params)]
+           (let [stretch-move-bare-kernel (.stretch-move-odd-bare-kernel ^GCNStretch uniform-sampler)
+                 stretch-move-kernel (.stretch-move-odd-kernel ^GCNStretch uniform-sampler)
+                 sum-means-kernel (.sum-means-kernel ^GCNStretch uniform-sampler)
                  cl-params (.cl-params ^GCNStretch uniform-sampler)
                  cl-xs (.cl-xs ^GCNStretch uniform-sampler)
                  cl-s0 (.cl-s0 ^GCNStretch uniform-sampler)
                  cl-logfn-s0 (.cl-logfn-s0 ^GCNStretch uniform-sampler)
                  cl-s1 (.cl-s1 ^GCNStretch uniform-sampler)
                  cl-logfn-s1 (.cl-logfn-s1 ^GCNStretch uniform-sampler)
+                 cl-accept (.cl-accept ^GCNStretch uniform-sampler)
+                 cl-means-acc (create-data-source neanderthal-factory means-count)
+                 means-acc-array (float-array 10)
+                 accept-array (int-array 10)
+                 acc (ge neanderthal-factory 1 acc-count)
                  cqueue (.cqueue ^GCNStretch uniform-sampler)]
 
              (init-position! uniform-sampler seed limits)
@@ -181,22 +191,49 @@
              (init-position! uniform-sampler seed limits)
              (take 4 (native (row (sample uniform-sampler) 0)))
              => [1.0883402824401855 1.3920516967773438 -0.8245221972465515 0.47322529554367065]
-             (set-args! stretch-move-odd-bare-kernel 0 (wrap-int seed) (wrap-int 3333)
+
+             (set-args! stretch-move-bare-kernel 0 (wrap-int seed) (wrap-int 3333)
                         cl-params cl-s1 cl-s0 cl-logfn-s0 (wrap-float a) (wrap-float 1.0) (wrap-int 0))
-             (enq-nd! cqueue stretch-move-odd-bare-kernel (work-size-1d (/ walkers 2)))
-             (set-args! stretch-move-odd-bare-kernel 0 (wrap-int (inc seed)) (wrap-int 4444)
+             (enq-nd! cqueue stretch-move-bare-kernel (work-size-1d (/ walker-count 2)))
+             (set-args! stretch-move-bare-kernel 0 (wrap-int (inc seed)) (wrap-int 4444)
                         cl-params cl-s0 cl-s1 cl-logfn-s1 (wrap-float a) (wrap-float 1.0) (wrap-int 0))
-             (enq-nd! cqueue stretch-move-odd-bare-kernel (work-size-1d (/ walkers 2)))
+             (enq-nd! cqueue stretch-move-bare-kernel (work-size-1d (/ walker-count 2)))
              (take 4 (native (row (sample uniform-sampler) 0)))
              => [0.7279692888259888 1.8140764236450195 0.04031801223754883 0.4697103500366211]
-             (set-args! stretch-move-odd-bare-kernel 0 (wrap-int seed) (wrap-int 3333)
+
+             (set-args! stretch-move-bare-kernel 0 (wrap-int seed) (wrap-int 3333)
                         cl-params cl-s1 cl-s0 cl-logfn-s0 (wrap-float a) (wrap-float 1.0) (wrap-int 1))
-             (enq-nd! cqueue stretch-move-odd-bare-kernel (work-size-1d (/ walkers 2)))
-             (set-args! stretch-move-odd-bare-kernel 0 (wrap-int (inc seed)) (wrap-int 4444)
+             (enq-nd! cqueue stretch-move-bare-kernel (work-size-1d (/ walker-count 2)))
+             (set-args! stretch-move-bare-kernel 0 (wrap-int (inc seed)) (wrap-int 4444)
                         cl-params cl-s0 cl-s1 cl-logfn-s1 (wrap-float a) (wrap-float 1.0) (wrap-int 1))
-             (enq-nd! cqueue stretch-move-odd-bare-kernel (work-size-1d (/ walkers 2)))
+             (enq-nd! cqueue stretch-move-bare-kernel (work-size-1d (/ walker-count 2)))
              (take 4 (native (row (sample uniform-sampler) 0)))
-             => [1.0403573513031006 1.4457943439483643 0.37618488073349 1.5768483877182007])))
+             => [1.0403573513031006 1.4457943439483643 0.37618488073349 1.5768483877182007]
+
+             (enq-fill! cqueue cl-accept (int-array 1))
+             (enq-fill! cqueue cl-means-acc (float-array 1))
+             (set-args! stretch-move-kernel 0 (wrap-int seed) (wrap-int 1111)
+                        cl-params cl-s1 cl-s0 cl-logfn-s0 cl-accept cl-means-acc (wrap-float a)
+                        (wrap-int 0))
+             (enq-nd! cqueue stretch-move-kernel (work-size-1d (/ walker-count 2)))
+             (set-args! stretch-move-kernel 0 (wrap-int (inc seed)) (wrap-int 2222)
+                        cl-params cl-s0 cl-s1 cl-logfn-s1 cl-accept cl-means-acc (wrap-float a)
+                        (wrap-int 0))
+             (enq-nd! cqueue stretch-move-kernel (work-size-1d (/ walker-count 2)))
+             (take 4 (native (row (sample uniform-sampler) 0)))
+             => [1.0110803842544556 1.615005373954773 0.3426262140274048 1.4122662544250488]
+             (enq-read! cqueue cl-means-acc means-acc-array)
+             (seq means-acc-array) => (map float [269.26575 286.35892 288.0937 240.0009 265.76953
+                                                  274.17465 257.67914 302.7213 244.6228 277.85284])
+             (enq-read! cqueue cl-accept accept-array)
+             (seq accept-array) => [423 422 424 428 414 439 428 409 429 409]
+
+             (set-args! sum-means-kernel 0 (buffer acc) cl-means-acc)
+             (enq-nd! cqueue sum-means-kernel (work-size-2d 1 means-count))
+             (sum (native acc)) => (float 5822.9175)
+
+             )))
+
         (facts
          "OpenCL GCN stretch with Gaussian model."
          (with-release [params (vctr neanderthal-factory [3 1.0])
@@ -204,7 +241,7 @@
                         gaussian-sampler (mcmc-sampler (gcn-stretch-factory
                                                         *context* *command-queue* tmp-dir-name
                                                         neanderthal-factory gaussian-model wgs)
-                                                       walkers params)]
+                                                       walker-count params)]
            (init-position! gaussian-sampler seed limits)
            (take 4 (native (row (sample gaussian-sampler) 0)))
            => [2.7455875873565674 4.162908554077148 -6.181103706359863 -0.12494850158691406]
@@ -224,7 +261,7 @@
                           gaussian-sampler (mcmc-sampler (gcn-stretch-factory
                                                           *context* *command-queue* tmp-dir-name
                                                           neanderthal-factory gaussian-model wgs)
-                                                         walkers params)]
+                                                         walker-count params)]
              (init-position! gaussian-sampler seed limits)
              (init! gaussian-sampler (inc seed))
              (burn-in! gaussian-sampler 100 1.5)
@@ -233,6 +270,31 @@
              => [3.222665309906006 2.4721696376800537 3.094174385070801 3.0374388694763184
                  5.753951072692871 2.7033936977386475 2.5397140979766846 3.4444146156311035]
              (first (native! (sd (sample gaussian-sampler)))) => 0.9953131079673767)))))))
+
+(with-default
+  (let [dev (queue-device *command-queue*)
+        wgs 256
+        tmp-dir-name (create-tmp-dir)
+        walker-count (* 2 44 wgs)
+        seed 123
+        a 8.0]
+    (with-philox tmp-dir-name
+      (with-release [bayadera-factory (ocl/gcn-bayadera-factory *context* *command-queue*)]
+        (let [mcmc-engine-factory (mcmc-factory bayadera-factory gaussian-model)]
+          (with-release [params (vctr bayadera-factory [200 1])
+                         limits (ge bayadera-factory 2 1 [180.0 220.0])]
+            (let [engine (mcmc-sampler mcmc-engine-factory walker-count params)]
+              (facts
+               "Test MCMC stretch engine."
+               (init-position! engine 123 limits)
+               (init! engine 1243)
+               (burn-in! engine 5120 a)
+               (acc-rate! engine a) => 0.4808682528409091
+               (map println (:autocorrelation (run-sampler! engine 67 a))) => :a
+               (entry (:tau (:autocorrelation (run-sampler! engine 67 a))) 0) => 5.757689952850342
+               ))))
+
+        ))))
 
 #_(with-default
   (with-release [factory (ocl/gcn-bayadera-factory *context* *command-queue*)]

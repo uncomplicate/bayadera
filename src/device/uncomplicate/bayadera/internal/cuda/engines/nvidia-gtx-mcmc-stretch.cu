@@ -120,7 +120,7 @@ extern "C" {
         }
         
         const uint32_t k0 = gid * DIM;
-        const uint32_t id = n * step_counter * DIM;
+        const uint32_t id = blockIdx.x + gridDim.x * step_counter * DIM;
         for (uint32_t i = 0; i < DIM; i++) {
             const REAL mean_sum = block_reduction_sum((gid < n) ? X[k0 + i] : 0.0f);
             if (threadIdx.x == 0) {

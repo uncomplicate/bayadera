@@ -381,7 +381,7 @@
           acc-count (long (count-work-groups local-m means-count))
           wgsn (min acc-count WGS)
           wgsm (long (/ WGS wgsn))]
-      (with-release [cl-means-acc (create-data-source claccessor (* DIM  means-count n))
+      (with-release [cl-means-acc (create-data-source claccessor (* DIM means-count n))
                      acc (ge neanderthal-factory DIM (* acc-count n))
                      means (submatrix acc 0 0 DIM n)]
         (init-move! this cl-means-acc a)
@@ -393,8 +393,7 @@
         (enq-reduce! cqueue sum-means-kernel sum-reduction-kernel
                      (* DIM n) means-count local-n local-m)
         (scal! (/ 0.5 (* WGS means-count)) means)
-        (enq-reduce! cqueue sum-accept-kernel sum-accept-reduction-kernel
-                           (count-work-groups WGS (/ walker-count 2)) WGS)
+        (enq-reduce! cqueue sum-accept-kernel sum-accept-reduction-kernel means-count WGS)
         {:acceptance-rate (/ (double (enq-read-long cqueue cl-accept-acc)) (* walker-count n))
          :a (get a 0)
          :autocorrelation (acor this means)})))

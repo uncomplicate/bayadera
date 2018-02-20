@@ -9,7 +9,8 @@
             [uncomplicate.neanderthal
              [core :refer [vctr ge native native! subvector sum entry imax imin row raw copy axpy! nrm2]]
              [vect-math :refer [linear-frac!]]
-             [cuda :refer [cuda-float]]]
+             [cuda :refer [cuda-float]]
+             [block :refer :all]]
             [uncomplicate.bayadera
              [distributions :refer [gaussian-pdf gaussian-log-pdf binomial-lik-params beta-params]]
              [cuda :refer :all :as cuda :exclude [gtx-bayadera-factory]]]
@@ -141,7 +142,9 @@
   (let [dev (ctx-device)
         wgs 256
         cudart-version (driver-version)
-        walkers (* 44 wgs)
+        walker-count (* 44 wgs)
+        means-count (long (blocks-count wgs (/ walker-count 2)))
+        acc-count (long (blocks-count wgs means-count))
         seed 123
         a 2.0]
     (with-release [neanderthal-factory (cuda-float (current-context) default-stream)]
@@ -154,14 +157,20 @@
                                                        (current-context) default-stream
                                                        neanderthal-factory uniform-model
                                                        wgs cudart-version)
-                                                      walkers params)]
-           (let [stretch-move-odd-bare-kernel (.stretch-move-odd-bare-kernel ^GTXStretch uniform-sampler)
+                                                      walker-count params)]
+           (let [stretch-move-bare-kernel (.stretch-move-odd-bare-kernel ^GTXStretch uniform-sampler)
+                 stretch-move-kernel (.stretch-move-odd-kernel ^GTXStretch uniform-sampler)
                  cu-params (.cu-params ^GTXStretch uniform-sampler)
                  cu-xs (.cu-xs ^GTXStretch uniform-sampler)
                  cu-s0 (.cu-s0 ^GTXStretch uniform-sampler)
                  cu-logfn-s0 (.cu-logfn-s0 ^GTXStretch uniform-sampler)
                  cu-s1 (.cu-s1 ^GTXStretch uniform-sampler)
                  cu-logfn-s1 (.cu-logfn-s1 ^GTXStretch uniform-sampler)
+                 cu-accept (.cu-accept ^GTXStretch uniform-sampler)
+                 cu-means-acc (create-data-source neanderthal-factory means-count)
+                 means-acc-array (float-array 10)
+                 accept-array (int-array 10)
+                 acc (ge neanderthal-factory 1 acc-count)
                  hstream (.hstream ^GTXStretch uniform-sampler)]
 
              (init-position! uniform-sampler seed limits)
@@ -178,22 +187,45 @@
              (init-position! uniform-sampler seed limits)
              (take 4 (native (row (sample uniform-sampler) 0)))
              => [1.0883402824401855 1.3920516967773438 -0.8245221972465515 0.47322529554367065]
-             (launch! stretch-move-odd-bare-kernel (grid-1d (/ walkers 2) wgs) hstream
-                      (clojurecuda/parameters (/ walkers 2) (int seed) (int 3333)
+
+             (launch! stretch-move-bare-kernel (grid-1d (/ walker-count 2) wgs) hstream
+                      (clojurecuda/parameters (/ walker-count 2) (int seed) (int 3333)
                                               cu-params cu-s1 cu-s0 cu-logfn-s0 (float a) (float 1.0) (int 0)))
-             (launch! stretch-move-odd-bare-kernel (grid-1d (/ walkers 2) wgs) hstream
-                      (clojurecuda/parameters (/ walkers 2) (inc (int seed)) (int 4444)
+             (launch! stretch-move-bare-kernel (grid-1d (/ walker-count 2) wgs) hstream
+                      (clojurecuda/parameters (/ walker-count 2) (inc (int seed)) (int 4444)
                                               cu-params cu-s0 cu-s1 cu-logfn-s1 (float a) (float 1.0) (int 0)))
              (take 4 (native (row (sample uniform-sampler) 0)))
              => [0.7279692888259888 1.81407630443573 0.040318019688129425 0.4697103202342987]
-             (launch! stretch-move-odd-bare-kernel (grid-1d (/ walkers 2) wgs) hstream
-                      (clojurecuda/parameters (/ walkers 2) (int seed) (int 3333)
-                                              cu-params cu-s1 cu-s0 cu-logfn-s0 (float a) (float 1.0) (int 1)))
-             (launch! stretch-move-odd-bare-kernel (grid-1d (/ walkers 2) wgs) hstream
-                      (clojurecuda/parameters (/ walkers 2) (inc (int seed)) (int 4444)
-                                              cu-params cu-s0 cu-s1 cu-logfn-s1 (float a) (float 1.0) (int 1)))
+
+             (launch! stretch-move-bare-kernel (grid-1d (/ walker-count 2) wgs) hstream
+                      (clojurecuda/parameters (/ walker-count 2) (int seed) (int 3333) cu-params
+                                              cu-s1 cu-s0 cu-logfn-s0 (float a) (float 1.0) (int 1)))
+             (launch! stretch-move-bare-kernel (grid-1d (/ walker-count 2) wgs) hstream
+                      (clojurecuda/parameters (/ walker-count 2) (inc (int seed)) (int 4444) cu-params
+                                              cu-s0 cu-s1 cu-logfn-s1 (float a) (float 1.0) (int 1)))
              (take 4 (native (row (sample uniform-sampler) 0)))
-             => [1.040357232093811 1.4457943439483643 0.3761849105358124 1.5768483877182007])))
+             => [1.040357232093811 1.4457943439483643 0.3761849105358124 1.5768483877182007]
+
+             (memset! cu-accept (int 0) hstream)
+             (memset! cu-means-acc (float 0) hstream)
+             (launch! stretch-move-kernel (grid-1d (/ walker-count 2) wgs) hstream
+                      (clojurecuda/parameters (/ walker-count 2) (int seed) (int 1111)
+                                              cu-params cu-s1 cu-s0 cu-logfn-s0 cu-accept cu-means-acc
+                                              (float a) (int 0)))
+             (launch! stretch-move-kernel (grid-1d (/ walker-count 2) wgs) hstream
+                      (clojurecuda/parameters (/ walker-count 2) (inc (int seed)) (int 2222)
+                                              cu-params cu-s0 cu-s1 cu-logfn-s1 cu-accept cu-means-acc
+                                              (float a) (int 0)))
+             (take 4 (native (row (sample uniform-sampler) 0)))
+             => [1.011080265045166 1.615005373954773 0.3426262140274048 1.4122663736343384]
+             (memcpy-host! cu-means-acc means-acc-array)
+             (seq means-acc-array) => (map float [269.26575 286.3589 288.09372 240.0009 265.76953
+                                                  274.17465 257.67914 302.7213 244.6228 277.85284])
+             (memcpy-host! cu-accept accept-array)
+             (seq accept-array) => [423 422 424 428 414 439 428 409 429 409]
+
+
+             )))
 
       (facts
        "Nvidia GTX stretch with Gaussian model."
@@ -203,7 +235,7 @@
                                                       (current-context) default-stream
                                                       neanderthal-factory gaussian-model
                                                       wgs cudart-version)
-                                                     walkers params)]
+                                                     walker-count params)]
          (init-position! gaussian-sampler seed limits)
          (take 4 (native (row (sample gaussian-sampler) 0)))
          => [2.7455878257751465 4.16290807723999 -6.181103706359863 -0.12494856119155884]
@@ -223,7 +255,7 @@
                                                       (current-context) default-stream
                                                       neanderthal-factory gaussian-model
                                                       wgs cudart-version)
-                                                     walkers params)]
+                                                     walker-count params)]
          (init-position! gaussian-sampler seed limits)
          (init! gaussian-sampler (inc seed))
          (burn-in! gaussian-sampler 100 1.5)
@@ -233,11 +265,34 @@
              5.75404167175293 2.7033119201660156 2.5398690700531006 3.4444446563720703]
          (first (native! (sd (sample gaussian-sampler)))) => 0.9953223466873169)))))
 
+(with-default
+  (let [dev (ctx-device)
+        wgs 1024
+        cudart-version (driver-version)
+        walker-count (* 2 44 wgs)
+        seed 123
+        a 8.0]
+    (with-release [bayadera-factory (cuda/gtx-bayadera-factory (current-context) default-stream)]
+      (let [mcmc-engine-factory (mcmc-factory bayadera-factory gaussian-model)]
+        (with-release [params (vctr bayadera-factory [200 1])
+                       limits (ge bayadera-factory 2 1 [180.0 220.0])]
+          (let [engine (mcmc-sampler mcmc-engine-factory walker-count params)]
+            (facts
+             "Test MCMC stretch engine."
+             (init-position! engine 123 limits)
+             (init! engine 1243)
+             (burn-in! engine 5120 a)
+             (acc-rate! engine a) => 0.4869939630681818
+             (map println (:autocorrelation (run-sampler! engine 67 a))) => :a
+             ;;(entry (:tau (:autocorrelation (run-sampler! engine 67 a))) 0) => 5.757689952850342
+             ))))
 
-#_(with-default
+      )))
+
+(with-default
 
   (with-release [factory (cuda/gtx-bayadera-factory (current-context) default-stream)]
-    (test-uniform factory)
+    #_(test-uniform factory)
     ;;(test-gaussian factory)
     ;;(test-erlang factory)
     ;;(test-exponential factory)
