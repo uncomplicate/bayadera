@@ -145,6 +145,7 @@
         seed 123
         a 2.0]
     (with-release [neanderthal-factory (cuda-float (current-context) default-stream)]
+
       (facts
          "Nvidia GTX stretch with Uniform model."
          (with-release [params (vctr neanderthal-factory [-1 2])
@@ -192,16 +193,8 @@
                       (clojurecuda/parameters (/ walkers 2) (inc (int seed)) (int 4444)
                                               cu-params cu-s0 cu-s1 cu-logfn-s1 (float a) (float 1.0) (int 1)))
              (take 4 (native (row (sample uniform-sampler) 0)))
-             => [1.040357232093811 1.4457943439483643 0.3761849105358124 1.5768483877182007]))))))
+             => [1.040357232093811 1.4457943439483643 0.3761849105358124 1.5768483877182007])))
 
-(with-default
-  (let [dev (ctx-device)
-        wgs 256
-        cudart-version (driver-version)
-        walkers (* 44 wgs)
-        seed 123
-        a 2.0]
-    (with-release [neanderthal-factory (cuda-float (current-context) default-stream)]
       (facts
        "Nvidia GTX stretch with Gaussian model."
        (with-release [params (vctr neanderthal-factory [3 1.0])
@@ -220,18 +213,10 @@
          => [2.7455878257751465 4.16290807723999 -2.1451826095581055 -0.14135171473026276]
          (move-bare! gaussian-sampler)
          (take 4 (native (row (sample gaussian-sampler) 0)))
-         => [3.9621310234069824 2.9586496353149414 -0.5778038501739502 5.025292873382568])))))
+         => [3.9621310234069824 2.9586496353149414 -0.5778038501739502 5.025292873382568]))
 
-(with-default
-  (let [dev (ctx-device)
-        wgs 256
-        cudart-version (driver-version)
-        walkers (* 44 wgs)
-        seed 123
-        a 2.0]
-    (with-release [neanderthal-factory (cuda-float (current-context) default-stream)]
       (facts
-       "Nvidia GTX stretch with Gaussian model."
+       "Nvidia GTX stretch burn-in with Gaussian model."
        (with-release [params (vctr neanderthal-factory [3 1.0])
                       limits (ge neanderthal-factory 2 1 [-7 7])
                       gaussian-sampler (mcmc-sampler (gtx-stretch-factory
