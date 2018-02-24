@@ -17,7 +17,7 @@
 
       (facts
        "Test histogram"
-       (/ (sum (col (:pdf (histogram data-set)) 4)) (.WGS bayadera-factory)) => (roughly 1.0))
+       (/ (sum (col (:pdf (histogram data-set)) 4)) (long (.WGS bayadera-factory))) => (roughly 1.0))
 
       (facts
        "Test variance"
@@ -36,6 +36,6 @@
          (p/init! engine 1243)
          (p/burn-in! engine 5120 a)
          (< 0.45 (p/acc-rate! engine a) 0.5)  => true
-         (entry (:tau (:autocorrelation (run-sampler! engine 67 a))) 0) => (roughly 5.757689952850342)
+         (entry (:tau (:autocorrelation (p/run-sampler! engine 67 a))) 0) => (roughly 5.699155470133104)
          (with-release [xs (p/sample! engine walker-count)]
            (/ (sum (row xs 0)) (ncols xs)) => (roughly 200.0)))))))

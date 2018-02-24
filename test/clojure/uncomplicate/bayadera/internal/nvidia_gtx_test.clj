@@ -160,6 +160,7 @@
                                                       walker-count params)]
            (let [stretch-move-bare-kernel (.stretch-move-odd-bare-kernel ^GTXStretch uniform-sampler)
                  stretch-move-kernel (.stretch-move-odd-kernel ^GTXStretch uniform-sampler)
+                 sum-means-kernel (.sum-means-kernel ^GTXStretch uniform-sampler)
                  cu-params (.cu-params ^GTXStretch uniform-sampler)
                  cu-xs (.cu-xs ^GTXStretch uniform-sampler)
                  cu-s0 (.cu-s0 ^GTXStretch uniform-sampler)
@@ -224,6 +225,9 @@
              (memcpy-host! cu-accept accept-array)
              (seq accept-array) => [423 422 424 428 414 439 428 409 429 409]
 
+             (launch! sum-means-kernel (grid-2d 1 means-count 1 wgs) hstream
+                      (clojurecuda/parameters 1 means-count (buffer acc) cu-means-acc))
+             (sum acc) => (float 5822.918)
 
              )))
 
@@ -267,37 +271,38 @@
 
 (with-default
   (let [dev (ctx-device)
-        wgs 1024
+        wgs 256
         cudart-version (driver-version)
         walker-count (* 2 44 wgs)
         seed 123
         a 8.0]
-    (with-release [bayadera-factory (cuda/gtx-bayadera-factory (current-context) default-stream)]
+    (with-release [bayadera-factory (cuda/gtx-bayadera-factory (current-context) default-stream 20 wgs)]
       (let [mcmc-engine-factory (mcmc-factory bayadera-factory gaussian-model)]
         (with-release [params (vctr bayadera-factory [200 1])
-                       limits (ge bayadera-factory 2 1 [180.0 220.0])]
+                       limits (ge bayadera-factory 2 1 [180.0 220.0])
+                       dummy-sample-matrix (ge bayadera-factory 1 (* 100 walker-count) (cycle [201 199 138]))]
           (let [engine (mcmc-sampler mcmc-engine-factory walker-count params)]
             (facts
              "Test MCMC stretch engine."
+             (let [autocor (acor engine dummy-sample-matrix)]
+               (first (:tau autocor)) => 2.3798472525982106E-8
+               (first (:sigma autocor)) => 3.0051633075345308E-6)
              (init-position! engine 123 limits)
              (init! engine 1243)
              (burn-in! engine 5120 a)
-             (acc-rate! engine a) => 0.4869939630681818
-             (map println (:autocorrelation (run-sampler! engine 67 a))) => :a
-             ;;(entry (:tau (:autocorrelation (run-sampler! engine 67 a))) 0) => 5.757689952850342
-             ))))
-
-      )))
+             (acc-rate! engine a) => 0.48193359375
+             (entry (:tau (:autocorrelation (run-sampler! engine 67 a))) 0) => 4.311481952667236)))))))
 
 (with-default
 
   (with-release [factory (cuda/gtx-bayadera-factory (current-context) default-stream)]
-    #_(test-uniform factory)
-    ;;(test-gaussian factory)
-    ;;(test-erlang factory)
-    ;;(test-exponential factory)
-;;    (test-student-t factory)
-;;    (test-gamma factory)
+    ;; (test-uniform factory)
+    ;; (test-gaussian factory)
+    ;; (test-erlang factory)
+    ;; (test-exponential factory)
+    ;;(test-student-t factory)
+    ;;(test-gamma factory)
     ;;(test-all factory)
-    #_(test-dataset factory)
-    (test-mcmc factory gaussian-model)))
+    (test-beta-bernouli factory)
+    ;;(test-dataset factory)
+    #_(test-mcmc factory gaussian-model)))

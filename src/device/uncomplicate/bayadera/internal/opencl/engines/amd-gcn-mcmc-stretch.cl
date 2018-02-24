@@ -100,11 +100,11 @@ __kernel void stretch_move_accu(const uint seed,
     }
 
     const uint k0 = get_global_id(0) * DIM;
-    const uint id = get_group_id(0) + get_num_groups(0) * step_counter * DIM;
+    const uint offset = get_num_groups(0) * DIM * step_counter;
     for (uint i = 0; i < DIM; i++) {
         const REAL mean_sum = work_group_reduction_sum(X[k0 + i]);
         if (get_local_id(0) == 0) {
-            means[id + i * get_num_groups(0)] += mean_sum;
+            means[offset + i * get_num_groups(0) + get_group_id(0)] += mean_sum;
         }
     }
 
@@ -207,7 +207,6 @@ __kernel void sum_means_vertical (__global REAL* acc, __global const REAL* data)
     }
 }
 
-__attribute__((reqd_work_group_size(1, WGS, 1)))
 __kernel void subtract_mean (__global REAL* means, __global const REAL* mean) {
     const uint dim_id = get_global_id(0);
     const uint dim_size = get_global_size(0);
@@ -259,6 +258,7 @@ __kernel void autocovariance (const uint lag,
                               __global REAL* dacc,
                               __global const REAL* means,
                               const uint imax) {
+
     const uint gid = get_global_id(0);
     const uint lid = get_local_id(0);
     const uint local_size = get_local_size(0);
@@ -266,22 +266,25 @@ __kernel void autocovariance (const uint lag,
 
     __local REAL local_means[2 * WGS];
 
-    const bool load_lag = (lid < lag) && (gid + local_size < get_global_size(0));
+    const bool load_lag = (lid < lag) && group_id + 1 < get_num_groups(0);
     const bool compute = gid < imax;
-    REAL xacc = 0.0f;
 
     for (uint i = 0; i < DIM; i++) {
-        const REAL x = means[gid * DIM + i];
+        const REAL x = compute ? means[gid * DIM + i] : 0.0f;
+        REAL xacc = 0.0f;
         local_means[lid] = x;
-        local_means[lid + local_size] = load_lag ? means[gid + local_size] : 0.0f;
+        local_means[lid + local_size] = load_lag ? means[(gid + local_size) * DIM + i] : 0.0f;
+
         work_group_barrier(CLK_LOCAL_MEM_FENCE);
-        xacc = 0.0f;
-        for (uint s = 0; s < lag; s++) {
-            xacc += x * local_means[lid + s + 1];
+
+        if (compute) {
+            for (uint s = 0; s < lag; s++) {
+                xacc += local_means[lid + s + 1];
+            }
+            xacc = x * (x + 2 * xacc);
         }
-        xacc = compute ? x * x + 2 * xacc : 0.0f;
-        const REAL2 sums =
-            work_group_reduction_autocovariance(c0acc, dacc, compute? x*x : 0.0f, xacc);
+        const REAL2 sums = work_group_reduction_autocovariance(c0acc, dacc, x*x, xacc);
+
         if (lid == 0) {
             c0acc[group_id * DIM + i] = sums.x;
             dacc[group_id * DIM + i] = sums.y;

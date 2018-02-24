@@ -32,10 +32,10 @@ REAL student_t_loglik(const REAL* data, const REAL* nu_mu_sigma) {
     const REAL sigma = nu_mu_sigma[2];
     const bool valid = (0.0f < nu) && (0.0f < sigma);
     if (valid) {
-        const REAL scale =  student_t_log_scale(nu, sigma);
+        const REAL scale = student_t_log_scale(nu, sigma);
         REAL res = 0.0;
         for (uint i = 0; i < n; i++){
-            res += student_t_log_unscaled(nu, mu, sigma, data[i+1]) + scale;
+            res += (student_t_log_unscaled(nu, mu, sigma, data[i+1]) + scale);
         }
         return res;
     }

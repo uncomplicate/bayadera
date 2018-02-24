@@ -159,7 +159,7 @@ extern "C" {
             const REAL2 limits_m3 = limits[(i + 3) % DIM];
 
             // Generate uniform(0,1) floats
-                        // Generate uniform(0,1) floats
+            // Generate uniform(0,1) floats
             philox4x32_key_t key;
             uint32_t* key_v = key.v;
             key_v[0] = seed;
@@ -233,22 +233,18 @@ extern "C" {
 
     __global__ void sum_accept_reduction (const uint32_t n, uint64_t* acc) {
         const uint32_t gid = blockIdx.x * blockDim.x + threadIdx.x;
-        if (gid < n) {
-            block_reduction_sum_ulong(acc, acc[gid]);
-        }
+        block_reduction_sum_ulong(acc, (gid < n) ? acc[gid] : 0);
     }
 
     __global__ void sum_accept_reduce (const uint32_t n, uint64_t* acc, const uint32_t* data) {
         const uint32_t gid = blockIdx.x * blockDim.x + threadIdx.x;
-        if (gid < n) {
-            block_reduction_sum_ulong(acc, (uint64_t)data[gid]);
-        }
+        block_reduction_sum_ulong(acc, (gid < n) ? (uint64_t)data[gid] : 0);        
     }
 
     __global__ void sum_means_vertical (const uint32_t m, const uint32_t n, REAL* acc, const REAL* data) {
         const uint32_t gid_0 = blockIdx.x * blockDim.x + threadIdx.x;
         const uint32_t gid_1 = blockIdx.y * blockDim.y + threadIdx.y;
-        const uint32_t i = n * gid_1 + gid_0;
+        const uint32_t i = n * gid_0 + gid_1;
         const bool valid = (gid_0 < m) && (gid_1 < n);
         const REAL sum = block_reduction_sum_2((valid) ? data[i] : 0.0);
         const bool write = valid && (threadIdx.y == 0);
@@ -257,12 +253,12 @@ extern "C" {
         }
     }
 
-    __global__ void subtract_mean (const uint32_t dim, const uint32_t n, REAL* means, const REAL* mean) {
+    __global__ void subtract_mean (const uint32_t dim_size, const uint32_t n, REAL* means, const REAL* mean) {
         const uint32_t dim_id = blockIdx.x * blockDim.x + threadIdx.x;
         const uint32_t n_id = blockIdx.y * blockDim.y + threadIdx.y;
-        const bool valid = (dim_id < dim) && (n_id < n);
+        const bool valid = (dim_id < dim_size) && (n_id < n);
         if (valid) {
-            means[dim * n_id + dim_id] -= mean[dim_id];
+            means[dim_size * n_id + dim_id] -= mean[dim_id];
         }
     }
 
@@ -311,34 +307,37 @@ extern "C" {
                                     const uint32_t imax) {
         
         const uint32_t gid = blockIdx.x * blockDim.x + threadIdx.x;
-        if (gid < n) {
-            const uint32_t lid = threadIdx.x;
-            const uint32_t local_size = blockDim.x;
-            const uint32_t group_id = blockIdx.x;
+        const uint32_t local_size = blockDim.x;
+        const uint32_t lid = threadIdx.x;
+        const uint32_t group_id = blockIdx.x;
 
-            __shared__ REAL local_means[2 * WGS];
+        __shared__ REAL local_means[2 * WGS];
 
-            const bool load_lag = (lid < lag) && (gid + local_size < n);
-            const bool compute = gid < imax;
+        const bool load_lag = (lid < lag) && (group_id + 1 < gridDim.x);
+        const bool compute = (gid < imax);
+        
+        for (uint32_t i = 0; i < DIM; i++) {
+            const REAL x = compute ? means[gid * DIM + i] : 0.0f;
             REAL xacc = 0.0f;
+            local_means[lid] = x;
+            local_means[lid + local_size] = load_lag ? means[(gid + local_size) * DIM + i] : 0.0f;
 
-            for (uint32_t i = 0; i < DIM; i++) {
-                const REAL x = means[gid * DIM + i];
-                local_means[lid] = x;
-                local_means[lid + local_size] = load_lag ? means[gid + local_size] : 0.0f;
-                __syncthreads();
-                xacc = 0.0f;
+            __syncthreads();
+
+            if (compute) {
                 for (uint32_t s = 0; s < lag; s++) {
-                    xacc += x * local_means[lid + s + 1];
+                    xacc += local_means[lid + s + 1];
                 }
-                xacc = compute ? x * x + 2 * xacc : 0.0f;
-                const REAL2 sums = block_reduction_autocovariance(c0acc, dacc, compute? x*x : 0.0f, xacc);
-                if (lid == 0) {
-                    c0acc[group_id * DIM + i] = sums.x;
-                    dacc[group_id * DIM + i] = sums.y;
-                }
-
+                xacc = x * (x + 2 * xacc);
             }
+            const REAL2 sums = block_reduction_autocovariance(c0acc, dacc, x*x, xacc);
+
+            if (lid == 0) {
+                c0acc[group_id * DIM + i] = sums.x;
+                dacc[group_id * DIM + i] = sums.y;
+            }
+
         }
+        
     }
 }

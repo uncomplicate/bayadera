@@ -285,8 +285,8 @@
             (enq-nd! cqueue subtract-mean-kernel (work-size-2d DIM n))
             (enq-fill! cqueue cl-acc (int-array 1))
             (enq-fill! cqueue d-acc (int-array 1))
-            (set-args! autocovariance-kernel 0 (wrap-int lag) cl-acc
-                       d-acc (buffer sample-matrix) (wrap-int i-max))
+            (set-args! autocovariance-kernel 0
+                       (wrap-int lag) cl-acc d-acc (buffer sample-matrix) (wrap-int i-max))
             (enq-nd! cqueue autocovariance-kernel (work-size-1d n))
             (set-arg! sum-reduce-kernel 1 cl-acc)
             (enq-reduce! cqueue sum-reduce-kernel sum-reduction-kernel DIM wg-count wgsm wgsn)
@@ -378,9 +378,7 @@
           means-count (long (count-work-groups WGS (/ walker-count 2)))
           local-m (min means-count WGS)
           local-n (long (/ WGS local-m))
-          acc-count (long (count-work-groups local-m means-count))
-          wgsn (min acc-count WGS)
-          wgsm (long (/ WGS wgsn))]
+          acc-count (long (count-work-groups local-m means-count))]
       (with-release [cl-means-acc (create-data-source claccessor (* DIM means-count n))
                      acc (ge neanderthal-factory DIM (* acc-count n))
                      means (submatrix acc 0 0 DIM n)]

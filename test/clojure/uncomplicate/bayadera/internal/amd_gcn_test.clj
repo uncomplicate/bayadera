@@ -230,9 +230,7 @@
 
              (set-args! sum-means-kernel 0 (buffer acc) cl-means-acc)
              (enq-nd! cqueue sum-means-kernel (work-size-2d 1 means-count))
-             (sum (native acc)) => (float 5822.9175)
-
-             )))
+             (sum acc) => (float 5822.9175))))
 
         (facts
          "OpenCL GCN stretch with Gaussian model."
@@ -279,24 +277,24 @@
         seed 123
         a 8.0]
     (with-philox tmp-dir-name
-      (with-release [bayadera-factory (ocl/gcn-bayadera-factory *context* *command-queue*)]
+      (with-release [bayadera-factory (ocl/gcn-bayadera-factory *context* *command-queue* 44 wgs)]
         (let [mcmc-engine-factory (mcmc-factory bayadera-factory gaussian-model)]
           (with-release [params (vctr bayadera-factory [200 1])
-                         limits (ge bayadera-factory 2 1 [180.0 220.0])]
+                         limits (ge bayadera-factory 2 1 [180.0 220.0])
+                         dummy-sample-matrix (ge bayadera-factory 1 (* 100 walker-count) (cycle [201 199 138]))]
             (let [engine (mcmc-sampler mcmc-engine-factory walker-count params)]
               (facts
                "Test MCMC stretch engine."
+               (let [autocor (acor engine dummy-sample-matrix)]
+                 (first (:tau autocor)) => 2.379834640464651E-8
+                 (first (:sigma autocor)) => 3.0051553494558902E-6)
                (init-position! engine 123 limits)
                (init! engine 1243)
                (burn-in! engine 5120 a)
                (acc-rate! engine a) => 0.4808682528409091
-               (map println (:autocorrelation (run-sampler! engine 67 a))) => :a
-               (entry (:tau (:autocorrelation (run-sampler! engine 67 a))) 0) => 5.757689952850342
-               ))))
+               (entry (:tau (:autocorrelation (run-sampler! engine 67 a))) 0) => 5.699155330657959))))))))
 
-        ))))
-
-#_(with-default
+(with-default
   (with-release [factory (ocl/gcn-bayadera-factory *context* *command-queue*)]
     (test-all factory)
     (test-dataset factory)

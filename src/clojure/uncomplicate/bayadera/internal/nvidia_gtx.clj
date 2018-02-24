@@ -302,10 +302,10 @@
                             sum-reduce-params sum-reduction-params DIM n wgsm wgsn)
             (memcpy! cu-acc (buffer mean-vec) hstream)
             (scal! (/ 1.0 n) mean-vec)
-            (launch! subtract-mean-kernel (grid-2d DIM n 1 WGS) hstream
+            (launch! subtract-mean-kernel (grid-2d DIM n wgsm wgsn) hstream
                      (cuda/parameters DIM n (buffer sample-matrix) (buffer mean-vec)))
-            (memset! cu-acc 1 hstream)
-            (memset! d-acc 1 hstream)
+            (memset! cu-acc 0 hstream)
+            (memset! d-acc 0 hstream)
             (launch! autocovariance-kernel (grid-1d n WGS) hstream
                      (cuda/parameters n (int lag) cu-acc d-acc (buffer sample-matrix) (int i-max)))
             (set-parameter! sum-reduce-params 3 cu-acc)
@@ -413,9 +413,7 @@
            means-count (long (blocks-count WGS (/ walker-count 2)))
            local-m (min means-count WGS)
            local-n (long (/ WGS local-m))
-           acc-count (long (blocks-count local-m means-count))
-           wgsn (min acc-count WGS)
-           wgsm (long (/ WGS wgsn))]
+           acc-count (long (blocks-count local-m means-count))]
        (with-release [cu-means-acc (create-data-source cuaccessor (* DIM means-count n))
                       acc (ge neanderthal-factory DIM (* acc-count n))
                       means (submatrix acc 0 0 DIM n)]
@@ -425,12 +423,12 @@
          (vswap! iteration-counter add-long n)
          (launch-reduce! hstream sum-means-kernel sum-reduction-kernel
                          [(buffer acc) cu-means-acc] [(buffer acc)]
-                         means-count (* DIM n) local-m local-n)
+                         (* DIM n) means-count local-n local-m)
          (scal! (/ 0.5 (* WGS means-count)) means)
          (launch-reduce! hstream sum-accept-kernel sum-accept-reduction-kernel
                          sum-accept-params sum-accept-reduction-params means-count WGS)
          {:acceptance-rate (/ (double (read-long hstream cu-accept-acc)) (* walker-count n))
-          :a (get a 0)
+          :a a
           :autocorrelation (acor this means)}))))
   (acc-rate! [this a]
     (in-context
@@ -484,8 +482,8 @@
     (in-context
      ctx
      (let-release [res-vec (vctr (na/native-factory neanderthal-factory) DIM)]
-       (launch-reduce! hstream mean-kernel sum-reduction-kernel mean-params [cu-acc]
-                       DIM walker-count 1 WGS)
+       (launch-reduce! hstream mean-kernel sum-reduction-kernel
+                       mean-params [cu-acc] DIM walker-count 1 WGS)
        (memcpy-host! cu-acc (buffer res-vec) hstream)
        (scal! (/ 1.0 walker-count) res-vec))))
   Spread
@@ -566,9 +564,9 @@
               (function modl "uint_to_real")
               (function modl "bitonic_local")
               (function modl "mean_reduce")
-              (cuda/parameters 0 cu-acc cu-xs)
+              (cuda/parameters DIM walker-count cu-acc cu-xs)
               (function modl "variance_reduce")
-              (cuda/parameters 0 cu-acc cu-xs 3 4))))
+              (cuda/parameters DIM walker-count cu-acc cu-xs 4))))
          (throw (IllegalArgumentException.
                  (format "Number of walkers (%d) must be a multiple of %d." walker-count (* 2 WGS)))))))))
 
@@ -604,8 +602,7 @@
       likelihood-src (slurp (io/resource "uncomplicate/bayadera/internal/cuda/engines/nvidia-gtx-likelihood.cu"))
       uniform-sampler-src (slurp (io/resource "uncomplicate/bayadera/internal/cuda/rng/uniform-sampler.cu"))
       mcmc-stretch-src (slurp (io/resource "uncomplicate/bayadera/internal/cuda/engines/nvidia-gtx-mcmc-stretch.cu"))
-      standard-headers {"float.h" (slurp (io/resource "uncomplicate/clojurecuda/include/jitify/float.h"))
-                        "stdint.h" (slurp (io/resource "uncomplicate/clojurecuda/include/jitify/stdint.h"))}
+      standard-headers {"stdint.h" (slurp (io/resource "uncomplicate/clojurecuda/include/jitify/stdint.h"))}
       philox-headers
       (merge standard-headers
              {"Random123/philox.h"
@@ -648,6 +645,9 @@
     ([ctx hstream model WGS cudart-version]
      (in-context
       ctx
+      (println (format "%s\n%s\n%s\n%s"
+                       (apply str (source model))
+                       reduction-src likelihood-src distribution-src))
       (with-release [prog (compile! (program (format "%s\n%s\n%s\n%s"
                                                      (apply str (source model))
                                                      reduction-src likelihood-src distribution-src)

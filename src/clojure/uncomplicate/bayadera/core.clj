@@ -8,8 +8,7 @@
 
 (ns ^{:author "Dragan Djuric"}
     uncomplicate.bayadera.core
-  (:require [uncomplicate.commons.core
-             :refer [release with-release let-release double-fn]]
+  (:require [uncomplicate.commons.core :refer [release with-release let-release double-fn]]
             [uncomplicate.neanderthal.core :refer [transfer vctr native!]]
             [uncomplicate.neanderthal.internal.api :as na]
             [uncomplicate.bayadera

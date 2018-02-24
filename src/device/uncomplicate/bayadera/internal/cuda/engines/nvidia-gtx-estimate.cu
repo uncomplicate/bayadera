@@ -149,7 +149,7 @@ extern "C" {
         const uint32_t gid_1 = blockIdx.y * blockDim.y + threadIdx.y;
         const uint32_t i = m * gid_1 + gid_0;
         const bool valid = (gid_0 < m) && (gid_1 < n);
-        const REAL sum = block_reduction_sum_2( (valid) ? data[i] : 0.0);
+        const REAL sum = block_reduction_sum_2( (valid) ? data[i] : 0.0f);
         const bool write = valid && (threadIdx.y == 0);
         if (write) {
             acc[m * blockIdx.y + gid_0] = sum;

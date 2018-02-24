@@ -5,12 +5,12 @@ extern "C" {
 #endif
 
     inline REAL student_t_log_unscaled(const REAL nu, const REAL mu, const REAL sigma, const REAL x) {
-        return - (0.5f * (nu + 1.0f) * log(1.0f + pow((x - mu) / sigma, 2) / nu));
+        return - (0.5f * (nu + 1.0f) * log(1.0f + powf((x - mu) / sigma, 2.0f) / nu));
     }
 
     inline REAL student_t_log_scale(const REAL nu, const REAL sigma) {
         return lgamma(0.5f * (nu + 1.0f)) - lgamma(0.5f * nu)
-            - M_LOG_SQRT_PI_F - 0.5f * log(nu) - log(sigma);
+         - M_LOG_SQRT_PI_F - 0.5f * log(nu) - log(sigma);
     }
 
     inline REAL student_t_log(const REAL nu, const REAL mu, const REAL sigma, const REAL x) {
@@ -37,7 +37,7 @@ extern "C" {
             const REAL scale = student_t_log_scale(nu, sigma);
             REAL res = 0.0;
             for (int i = 0; i < n; i++){
-                res += student_t_log_unscaled(nu, mu, sigma, data[i+1]) + scale;
+                res += (student_t_log_unscaled(nu, mu, sigma, data[i+1]) + scale);
             }
             return res;
         }
