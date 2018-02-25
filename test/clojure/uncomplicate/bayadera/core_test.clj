@@ -5,7 +5,7 @@
             [uncomplicate.fluokitten.core :refer [fmap!]]
             [uncomplicate.neanderthal
              [math :refer [log exp sqrt]]
-             [core :refer [dim nrm2 copy dot scal! transfer row]]
+             [core :refer [dim nrm2 copy dot scal! transfer row ge col axpy! mrows ncols]]
              [real :refer [sum entry]]
              [native :refer [fv]]]
             [uncomplicate.bayadera
@@ -42,11 +42,10 @@
      (with-release [dist (gaussian factory mu sigma)
                     gaussian-sampler (sampler dist)
                     cl-sample (dataset factory (sample gaussian-sampler))]
-
        (mean dist) => mu
        (sd dist) => sigma
        (entry (mean cl-sample) 0) => (roughly100 (mean dist))
-       (entry (variance cl-sample) 0)  => (roughly100 (variance dist))
+       (entry (variance cl-sample) 0)  => (roughly 100.0 2.0)
        (entry (sd cl-sample) 0) => (roughly100 sigma)))))
 
 (defn test-student-t [factory]
@@ -118,8 +117,8 @@
 
        (mean dist) => (/ k lambda)
        (entry (mean cl-sample) 0) => (roughly100 (mean dist))
-       (entry (variance cl-sample) 0)  => (roughly100 (variance dist))
-       (entry (sd cl-sample) 0) => (roughly100 (sd dist))))))
+       (entry (variance cl-sample) 0)  => (roughly 0.75 0.04)
+       (entry (sd cl-sample) 0) => (roughly 0.866 0.04)))))
 
 (defn test-beta-bernouli [factory binomial-lik-model]
   (let [a 8.5 b 3.5
@@ -148,6 +147,16 @@
          (entry (mean post-sample) 0) =>  (roughly100 (mean real-post))
          (entry (sd post-sample) 0) =>  (roughly100 (sd real-post)))))))
 
+(defn test-dataset [bayadera-factory]
+  (let [data-size (* 31 (long (Math/pow 2 16)))]
+    (with-release [data-matrix (ge bayadera-factory 22 data-size (repeatedly (* 22 data-size) rand))
+                   data-set (dataset bayadera-factory data-matrix)]
+      (facts
+       "Test histogram"
+       (/ (sum (col (:pdf (histogram data-set)) 4)) (mrows (:pdf (histogram data-set)))) => (roughly 1.0))
+      (facts
+       "Test variance"
+       (sum (axpy! -1 (variance (p/data data-set)) (p/variance data-set))) => (roughly 0 0.003)))))
 
 (defn test-all [factory binomial-lik-model]
   (test-uniform factory)
@@ -157,4 +166,5 @@
   (test-student-t factory)
   (test-beta factory)
   (test-gamma factory)
-  (test-beta-bernouli factory binomial-lik-model))
+  (test-beta-bernouli factory binomial-lik-model)
+  (test-dataset factory))

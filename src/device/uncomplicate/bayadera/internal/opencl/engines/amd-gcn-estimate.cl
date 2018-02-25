@@ -13,8 +13,10 @@ __kernel void histogram(__global const REAL* limits, __global const REAL* data, 
     work_group_barrier(CLK_LOCAL_MEM_FENCE);
 
     const REAL x = data[dim * gid + dim_id];
-    const uint bin = (uint) (WGS * ((x - lower) / (upper - lower) + FLT_MIN));
-    atomic_add(&hist[bin], 1);
+    uint bin = (uint) ((x - lower) / (upper - lower) * WGS);
+    bin = (bin < WGS) ? bin : WGS - 1;
+
+    atomic_inc(&hist[bin]);
 
     work_group_barrier(CLK_LOCAL_MEM_FENCE);
 
@@ -27,8 +29,7 @@ __kernel void uint_to_real(const REAL alpha, __global const REAL* limits,
     const uint bin_id = get_global_id(0);
     const uint dim_id = get_global_id(1);
     const uint data_id = get_global_size(0) * dim_id + bin_id;
-    res[data_id] = alpha / (limits[2 * dim_id + 1] - limits[2 * dim_id] + FLT_MIN)
-        * (REAL)data[data_id];
+    res[data_id] = alpha / (limits[2 * dim_id + 1] - limits[2 * dim_id]) * (REAL)data[data_id];
 }
 
 // ================ Max reduction ==============================================

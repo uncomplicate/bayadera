@@ -18,7 +18,7 @@
              [protocols :refer :all]
              [nvidia-gtx :refer :all]]
             [uncomplicate.bayadera.core-test :refer :all]
-            [uncomplicate.bayadera.internal.device-test :refer :all])
+            [uncomplicate.bayadera.core-test :refer [test-all]])
   (:import [uncomplicate.bayadera.internal.nvidia_gtx GTXStretch]))
 
 (with-default
@@ -295,6 +295,4 @@
 
 (with-default
   (with-release [factory (cuda/gtx-bayadera-factory (current-context) default-stream)]
-    (test-all factory binomial-lik-model)
-    (test-dataset factory)
-    (test-mcmc factory gaussian-model)))
+    (test-all factory binomial-lik-model)))

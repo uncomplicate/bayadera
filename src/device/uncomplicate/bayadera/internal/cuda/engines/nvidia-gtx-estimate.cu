@@ -18,11 +18,12 @@ extern "C" {
         if (valid) {
             const REAL lower = limits[dim_id * 2];
             const REAL upper = limits[dim_id * 2 + 1];
-
             const REAL x = data[dim * gid + dim_id];
-            const uint32_t bin = (uint32_t) nextafter((x - lower) / (upper - lower), 0.0f) * WGS;
-            atomicAdd(&hist[bin], 1);
+            uint32_t bin = (uint32_t) ((x - lower) / (upper - lower) * WGS);
+            bin = (bin < WGS) ? bin : WGS - 1;
 
+            atomicAdd(&hist[bin], 1);
+                        
             __syncthreads();
 
             atomicAdd(&res[WGS * dim_id + lid], hist[lid]);
@@ -37,8 +38,7 @@ extern "C" {
         const uint32_t data_id = gridDim.x * blockDim.x * dim_id + bin_id;
         const bool valid = (bin_id < wgs) && (dim_id < m);
         if (valid) {
-            const REAL part = limits[2 * dim_id + 1] - limits[2 * dim_id];
-            res[data_id] = alpha / part * (REAL)data[data_id];
+            res[data_id] = alpha / (limits[2 * dim_id + 1] - limits[2 * dim_id]) * (REAL)data[data_id];
         }
     }
 

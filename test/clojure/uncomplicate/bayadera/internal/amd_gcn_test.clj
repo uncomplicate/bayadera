@@ -19,8 +19,7 @@
              [protocols :refer :all]
              [amd-gcn :refer :all]
              [util :refer [create-tmp-dir with-philox]]]
-            [uncomplicate.bayadera.core-test :refer [test-all]]
-            [uncomplicate.bayadera.internal.device-test :refer :all])
+            [uncomplicate.bayadera.core-test :refer [test-all]])
   (:import [uncomplicate.bayadera.internal.amd_gcn GCNStretch]))
 
 (with-default
@@ -296,6 +295,4 @@
 
 (with-default
   (with-release [factory (ocl/gcn-bayadera-factory *context* *command-queue*)]
-    (test-all factory binomial-lik-model)
-    (test-dataset factory)
-    (test-mcmc factory gaussian-model)))
+    (test-all factory binomial-lik-model)))
