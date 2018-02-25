@@ -8,7 +8,7 @@ inline REAL student_t_log_unscaled(const REAL nu, const REAL mu, const REAL sigm
 
 inline REAL student_t_log_scale(const REAL nu, const REAL sigma) {
     return lgamma(0.5f * (nu + 1.0f)) - lgamma(0.5f * nu)
-        - M_LOG_SQRT_PI_F- 0.5f * native_log(nu) - native_log(sigma);
+        - M_LOG_SQRT_PI_F - 0.5f * native_log(nu) - native_log(sigma);
 }
 
 inline REAL student_t_log(const REAL nu, const REAL mu, const REAL sigma, const REAL x) {

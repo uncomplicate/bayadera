@@ -294,15 +294,7 @@
              (entry (:tau (:autocorrelation (run-sampler! engine 67 a))) 0) => 4.311481952667236)))))))
 
 (with-default
-
   (with-release [factory (cuda/gtx-bayadera-factory (current-context) default-stream)]
-    ;; (test-uniform factory)
-    ;; (test-gaussian factory)
-    ;; (test-erlang factory)
-    ;; (test-exponential factory)
-    ;;(test-student-t factory)
-    ;;(test-gamma factory)
-    ;;(test-all factory)
-    (test-beta-bernouli factory)
-    ;;(test-dataset factory)
-    #_(test-mcmc factory gaussian-model)))
+    (test-all factory binomial-lik-model)
+    (test-dataset factory)
+    (test-mcmc factory gaussian-model)))

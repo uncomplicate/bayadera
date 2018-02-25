@@ -149,7 +149,7 @@
     (na/compatible? factory o))
   SamplerProvider
   (sampler [this options]
-    (let [walkers (or (:walkers options) (* ^long (processing-elements factory) 32))
+    (let [walkers (or (:walkers options) (* ^long (processing-elements factory) 256))
           std (sqrt (student-t-variance nu sigma))
           m (student-t-mean nu mu)
           seed (int (or (:seed options) (srand-int)))]
@@ -192,7 +192,7 @@
     (na/compatible? factory o))
   SamplerProvider
   (sampler [this options]
-    (let [walkers (or (:walkers options) (* ^long (processing-elements factory) 32))
+    (let [walkers (or (:walkers options) (* ^long (processing-elements factory) 256))
           seed (int (or (:seed options) (srand-int)))]
       (with-release [limits (ge (na/native-factory factory) 2 1 [0 1])]
         (let-release [samp (mcmc-sampler (mcmc-factory factory :beta) walkers params)]
@@ -233,7 +233,7 @@
     (na/compatible? factory o))
   SamplerProvider
   (sampler [this options]
-    (let [walkers (or (:walkers options) (* ^long (processing-elements factory) 32))
+    (let [walkers (or (:walkers options) (* ^long (processing-elements factory) 256))
           seed (int (or (:seed options) (srand-int)))]
       (with-release [limits (ge (na/native-factory factory) 2 1 [0 (+ (gamma-mean theta k)
                                            (* 2 (sqrt (gamma-variance theta k))))])]

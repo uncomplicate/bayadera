@@ -4,8 +4,11 @@ extern "C" {
 #define M_LOG_SQRT_PI_F 0.5723649429247f
 #endif
 
+    #include <stdint.h>
+    
     inline REAL student_t_log_unscaled(const REAL nu, const REAL mu, const REAL sigma, const REAL x) {
-        return - (0.5f * (nu + 1.0f) * log(1.0f + powf((x - mu) / sigma, 2.0f) / nu));
+        const REAL x_mu_sigma = (x - mu) / sigma;
+        return - (0.5f * (nu + 1.0f) * log(1.0f + x_mu_sigma * x_mu_sigma / nu));
     }
 
     inline REAL student_t_log_scale(const REAL nu, const REAL sigma) {
@@ -28,7 +31,7 @@ extern "C" {
     }
 
     REAL student_t_loglik(const REAL* data, const REAL* nu_mu_sigma) {
-        const int n = (int) data[0];
+        const uint32_t n = (uint32_t) data[0];
         const REAL nu = nu_mu_sigma[0];
         const REAL mu = nu_mu_sigma[1];
         const REAL sigma = nu_mu_sigma[2];
@@ -36,7 +39,7 @@ extern "C" {
         if (valid) {
             const REAL scale = student_t_log_scale(nu, sigma);
             REAL res = 0.0;
-            for (int i = 0; i < n; i++){
+            for (uint32_t i = 0; i < n; i++){
                 res += (student_t_log_unscaled(nu, mu, sigma, data[i+1]) + scale);
             }
             return res;

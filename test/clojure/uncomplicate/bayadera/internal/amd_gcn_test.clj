@@ -296,6 +296,6 @@
 
 (with-default
   (with-release [factory (ocl/gcn-bayadera-factory *context* *command-queue*)]
-    (test-all factory)
+    (test-all factory binomial-lik-model)
     (test-dataset factory)
     (test-mcmc factory gaussian-model)))

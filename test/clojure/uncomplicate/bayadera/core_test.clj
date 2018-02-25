@@ -12,8 +12,7 @@
              [core :refer :all]
              [distributions :refer [beta-pdf binomial-lik-params]]
              [mcmc :refer [mix!]]
-             [math :refer [log-beta]]
-             [opencl :refer [binomial-lik-model]]]
+             [math :refer [log-beta]]]
             [uncomplicate.bayadera.internal
              [protocols :as p]]))
 
@@ -31,9 +30,9 @@
                     cl-sample (dataset factory (sample uniform-sampler))
                     cl-pdf (pdf dist cl-sample)]
 
-       (entry (mean cl-sample) 0) => (mean dist)
-       (entry (sd cl-sample) 0) => (sd dist)
-       (/ (sum cl-pdf) (dim cl-pdf)) => (/ 1.0 (- b a))))))
+       (entry (mean cl-sample) 0) => (roughly100 (mean dist))
+       (entry (sd cl-sample) 0) => (roughly100 (sd dist))
+       (/ (sum cl-pdf) (dim cl-pdf)) => (roughly (/ 1.0 (- b a)))))))
 
 (defn test-gaussian [factory]
   (let [mu 200.0
@@ -122,7 +121,7 @@
        (entry (variance cl-sample) 0)  => (roughly100 (variance dist))
        (entry (sd cl-sample) 0) => (roughly100 (sd dist))))))
 
-(defn test-beta-bernouli [factory]
+(defn test-beta-bernouli [factory binomial-lik-model]
   (let [a 8.5 b 3.5
         z 6 N 9
         a1 (+ z a) b1 (+ (- N z) b)]
@@ -150,7 +149,7 @@
          (entry (sd post-sample) 0) =>  (roughly100 (sd real-post)))))))
 
 
-(defn test-all [factory]
+(defn test-all [factory binomial-lik-model]
   (test-uniform factory)
   (test-gaussian factory)
   (test-exponential factory)
@@ -158,4 +157,4 @@
   (test-student-t factory)
   (test-beta factory)
   (test-gamma factory)
-  (test-beta-bernouli factory))
+  (test-beta-bernouli factory binomial-lik-model))

@@ -645,9 +645,6 @@
     ([ctx hstream model WGS cudart-version]
      (in-context
       ctx
-      (println (format "%s\n%s\n%s\n%s"
-                       (apply str (source model))
-                       reduction-src likelihood-src distribution-src))
       (with-release [prog (compile! (program (format "%s\n%s\n%s\n%s"
                                                      (apply str (source model))
                                                      reduction-src likelihood-src distribution-src)
