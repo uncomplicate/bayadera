@@ -136,6 +136,53 @@
         (enq-reduce! cqueue variance-kernel sum-reduction-kernel m n wgsm wgsn)
         (enq-copy! cqueue cl-acc (buffer cl-res-vec))
         (scal! (/ 1.0 n) (transfer cl-res-vec)))))
+  (acor [_ data-matrix]
+    (let [n (ncols data-matrix)
+          dim (mrows data-matrix)
+          min-fac 16
+          MINLAG 4
+          WINMULT 16;;TODO use this
+          TAUMAX 16 ;;TODO compute by dividing lag/WINMULT
+          lag (max MINLAG (min (quot n min-fac) WGS))
+          i-max (- n lag)
+          wgsm (min 16 dim WGS)
+          wgsn (long (/ WGS wgsm))
+          wg-count (count-work-groups wgsn n)
+          native-fact (na/native-factory data-matrix)]
+      (if (<= (* lag min-fac) n)
+        (let-release [d (vctr native-fact dim)]
+          (with-release [c0 (vctr native-fact dim)
+                         cl-acc (create-data-source data-matrix (* dim wg-count))
+                         mean-vec (vctr data-matrix dim)
+                         d-acc (create-data-source data-matrix (* dim wg-count))
+                         sum-reduction-kernel (kernel prog "sum_reduction_horizontal")
+                         sum-reduce-kernel (kernel prog "sum_reduce_horizontal")
+                         subtract-mean-kernel (kernel prog "subtract_mean")
+                         autocovariance-kernel (kernel prog "autocovariance")]
+            (set-arg! sum-reduction-kernel 0 cl-acc)
+            (set-args! sum-reduce-kernel 0 cl-acc (buffer data-matrix))
+            (enq-reduce! cqueue sum-reduce-kernel sum-reduction-kernel dim n wgsm wgsn)
+            (enq-copy! cqueue cl-acc (buffer mean-vec))
+            (scal! (/ 1.0 n) mean-vec)
+            (set-args! subtract-mean-kernel 0 (buffer data-matrix) (buffer mean-vec))
+            (enq-nd! cqueue subtract-mean-kernel (work-size-2d dim n))
+            (enq-fill! cqueue cl-acc (int-array 1))
+            (enq-fill! cqueue d-acc (int-array 1))
+            (set-args! autocovariance-kernel 0 (wrap-int dim) (wrap-int lag)
+                       cl-acc d-acc (buffer data-matrix) (wrap-int i-max))
+            (enq-nd! cqueue autocovariance-kernel (work-size-1d n))
+            (set-arg! sum-reduce-kernel 1 cl-acc)
+            (enq-reduce! cqueue sum-reduce-kernel sum-reduction-kernel dim wg-count wgsm wgsn)
+            (enq-read! cqueue cl-acc (buffer c0))
+            (set-arg! sum-reduce-kernel 1 d-acc)
+            (enq-reduce! cqueue sum-reduce-kernel sum-reduction-kernel dim wg-count wgsm wgsn)
+            (enq-read! cqueue cl-acc (buffer d))
+            (->Autocorrelation (div d c0) (transfer mean-vec)
+                               (sqrt! (scal! (/ 1.0 (* i-max n)) d)) n lag)))
+        (throw (IllegalArgumentException.
+                (format (str "The autocorrelation time is too long relative to the variance. "
+                             "Number of steps (%d) must not be less than %d.")
+                        n (* lag min-fac)))))))
   EstimateEngine
   (histogram [this data-matrix]
     (let [m (mrows data-matrix)
@@ -170,7 +217,7 @@
 
 ;; ======================== MCMC engine ========================================
 
-(deftype GCNStretch [ctx cqueue neanderthal-factory claccessor
+(deftype GCNStretch [ctx cqueue neanderthal-factory claccessor dataset-eng
                      ^long walker-count wsize cl-model ^long DIM ^long WGS
                      ^ints move-counter ^ints move-bare-counter iteration-counter
                      ^ints move-seed
@@ -183,8 +230,6 @@
                      sum-accept-reduction-kernel sum-accept-kernel
                      sum-means-kernel
                      sum-reduction-kernel sum-reduce-kernel
-                     subtract-mean-kernel
-                     autocovariance-kernel
                      min-max-reduction-kernel
                      min-max-kernel
                      histogram-kernel
@@ -214,8 +259,6 @@
     (release sum-means-kernel)
     (release sum-reduction-kernel)
     (release sum-reduce-kernel)
-    (release subtract-mean-kernel)
-    (release autocovariance-kernel)
     (release min-max-reduction-kernel)
     (release min-max-kernel)
     (release histogram-kernel)
@@ -258,48 +301,6 @@
       (set-arg! stretch-move-odd-bare-kernel 7 beta)
       (set-arg! stretch-move-even-bare-kernel 7 beta))
     this)
-  (acor [_ sample-matrix]
-    (let [n (ncols sample-matrix)
-          min-fac 16
-          MINLAG 4
-          WINMULT 16
-          TAUMAX 16
-          lag (max MINLAG (min (quot n min-fac) WGS))
-          i-max (- n lag)
-          wgsm (min 16 DIM WGS)
-          wgsn (long (/ WGS wgsm))
-          wg-count (count-work-groups wgsn n)
-          native-fact (na/native-factory sample-matrix)]
-      (if (<= (* lag min-fac) n)
-        (let-release [d (vctr native-fact DIM)]
-          (with-release [c0 (vctr native-fact DIM)
-                         cl-acc (create-data-source claccessor (* DIM wg-count))
-                         mean-vec (vctr neanderthal-factory DIM)
-                         d-acc (create-data-source claccessor (* DIM wg-count))]
-            (set-arg! sum-reduction-kernel 0 cl-acc)
-            (set-args! sum-reduce-kernel 0 cl-acc (buffer sample-matrix))
-            (enq-reduce! cqueue sum-reduce-kernel sum-reduction-kernel DIM n wgsm wgsn)
-            (enq-copy! cqueue cl-acc (buffer mean-vec))
-            (scal! (/ 1.0 n) mean-vec)
-            (set-args! subtract-mean-kernel 0 (buffer sample-matrix) (buffer mean-vec))
-            (enq-nd! cqueue subtract-mean-kernel (work-size-2d DIM n))
-            (enq-fill! cqueue cl-acc (int-array 1))
-            (enq-fill! cqueue d-acc (int-array 1))
-            (set-args! autocovariance-kernel 0
-                       (wrap-int lag) cl-acc d-acc (buffer sample-matrix) (wrap-int i-max))
-            (enq-nd! cqueue autocovariance-kernel (work-size-1d n))
-            (set-arg! sum-reduce-kernel 1 cl-acc)
-            (enq-reduce! cqueue sum-reduce-kernel sum-reduction-kernel DIM wg-count wgsm wgsn)
-            (enq-read! cqueue cl-acc (buffer c0))
-            (set-arg! sum-reduce-kernel 1 d-acc)
-            (enq-reduce! cqueue sum-reduce-kernel sum-reduction-kernel DIM wg-count wgsm wgsn)
-            (enq-read! cqueue cl-acc (buffer d))
-            (->Autocorrelation (div d c0) (transfer mean-vec)
-                               (sqrt! (scal! (/ 1.0 (* i-max n)) d)) n lag)))
-        (throw (IllegalArgumentException.
-                (format (str "The autocorrelation time is too long relative to the variance. "
-                             "Number of steps (%d) must not be less than %d.")
-                        n (* lag min-fac)))))))
   (info [this]
     {:walker-count walker-count
      :iteration-counter @iteration-counter})
@@ -394,7 +395,7 @@
         (enq-reduce! cqueue sum-accept-kernel sum-accept-reduction-kernel means-count WGS)
         {:acceptance-rate (/ (double (enq-read-long cqueue cl-accept-acc)) (* walker-count n))
          :a (get a 0)
-         :autocorrelation (acor this means)})))
+         :autocorrelation (acor dataset-eng means)})))
   (acc-rate! [this a]
     (let [a (wrap-prim claccessor a)
           means-count (long (count-work-groups WGS (/ walker-count 2)))]
@@ -459,7 +460,7 @@
   (sd [this]
     (sqrt! (variance this))))
 
-(deftype GCNStretchFactory [ctx queue prog neanderthal-factory model ^long DIM ^long WGS]
+(deftype GCNStretchFactory [ctx queue prog neanderthal-factory dataset-eng model ^long DIM ^long WGS]
   Releaseable
   (release [_]
     (release prog))
@@ -483,7 +484,7 @@
                         cl-accept-acc (cl-buffer ctx (* Long/BYTES accept-acc-count) :read-write)
                         cl-acc (create-data-source claccessor acc-count)]
             (->GCNStretch
-             ctx queue neanderthal-factory claccessor walker-count
+             ctx queue neanderthal-factory claccessor dataset-eng walker-count
              (work-size-1d (/ walker-count 2)) model DIM WGS
              (int-array 1) (int-array 1) (volatile! 0) (int-array 1)
              cl-params cl-xs cl-s0 cl-s1 cl-logfn-xs cl-logfn-s0 cl-logfn-s1
@@ -503,8 +504,6 @@
              (kernel prog "sum_means_vertical")
              (kernel prog "sum_reduction_horizontal")
              (kernel prog "sum_reduce_horizontal")
-             (kernel prog "subtract_mean")
-             (kernel prog "autocovariance")
              (kernel prog "min_max_reduction")
              (kernel prog "min_max_reduce")
              (kernel prog "histogram")
@@ -563,14 +562,14 @@
        (->GCNDirectSampler cqueue prog (dimension model)))))
 
   (defn gcn-stretch-factory
-    [ctx cqueue tmp-dir-name neanderthal-factory model WGS]
+    [ctx cqueue tmp-dir-name neanderthal-factory dataset-eng model WGS]
     (let-release [prog (build-program!
                         (program-with-source
                          ctx (op [uniform-sampler-src reduction-src]
                                  (source model) [estimate-src mcmc-stretch-src]))
                         (format stretch-options (mcmc-logpdf model) (dimension model) WGS tmp-dir-name)
                         nil)]
-      (->GCNStretchFactory ctx cqueue prog neanderthal-factory model (dimension model) WGS))))
+      (->GCNStretchFactory ctx cqueue prog neanderthal-factory dataset-eng model (dimension model) WGS))))
 
 ;; =========================== Bayadera factory  ===========================
 
@@ -611,7 +610,7 @@
   (mcmc-factory [_ model]
     (if-let [factory (mcmc-factories model)]
       @factory
-      (gcn-stretch-factory ctx cqueue tmp-dir-name neanderthal-factory model WGS)))
+      (gcn-stretch-factory ctx cqueue tmp-dir-name neanderthal-factory dataset-eng model WGS)))
   (processing-elements [_]
     (* compute-units WGS))
   DatasetFactory
@@ -625,16 +624,16 @@
 
 (defn gcn-bayadera-factory
   ([distributions samplers ctx cqueue compute-units WGS]
-   (let-release [neanderthal-factory (opencl-float ctx cqueue)]
+   (let-release [neanderthal-factory (opencl-float ctx cqueue)
+                 dataset-eng (gcn-dataset-engine ctx cqueue WGS)]
      (let [tmp-dir-name (create-tmp-dir)]
        (copy-philox tmp-dir-name)
        (->GCNBayaderaFactory
-        ctx cqueue tmp-dir-name compute-units WGS
-        (gcn-dataset-engine ctx cqueue WGS) neanderthal-factory
+        ctx cqueue tmp-dir-name compute-units WGS dataset-eng neanderthal-factory
         (fmap #(delay (gcn-distribution-engine ctx cqueue tmp-dir-name % WGS)) distributions)
         (fmap #(delay (gcn-direct-sampler ctx cqueue tmp-dir-name % WGS))
               (select-keys distributions (keys samplers)))
-        (fmap #(delay (gcn-stretch-factory ctx cqueue tmp-dir-name neanderthal-factory % WGS))
+        (fmap #(delay (gcn-stretch-factory ctx cqueue tmp-dir-name neanderthal-factory dataset-eng % WGS))
               distributions)))))
   ([distributions samplers ctx cqueue]
    (let [dev (queue-device cqueue)]

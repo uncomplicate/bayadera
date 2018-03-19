@@ -148,6 +148,59 @@
                          m n wgsm wgsn)
          (memcpy! cu-acc (buffer res) hstream)
          (scal! (/ 1.0 n) (transfer res))))))
+  (acor [_ data-matrix]
+    (in-context
+     ctx
+     (let [n (ncols data-matrix)
+           dim (mrows data-matrix)
+           min-fac 16
+           MINLAG 4
+           WINMULT 16;;TODO use this
+           TAUMAX 16 ;;TODO compute by dividing lag/WINMULT
+           lag (max MINLAG (min (quot n min-fac) WGS))
+           i-max (- n lag)
+           wgsm (min 16 dim WGS)
+           wgsn (long (/ WGS wgsm))
+           wg-count (blocks-count wgsn n)
+           native-fact (na/native-factory data-matrix)]
+       (if (<= (* lag min-fac) n)
+         (let-release [d (vctr native-fact dim)]
+           (with-release [c0 (vctr native-fact dim)
+                          cu-acc (create-data-source data-matrix (* dim wg-count))
+                          mean-vec (vctr data-matrix dim)
+                          d-acc (create-data-source data-matrix (* dim wg-count))
+                          sum-reduction-kernel (function modl "sum_reduction_horizontal")
+                          sum-reduce-kernel (function modl "sum_reduce_horizontal")
+                          subtract-mean-kernel (function modl "subtract_mean")
+                          autocovariance-kernel (function modl "autocovariance")
+                          sum-reduce-params (make-parameters 4)
+                          sum-reduction-params (make-parameters 3)]
+             (set-parameter! sum-reduction-params 2 cu-acc)
+             (set-parameters! sum-reduce-params 2 cu-acc (buffer data-matrix))
+             (launch-reduce! hstream sum-reduce-kernel sum-reduction-kernel
+                             sum-reduce-params sum-reduction-params dim n wgsm wgsn)
+             (memcpy! cu-acc (buffer mean-vec) hstream)
+             (scal! (/ 1.0 n) mean-vec)
+             (launch! subtract-mean-kernel (grid-2d dim n wgsm wgsn) hstream
+                      (cuda/parameters dim n (buffer data-matrix) (buffer mean-vec)))
+             (memset! cu-acc 0 hstream)
+             (memset! d-acc 0 hstream)
+             (launch! autocovariance-kernel (grid-1d n WGS) hstream
+                      (cuda/parameters dim n (int lag) cu-acc d-acc (buffer data-matrix) (int i-max)))
+             (set-parameter! sum-reduce-params 3 cu-acc)
+             (launch-reduce! hstream sum-reduce-kernel sum-reduction-kernel
+                             sum-reduce-params sum-reduction-params dim wg-count wgsm wgsn)
+             (memcpy-host! cu-acc (buffer c0) hstream)
+             (set-parameter! sum-reduce-params 3 d-acc)
+             (launch-reduce! hstream sum-reduce-kernel sum-reduction-kernel
+                             sum-reduce-params sum-reduction-params dim wg-count wgsm wgsn)
+             (memcpy-host! cu-acc (buffer d) hstream)
+             (->Autocorrelation (div d c0) (transfer mean-vec)
+                                (sqrt! (scal! (/ 1.0 (* i-max n)) d)) n lag)))
+         (throw (IllegalArgumentException.
+                 (format (str "The autocorrelation time is too long relative to the variance. "
+                              "Number of steps (%d) must not be less than %d.")
+                         n (* lag min-fac))))))))
   EstimateEngine
   (histogram [this data-matrix]
     (in-context
@@ -184,7 +237,7 @@
 
 ;; ======================== MCMC engine ========================================
 
-(deftype GTXStretch [ctx hstream neanderthal-factory cuaccessor
+(deftype GTXStretch [ctx hstream neanderthal-factory cuaccessor dataset-eng
                      ^long walker-count wsize cu-model ^long DIM ^long WGS
                      ^ints move-counter ^ints move-bare-counter iteration-counter
                      ^ints move-seed
@@ -201,8 +254,6 @@
                      sum-accept-kernel sum-accept-params
                      sum-means-kernel
                      sum-reduction-kernel sum-reduce-kernel
-                     subtract-mean-kernel
-                     autocovariance-kernel
                      min-max-reduction-kernel
                      min-max-kernel
                      histogram-kernel
@@ -232,8 +283,6 @@
     (release sum-means-kernel)
     (release sum-reduction-kernel)
     (release sum-reduce-kernel)
-    (release subtract-mean-kernel)
-    (release autocovariance-kernel)
     (release min-max-reduction-kernel)
     (release min-max-kernel)
     (release histogram-kernel)
@@ -276,52 +325,6 @@
       (set-parameter! stretch-move-odd-bare-params 8 beta)
       (set-parameter! stretch-move-even-bare-params 8 beta))
     this)
-  (acor [_ sample-matrix]
-    (let [n (ncols sample-matrix)
-          min-fac 16
-          MINLAG 4
-          WINMULT 16
-          TAUMAX 16
-          lag (max MINLAG (min (quot n min-fac) WGS))
-          i-max (- n lag)
-          wgsm (min 16 DIM WGS)
-          wgsn (long (/ WGS wgsm))
-          wg-count (blocks-count wgsn n)
-          native-fact (na/native-factory sample-matrix)]
-      (if (<= (* lag min-fac) n)
-        (let-release [d (vctr native-fact DIM)]
-          (with-release [c0 (vctr native-fact DIM)
-                         cu-acc (create-data-source cuaccessor (* DIM wg-count))
-                         mean-vec (vctr neanderthal-factory DIM)
-                         d-acc (create-data-source cuaccessor (* DIM wg-count))
-                         sum-reduce-params (make-parameters 4)
-                         sum-reduction-params (make-parameters 3)]
-            (set-parameter! sum-reduction-params 2 cu-acc)
-            (set-parameters! sum-reduce-params 2 cu-acc (buffer sample-matrix))
-            (launch-reduce! hstream sum-reduce-kernel sum-reduction-kernel
-                            sum-reduce-params sum-reduction-params DIM n wgsm wgsn)
-            (memcpy! cu-acc (buffer mean-vec) hstream)
-            (scal! (/ 1.0 n) mean-vec)
-            (launch! subtract-mean-kernel (grid-2d DIM n wgsm wgsn) hstream
-                     (cuda/parameters DIM n (buffer sample-matrix) (buffer mean-vec)))
-            (memset! cu-acc 0 hstream)
-            (memset! d-acc 0 hstream)
-            (launch! autocovariance-kernel (grid-1d n WGS) hstream
-                     (cuda/parameters n (int lag) cu-acc d-acc (buffer sample-matrix) (int i-max)))
-            (set-parameter! sum-reduce-params 3 cu-acc)
-            (launch-reduce! hstream sum-reduce-kernel sum-reduction-kernel
-                            sum-reduce-params sum-reduction-params DIM wg-count wgsm wgsn)
-            (memcpy-host! cu-acc (buffer c0) hstream)
-            (set-parameter! sum-reduce-params 3 d-acc)
-            (launch-reduce! hstream sum-reduce-kernel sum-reduction-kernel
-                            sum-reduce-params sum-reduction-params DIM wg-count wgsm wgsn)
-            (memcpy-host! cu-acc (buffer d) hstream)
-            (->Autocorrelation (div d c0) (transfer mean-vec)
-                               (sqrt! (scal! (/ 1.0 (* i-max n)) d)) n lag)))
-        (throw (IllegalArgumentException.
-                (format (str "The autocorrelation time is too long relative to the variance. "
-                             "Number of steps (%d) must not be less than %d.")
-                        n (* lag min-fac)))))))
   (info [this]
     {:walker-count walker-count
      :iteration-counter @iteration-counter})
@@ -429,7 +432,7 @@
                          sum-accept-params sum-accept-reduction-params means-count WGS)
          {:acceptance-rate (/ (double (read-long hstream cu-accept-acc)) (* walker-count n))
           :a a
-          :autocorrelation (acor this means)}))))
+          :autocorrelation (acor dataset-eng means)}))))
   (acc-rate! [this a]
     (in-context
      ctx
@@ -505,7 +508,7 @@
      ctx
      (sqrt! (variance this)))))
 
-(deftype GTXStretchFactory [ctx modl hstream neanderthal-factory model ^long DIM ^long WGS]
+(deftype GTXStretchFactory [ctx modl hstream neanderthal-factory dataset-eng model ^long DIM ^long WGS]
   Releaseable
   (release [_]
     (release modl))
@@ -532,7 +535,7 @@
                          cu-accept-acc (mem-alloc (* Long/BYTES accept-acc-count))
                          cu-acc (create-data-source cuaccessor acc-count)]
              (->GTXStretch
-              ctx hstream neanderthal-factory cuaccessor walker-count
+              ctx hstream neanderthal-factory cuaccessor dataset-eng walker-count
               (grid-1d (/ walker-count 2) WGS) model DIM WGS
               (int-array 1) (int-array 1) (volatile! 0) (int-array 1)
               cu-params cu-xs cu-s0 cu-s1 cu-logfn-xs cu-logfn-s0 cu-logfn-s1
@@ -556,8 +559,6 @@
               (function modl "sum_means_vertical")
               (function modl "sum_reduction_horizontal")
               (function modl "sum_reduce_horizontal")
-              (function modl "subtract_mean")
-              (function modl "autocovariance")
               (function modl "min_max_reduction")
               (function modl "min_max_reduce")
               (function modl "histogram")
@@ -671,7 +672,7 @@
         (let-release [modl (module prog)]
           (->GTXDirectSampler ctx modl hstream (dimension model) WGS))))))
 
-  (defn gtx-stretch-factory [ctx hstream neanderthal-factory model WGS cudart-version]
+  (defn gtx-stretch-factory [ctx hstream neanderthal-factory dataset-eng model WGS cudart-version]
     (in-context
      ctx
      (with-release [prog (compile! (program (format "%s\n%s\n%s\n%s\n%s"
@@ -681,7 +682,7 @@
                                             philox-headers)
                                    (stretch-options (mcmc-logpdf model) (dimension model) WGS cudart-version))]
        (let-release [modl (module prog)]
-         (->GTXStretchFactory ctx modl hstream neanderthal-factory model (dimension model) WGS))))))
+         (->GTXStretchFactory ctx modl hstream neanderthal-factory dataset-eng model (dimension model) WGS))))))
 
 ;; =========================== Bayadera factory  ===========================
 
@@ -720,7 +721,7 @@
   (mcmc-factory [_ model]
     (if-let [factory (mcmc-factories model)]
       @factory
-      (gtx-stretch-factory ctx hstream neanderthal-factory model WGS cudart-version)))
+      (gtx-stretch-factory ctx hstream neanderthal-factory dataset-eng model WGS cudart-version)))
   (processing-elements [_]
     (* compute-units WGS))
   DatasetFactory
@@ -737,14 +738,14 @@
    (in-context
     ctx
     (let [cudart-version (driver-version)]
-      (let-release [neanderthal-factory (cuda-float ctx hstream)]
+      (let-release [neanderthal-factory (cuda-float ctx hstream)
+                    dataset-eng (gtx-dataset-engine ctx hstream WGS)]
         (->GTXBayaderaFactory
-         ctx hstream compute-units WGS cudart-version
-         (gtx-dataset-engine ctx hstream WGS) neanderthal-factory
+         ctx hstream compute-units WGS cudart-version dataset-eng neanderthal-factory
          (fmap #(delay (gtx-distribution-engine ctx hstream % WGS cudart-version)) distributions)
          (fmap #(delay (gtx-direct-sampler ctx hstream % WGS cudart-version))
                (select-keys distributions (keys samplers)))
-         (fmap #(delay (gtx-stretch-factory ctx hstream neanderthal-factory % WGS cudart-version))
+         (fmap #(delay (gtx-stretch-factory ctx hstream neanderthal-factory dataset-eng % WGS cudart-version))
                distributions))))))
   ([distributions samplers ctx hstream]
    (in-context

@@ -1,6 +1,8 @@
 (ns ^{:author "Dragan Djuric"}
     uncomplicate.bayadera.internal.amd-gcn-test
   (:require [midje.sweet :refer :all]
+            [clojure.java.io :as io]
+            [clojure.string :refer [split-lines]]
             [uncomplicate.commons.core :refer [with-release wrap-int wrap-float]]
             [uncomplicate.fluokitten.core :refer [fmap! op]]
             [uncomplicate.clojurecl
@@ -158,7 +160,7 @@
                         limits (ge neanderthal-factory 2 1 [-1 2])
                         uniform-sampler (mcmc-sampler (gcn-stretch-factory
                                                        *context* *command-queue* tmp-dir-name
-                                                       neanderthal-factory uniform-model wgs)
+                                                       neanderthal-factory nil uniform-model wgs)
                                                       walker-count params)]
            (let [stretch-move-bare-kernel (.stretch-move-odd-bare-kernel ^GCNStretch uniform-sampler)
                  stretch-move-kernel (.stretch-move-odd-kernel ^GCNStretch uniform-sampler)
@@ -237,7 +239,7 @@
                         limits (ge neanderthal-factory 2 1 [-7 7])
                         gaussian-sampler (mcmc-sampler (gcn-stretch-factory
                                                         *context* *command-queue* tmp-dir-name
-                                                        neanderthal-factory gaussian-model wgs)
+                                                        neanderthal-factory nil gaussian-model wgs)
                                                        walker-count params)]
            (init-position! gaussian-sampler seed limits)
            (take 4 (native (row (sample gaussian-sampler) 0)))
@@ -257,7 +259,7 @@
                           limits (ge neanderthal-factory 2 1 [-7 7])
                           gaussian-sampler (mcmc-sampler (gcn-stretch-factory
                                                           *context* *command-queue* tmp-dir-name
-                                                          neanderthal-factory gaussian-model wgs)
+                                                          neanderthal-factory nil gaussian-model wgs)
                                                          walker-count params)]
              (init-position! gaussian-sampler seed limits)
              (init! gaussian-sampler (inc seed))
@@ -284,14 +286,30 @@
             (let [engine (mcmc-sampler mcmc-engine-factory walker-count params)]
               (facts
                "Test MCMC stretch engine."
-               (let [autocor (acor engine dummy-sample-matrix)]
-                 (first (:tau autocor)) => 2.379834640464651E-8
-                 (first (:sigma autocor)) => 3.0051553494558902E-6)
                (init-position! engine 123 limits)
                (init! engine 1243)
                (burn-in! engine 5120 a)
                (acc-rate! engine a) => 0.4808682528409091
                (entry (:tau (:autocorrelation (run-sampler! engine 67 a))) 0) => 5.699155330657959))))))))
+
+(with-default
+  (let [dev (queue-device *command-queue*)
+        wgs 256
+        tmp-dir-name (create-tmp-dir)
+        walker-count (* 2 44 wgs)
+        seed 123
+        a 8.0]
+    (with-philox tmp-dir-name
+      (with-release [bayadera-factory (ocl/gcn-bayadera-factory *context* *command-queue* 44 wgs)
+                     dummy-sample-matrix
+                     (ge bayadera-factory 1 112640
+                         (map (comp float read-string)
+                              (split-lines (slurp (io/resource "uncomplicate/bayadera/internal/acor-data-112640")))))]
+        (let [engine (dataset-engine bayadera-factory)]
+          (facts
+           "Test MCMC acor."
+           (let [autocor (acor engine dummy-sample-matrix)]
+             (first (:tau autocor)) => 20.410619735717773)))))))
 
 (with-default
   (with-release [factory (ocl/gcn-bayadera-factory *context* *command-queue*)]

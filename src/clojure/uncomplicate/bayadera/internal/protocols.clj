@@ -61,7 +61,8 @@
 
 (defprotocol DatasetEngine
   (data-mean [engine data-matrix])
-  (data-variance [engine data-matrix]))
+  (data-variance [engine data-matrix])
+  (acor [this data-matrix]))
 
 (defprotocol DistributionEngine
   (log-pdf [_ params x])
@@ -91,8 +92,7 @@
   (init-move! [this cl-means-acc a])
   (move! [this])
   (move-bare! [this])
-  (set-temperature! [this t])
-  (acor [this sample]))
+  (set-temperature! [this t]))
 
 (defrecord Autocorrelation [tau mean sigma ^long steps ^long lag]
   Releaseable

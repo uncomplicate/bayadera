@@ -91,10 +91,8 @@
                (let [acc-rate (acc-rate! samp a)]
                  (cond
                    (< step i) a
-                   (< acc-rate min-acc)
-                   (recur (inc i) (inc (* (dec a) (/ acc-rate target-acc))))
-                   (< max-acc acc-rate)
-                   (recur (inc i) (* a (/ acc-rate target-acc)))
+                   (< acc-rate min-acc) (recur (inc i) (inc (* (dec a) (/ acc-rate target-acc))))
+                   (< max-acc acc-rate) (recur (inc i) (* a (/ acc-rate target-acc)))
                    :default a)))]
        (burn-in! samp (* step (pow dimension dimension-power)) a)
        (burn-in! samp step 2.0)

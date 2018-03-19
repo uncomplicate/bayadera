@@ -1,6 +1,8 @@
 (ns ^{:author "Dragan Djuric"}
     uncomplicate.bayadera.internal.nvidia-gtx-test
   (:require [midje.sweet :refer :all]
+            [clojure.java.io :as io]
+            [clojure.string :refer [split-lines]]
             [uncomplicate.commons.core :refer [with-release]]
             [uncomplicate.fluokitten.core :refer [fmap! op]]
             [uncomplicate.clojurecuda
@@ -155,7 +157,7 @@
                         limits (ge neanderthal-factory 2 1 [-1 2])
                         uniform-sampler (mcmc-sampler (gtx-stretch-factory
                                                        (current-context) default-stream
-                                                       neanderthal-factory uniform-model
+                                                       neanderthal-factory nil uniform-model
                                                        wgs cudart-version)
                                                       walker-count params)]
            (let [stretch-move-bare-kernel (.stretch-move-odd-bare-kernel ^GTXStretch uniform-sampler)
@@ -227,9 +229,7 @@
 
              (launch! sum-means-kernel (grid-2d 1 means-count 1 wgs) hstream
                       (clojurecuda/parameters 1 means-count (buffer acc) cu-means-acc))
-             (sum acc) => (float 5822.918)
-
-             )))
+             (sum acc) => (float 5822.918))))
 
       (facts
        "Nvidia GTX stretch with Gaussian model."
@@ -237,7 +237,7 @@
                       limits (ge neanderthal-factory 2 1 [-7 7])
                       gaussian-sampler (mcmc-sampler (gtx-stretch-factory
                                                       (current-context) default-stream
-                                                      neanderthal-factory gaussian-model
+                                                      neanderthal-factory nil gaussian-model
                                                       wgs cudart-version)
                                                      walker-count params)]
          (init-position! gaussian-sampler seed limits)
@@ -257,7 +257,7 @@
                       limits (ge neanderthal-factory 2 1 [-7 7])
                       gaussian-sampler (mcmc-sampler (gtx-stretch-factory
                                                       (current-context) default-stream
-                                                      neanderthal-factory gaussian-model
+                                                      neanderthal-factory nil gaussian-model
                                                       wgs cudart-version)
                                                      walker-count params)]
          (init-position! gaussian-sampler seed limits)
@@ -284,14 +284,29 @@
           (let [engine (mcmc-sampler mcmc-engine-factory walker-count params)]
             (facts
              "Test MCMC stretch engine."
-             (let [autocor (acor engine dummy-sample-matrix)]
-               (first (:tau autocor)) => 2.3798472525982106E-8
-               (first (:sigma autocor)) => 3.0051633075345308E-6)
              (init-position! engine 123 limits)
              (init! engine 1243)
              (burn-in! engine 5120 a)
              (acc-rate! engine a) => 0.48193359375
              (entry (:tau (:autocorrelation (run-sampler! engine 67 a))) 0) => 4.311481952667236)))))))
+
+(with-default
+  (let [dev (ctx-device)
+        wgs 256
+        cudart-version (driver-version)
+        walker-count (* 2 44 wgs)
+        seed 123
+        a 8.0]
+    (with-release [bayadera-factory (cuda/gtx-bayadera-factory (current-context) default-stream 20 wgs)
+                   dummy-sample-matrix
+                   (ge bayadera-factory 1 112640
+                       (map (comp float read-string)
+                            (split-lines (slurp (io/resource "uncomplicate/bayadera/internal/acor-data-112640")))))]
+      (let [engine (dataset-engine bayadera-factory)]
+        (facts
+         "Test MCMC acor."
+         (let [autocor (acor engine dummy-sample-matrix)]
+           (first (:tau autocor)) => 20.410619735717773))))))
 
 (with-default
   (with-release [factory (cuda/gtx-bayadera-factory (current-context) default-stream)]
