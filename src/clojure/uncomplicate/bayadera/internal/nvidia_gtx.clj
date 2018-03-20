@@ -153,12 +153,11 @@
      ctx
      (let [n (ncols data-matrix)
            dim (mrows data-matrix)
-           min-fac 16
-           MINLAG 4
-           WINMULT 16;;TODO use this
-           TAUMAX 16 ;;TODO compute by dividing lag/WINMULT
-           lag (max MINLAG (min (quot n min-fac) WGS))
-           i-max (- n lag)
+           min-fac 4
+           min-lag 4
+           win-mult 4;;TODO use this
+           lag (max min-lag (min (quot n min-fac) WGS))
+           tau-max 2;;TODO (double (/ lag win-mult))
            wgsm (min 16 dim WGS)
            wgsn (long (/ WGS wgsm))
            wg-count (blocks-count wgsn n)
@@ -185,8 +184,8 @@
                       (cuda/parameters dim n (buffer data-matrix) (buffer mean-vec)))
              (memset! cu-acc 0 hstream)
              (memset! d-acc 0 hstream)
-             (launch! autocovariance-kernel (grid-1d n WGS) hstream
-                      (cuda/parameters dim n (int lag) cu-acc d-acc (buffer data-matrix) (int i-max)))
+             (launch! autocovariance-kernel (grid-2d n dim WGS 1) hstream
+                      (cuda/parameters n dim (int lag) cu-acc d-acc (buffer data-matrix)))
              (set-parameter! sum-reduce-params 3 cu-acc)
              (launch-reduce! hstream sum-reduce-kernel sum-reduction-kernel
                              sum-reduce-params sum-reduction-params dim wg-count wgsm wgsn)
@@ -196,7 +195,7 @@
                              sum-reduce-params sum-reduction-params dim wg-count wgsm wgsn)
              (memcpy-host! cu-acc (buffer d) hstream)
              (->Autocorrelation (div d c0) (transfer mean-vec)
-                                (sqrt! (scal! (/ 1.0 (* i-max n)) d)) n lag)))
+                                (sqrt! (scal! (/ 1.0 (- n lag)) d)) n lag)))
          (throw (IllegalArgumentException.
                  (format (str "The autocorrelation time is too long relative to the variance. "
                               "Number of steps (%d) must not be less than %d.")

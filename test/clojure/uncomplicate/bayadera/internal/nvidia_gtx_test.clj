@@ -298,15 +298,24 @@
         seed 123
         a 8.0]
     (with-release [bayadera-factory (cuda/gtx-bayadera-factory (current-context) default-stream 20 wgs)
-                   dummy-sample-matrix
+                   data-matrix-67
+                   (ge bayadera-factory 1 67
+                       (map (comp float read-string)
+                            (split-lines (slurp (io/resource "uncomplicate/bayadera/internal/acor-data-67")))))
+                   data-matrix-367
+                   (ge bayadera-factory 1 367
+                       (map (comp float read-string)
+                            (split-lines (slurp (io/resource "uncomplicate/bayadera/internal/acor-data-367")))))
+                   data-matrix-112640
                    (ge bayadera-factory 1 112640
                        (map (comp float read-string)
                             (split-lines (slurp (io/resource "uncomplicate/bayadera/internal/acor-data-112640")))))]
       (let [engine (dataset-engine bayadera-factory)]
         (facts
          "Test MCMC acor."
-         (let [autocor (acor engine dummy-sample-matrix)]
-           (first (:tau autocor)) => 20.410619735717773))))))
+         (first (:tau (acor engine data-matrix-67))) => 11.75412368774414
+         (first (:tau (acor engine data-matrix-367))) => 17.302560806274414
+         (first (:tau (acor engine data-matrix-112640))) => 20.410619735717773)))))
 
 (with-default
   (with-release [factory (cuda/gtx-bayadera-factory (current-context) default-stream)]
