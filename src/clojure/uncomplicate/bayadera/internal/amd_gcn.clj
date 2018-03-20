@@ -141,8 +141,8 @@
           dim (mrows data-matrix)
           min-fac 4
           min-lag 4
-          win-mult 4;;TODO use this
           lag (max min-lag (min (quot n min-fac) WGS))
+          win-mult 4;;TODO use this
           tau-max 2;;TODO (double (/ lag win-mult))
           wgsm (min 16 dim WGS)
           wgsn (long (/ WGS wgsm))

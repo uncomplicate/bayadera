@@ -288,7 +288,7 @@
              (init! engine 1243)
              (burn-in! engine 5120 a)
              (acc-rate! engine a) => 0.48193359375
-             (entry (:tau (:autocorrelation (run-sampler! engine 67 a))) 0) => 4.311481952667236)))))))
+             (entry (:tau (:autocorrelation (run-sampler! engine 670 a))) 0) => 9.915793418884277)))))))
 
 (with-default
   (let [dev (ctx-device)
@@ -315,7 +315,9 @@
          "Test MCMC acor."
          (first (:tau (acor engine data-matrix-67))) => 11.75412368774414
          (first (:tau (acor engine data-matrix-367))) => 17.302560806274414
-         (first (:tau (acor engine data-matrix-112640))) => 20.410619735717773)))))
+         (let [autocorrelation (acor engine data-matrix-112640)]
+           (first (:tau autocorrelation)) => 20.410619735717773
+           (first (:sigma autocorrelation)) => 0.008917074650526047))))))
 
 (with-default
   (with-release [factory (cuda/gtx-bayadera-factory (current-context) default-stream)]

@@ -155,8 +155,8 @@
            dim (mrows data-matrix)
            min-fac 4
            min-lag 4
-           win-mult 4;;TODO use this
            lag (max min-lag (min (quot n min-fac) WGS))
+           win-mult 4;;TODO use this
            tau-max 2;;TODO (double (/ lag win-mult))
            wgsm (min 16 dim WGS)
            wgsn (long (/ WGS wgsm))
@@ -195,7 +195,7 @@
                              sum-reduce-params sum-reduction-params dim wg-count wgsm wgsn)
              (memcpy-host! cu-acc (buffer d) hstream)
              (->Autocorrelation (div d c0) (transfer mean-vec)
-                                (sqrt! (scal! (/ 1.0 (- n lag)) d)) n lag)))
+                                (sqrt! (scal! (/ 1.0 (* (- n lag) n)) d)) n lag)))
          (throw (IllegalArgumentException.
                  (format (str "The autocorrelation time is too long relative to the variance. "
                               "Number of steps (%d) must not be less than %d.")
