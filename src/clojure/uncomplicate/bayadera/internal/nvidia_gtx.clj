@@ -9,8 +9,8 @@
 (ns ^{:author "Dragan Djuric"}
     uncomplicate.bayadera.internal.nvidia-gtx
   (:require [clojure.java.io :as io]
-            [uncomplicate.commons.core
-             :refer [Releaseable release with-release let-release wrap-int double-fn long-fn]]
+            [uncomplicate.commons.core :refer [Releaseable release with-release let-release wrap-int
+                                               double-fn long-fn]]
             [uncomplicate.fluokitten.core :refer [fmap op]]
             [uncomplicate.clojurecuda
              [core :refer :all :as cuda :exclude [parameters]]
@@ -19,9 +19,9 @@
              [toolbox :refer [launch-reduce! read-long read-double]]]
             [uncomplicate.neanderthal.internal.api :as na]
             [uncomplicate.neanderthal
-             [core :refer [vctr ge ncols mrows scal! transfer raw submatrix dim copy!]]
+             [core :refer [vctr ge ncols mrows scal! transfer transfer! raw submatrix dim copy! entry!]]
              [math :refer [sqrt]]
-             [vect-math :refer [sqrt! div]]
+             [vect-math :refer [sqrt!]]
              [block :refer [buffer create-data-source wrap-prim initialize entry-width data-accessor
                             cast-prim]]
              [cuda :refer [cuda-float]]]
@@ -156,18 +156,17 @@
            min-fac 4
            min-lag 4
            lag (max min-lag (min (quot n min-fac) WGS))
-           win-mult 4;;TODO use this
-           tau-max 2;;TODO (double (/ lag win-mult))
+           win-mult 4
            wgsm (min 16 dim WGS)
            wgsn (long (/ WGS wgsm))
            wg-count (blocks-count wgsn n)
            native-fact (na/native-factory data-matrix)]
        (if (<= (* lag min-fac) n)
-         (let-release [d (vctr native-fact dim)]
-           (with-release [c0 (vctr native-fact dim)
-                          cu-acc (create-data-source data-matrix (* dim wg-count))
+         (let-release [tau (vctr native-fact dim)
+                       sigma (vctr native-fact dim)
+                       mean (vctr native-fact dim)]
+           (with-release [cu-acc (create-data-source data-matrix (* dim wg-count))
                           mean-vec (vctr data-matrix dim)
-                          d-acc (create-data-source data-matrix (* dim wg-count))
                           sum-reduction-kernel (function modl "sum_reduction_horizontal")
                           sum-reduce-kernel (function modl "sum_reduce_horizontal")
                           subtract-mean-kernel (function modl "subtract_mean")
@@ -182,20 +181,15 @@
              (scal! (/ 1.0 n) mean-vec)
              (launch! subtract-mean-kernel (grid-2d dim n wgsm wgsn) hstream
                       (cuda/parameters dim n (buffer data-matrix) (buffer mean-vec)))
+             (transfer! mean-vec mean)
              (memset! cu-acc 0 hstream)
-             (memset! d-acc 0 hstream)
-             (launch! autocovariance-kernel (grid-2d n dim WGS 1) hstream
-                      (cuda/parameters n dim (int lag) cu-acc d-acc (buffer data-matrix)))
-             (set-parameter! sum-reduce-params 3 cu-acc)
-             (launch-reduce! hstream sum-reduce-kernel sum-reduction-kernel
-                             sum-reduce-params sum-reduction-params dim wg-count wgsm wgsn)
-             (memcpy-host! cu-acc (buffer c0) hstream)
-             (set-parameter! sum-reduce-params 3 d-acc)
-             (launch-reduce! hstream sum-reduce-kernel sum-reduction-kernel
-                             sum-reduce-params sum-reduction-params dim wg-count wgsm wgsn)
-             (memcpy-host! cu-acc (buffer d) hstream)
-             (->Autocorrelation (div d c0) (transfer mean-vec)
-                                (sqrt! (scal! (/ 1.0 (* (- n lag) n)) d)) n lag)))
+             (entry! mean-vec 0.0)
+             (launch! autocovariance-kernel (grid-1d (min dim WGS) WGS) hstream
+                      (cuda/parameters n dim lag min-lag win-mult cu-acc
+                                       (buffer mean-vec) (buffer data-matrix)))
+             (memcpy-host! cu-acc (buffer tau) hstream)
+             (transfer! mean-vec sigma)
+             (->Autocorrelation tau mean sigma n lag)))
          (throw (IllegalArgumentException.
                  (format (str "The autocorrelation time is too long relative to the variance. "
                               "Number of steps (%d) must not be less than %d.")
@@ -573,8 +567,8 @@
 ;; ======================== Constructor functions ==============================
 
 (defn ^:private dataset-options [wgs]
-  ["-DREAL=float" "-DREAL2=float2" "-DACCUMULATOR=float" "-arch=compute_30" "-default-device"
-   "-use_fast_math" (format "-DWGS=%d" wgs)])
+  ["-DREAL=float" "-DREAL2=float2" "-DACCUMULATOR=float" "-arch=compute_35" "-default-device"
+   "--relocatable-device-code=true" "-use_fast_math" (format "-DWGS=%d" wgs)])
 
 (defn ^:private distribution-options [logpdf dim wgs cudart-version]
   ["-DREAL=float" "-DACCUMULATOR=float" "-arch=compute_30" "-default-device" "-use_fast_math"
@@ -598,6 +592,7 @@
 
 (let [reduction-src (slurp (io/resource "uncomplicate/clojurecuda/kernels/reduction.cu"))
       estimate-src (slurp (io/resource "uncomplicate/bayadera/internal/cuda/engines/nvidia-gtx-estimate.cu"))
+      acor-src (slurp (io/resource "uncomplicate/bayadera/internal/cuda/engines/nvidia-gtx-acor.cu"))
       distribution-src (slurp (io/resource "uncomplicate/bayadera/internal/cuda/engines/nvidia-gtx-distribution.cu"))
       likelihood-src (slurp (io/resource "uncomplicate/bayadera/internal/cuda/engines/nvidia-gtx-likelihood.cu"))
       uniform-sampler-src (slurp (io/resource "uncomplicate/bayadera/internal/cuda/rng/uniform-sampler.cu"))
@@ -617,10 +612,13 @@
     ([ctx hstream ^long WGS]
      (in-context
       ctx
-      (with-release [prog (compile! (program (format "%s\n%s" reduction-src estimate-src)
+      (with-release [prog (compile! (program (format "%s\n%s\n%s" reduction-src estimate-src acor-src)
                                              standard-headers)
-                                    (dataset-options WGS))]
-        (let-release [modl (module prog)]
+                                    (dataset-options WGS))
+                     linked-prog (link [[:library (io/file (or (System/getProperty "uncomplicate.cudadevrt")
+                                                               "/usr/local/cuda/lib64/libcudadevrt.a"))]
+                                        [:ptx prog]])]
+        (let-release [modl (module linked-prog)]
           (->GTXDatasetEngine ctx modl hstream WGS)))))
     ([ctx hstream]
      (gtx-dataset-engine ctx hstream 1024)))

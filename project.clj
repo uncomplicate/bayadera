@@ -15,7 +15,7 @@
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.9.0"]
-                 [uncomplicate/commons "0.4.0"]
+                 [uncomplicate/commons "0.5.0-SNAPSHOT"]
                  [uncomplicate/fluokitten "0.6.1"]
                  [uncomplicate/clojurecl "0.9.0-SNAPSHOT"]
                  [uncomplicate/clojurecuda "0.4.0-SNAPSHOT"]
@@ -36,6 +36,7 @@
                                  *print-length* 16}
                    :jvm-opts ^:replace ["-Dclojure.compiler.direct-linking=true"
                                         "-XX:MaxDirectMemorySize=16g" "-XX:+UseLargePages"
+                                        "-Duncomplicate.cudadevrt=/usr/local/cuda/lib64/libcudadevrt.a"
                                         #_"--add-opens=java.base/jdk.internal.ref=ALL-UNNAMED"]}}
 
   :javac-options ["-target" "1.8" "-source" "1.8" "-Xlint:-options"]

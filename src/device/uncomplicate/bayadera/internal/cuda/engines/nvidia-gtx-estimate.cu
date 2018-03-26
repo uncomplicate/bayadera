@@ -1,7 +1,7 @@
 extern "C" {
 
-#include <stdint.h>
-    
+    #include <stdint.h>
+
     __global__ void histogram(const uint32_t dim, const uint32_t n,
                               const REAL* limits, const REAL* data,
                               uint32_t* res) {
@@ -191,87 +191,5 @@ extern "C" {
         }
     }
 
-// ======================== Autocovariance =====================================
-
-    REAL2 block_reduction_autocovariance (const REAL x2, const REAL xacc) {
-
-        const uint32_t local_size = blockDim.x;
-        const uint32_t local_id = threadIdx.x;
-
-        __shared__ REAL lc0[WGS];
-        lc0[local_id] = x2;
-
-        __shared__ REAL ld[WGS];
-        ld[local_id] = xacc;
-
-        __syncthreads();
-
-        REAL pc0 = x2;
-        REAL pd = xacc;
-
-        uint32_t i = local_size;
-        while (i > 0) {
-            const bool include_odd = (i > ((i >> 1) << 1)) && (local_id == ((i >> 1) - 1));
-            i >>= 1;
-            if (include_odd) {
-                pc0 += lc0[local_id + i + 1];
-                pd += ld[local_id + i + 1];
-            }
-            if (local_id < i) {
-                pc0 += lc0[local_id + i];
-                lc0[local_id] = pc0;
-                pd += ld[local_id + i];
-                ld[local_id] = pd;
-            }
-            __syncthreads();
-        }
-
-        REAL2 result;
-        result.x = lc0[0];
-        result.y = ld[0];
-        return result;
-
-    }
-
-    __global__ void autocovariance (const uint32_t n,
-                                    const uint32_t dim,
-                                    const uint32_t lag,
-                                    REAL* c0acc,
-                                    REAL* dacc,
-                                    const REAL* means) {
-        
-        const uint32_t gid = blockIdx.x * blockDim.x + threadIdx.x;
-        const uint32_t local_size = blockDim.x;
-        const uint32_t lid = threadIdx.x;
-        const uint32_t group_id = blockIdx.x;
-
-        const uint32_t dim_id = blockIdx.y * blockDim.y + threadIdx.y;
-        
-        __shared__ REAL local_means[2 * WGS];
-
-        const bool load_lag = (lid < lag) && (group_id + 1 < gridDim.x);
-        const bool compute = gid + lag < n;
-        
-        const REAL x = compute ? means[gid * dim + dim_id] : 0.0f;
-        REAL xacc = 0.0f;
-        local_means[lid] = x;
-        local_means[lid + local_size] = load_lag ? means[(gid + local_size) * dim + dim_id] : 0.0f;
-
-        __syncthreads();
-
-        if (compute) {
-            for (uint32_t s = 0; s < lag; s++) {
-                xacc += local_means[lid + s + 1];
-            }
-            xacc = x * (x + 2.0f * xacc);
-        }
-        const REAL2 sums = block_reduction_autocovariance(x*x, xacc);
-
-        if (lid == 0) {
-            c0acc[group_id * dim + dim_id] = sums.x;
-            dacc[group_id * dim + dim_id] = sums.y;
-        }
-        
-    }
 }
 
