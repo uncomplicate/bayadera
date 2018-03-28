@@ -18,9 +18,9 @@
              [toolbox :refer [count-work-groups enq-reduce! enq-read-long enq-read-double]]]
             [uncomplicate.neanderthal.internal.api :as na]
             [uncomplicate.neanderthal
-             [core :refer [vctr ge ncols mrows scal! transfer raw submatrix dim]]
+             [core :refer [vctr ge ncols mrows scal! transfer transfer! raw submatrix dim]]
              [math :refer [sqrt]]
-             [vect-math :refer [sqrt! div]]
+             [vect-math :refer [sqrt! div div!]]
              [block :refer [buffer create-data-source wrap-prim initialize entry-width data-accessor]]
              [opencl :refer [opencl-float]]]
             [uncomplicate.bayadera.util :refer [srand-int]]
@@ -141,42 +141,44 @@
           dim (mrows data-matrix)
           min-fac 4
           min-lag 4
-          lag (max min-lag (min (quot n min-fac) WGS))
-          win-mult 4;;TODO use this
-          tau-max 2;;TODO (double (/ lag win-mult))
+          max-lag 256
+          lag 32;(max min-lag (min (quot n min-fac) WGS max-lag))
+          win-mult 4
           wgsm (min 16 dim WGS)
           wgsn (long (/ WGS wgsm))
           wg-count (count-work-groups wgsn n)
           native-fact (na/native-factory data-matrix)]
       (if (<= (* lag min-fac) n)
-        (let-release [d (vctr native-fact dim)]
-          (with-release [c0 (vctr native-fact dim)
-                         cl-acc (create-data-source data-matrix (* dim wg-count))
-                         mean-vec (vctr data-matrix dim)
+        (let-release [tau (vctr native-fact dim)
+                      mean (vctr native-fact dim)
+                      sigma (vctr native-fact dim)]
+          (with-release [cl-acc (create-data-source data-matrix (* dim wg-count))
+                         cl-vec (vctr data-matrix dim)
                          d-acc (create-data-source data-matrix (* dim wg-count))
                          sum-reduction-kernel (kernel prog "sum_reduction_horizontal")
                          sum-reduce-kernel (kernel prog "sum_reduce_horizontal")
                          subtract-mean-kernel (kernel prog "subtract_mean")
-                         autocovariance-kernel (kernel prog "autocovariance")]
+                         autocovariance-2d-kernel (kernel prog "autocovariance_2d")
+                         autocovariance-refine-kernel (kernel prog "autocovariance_refine")]
             (set-arg! sum-reduction-kernel 0 cl-acc)
             (set-args! sum-reduce-kernel 0 cl-acc (buffer data-matrix))
             (enq-reduce! cqueue sum-reduce-kernel sum-reduction-kernel dim n wgsm wgsn)
-            (enq-copy! cqueue cl-acc (buffer mean-vec))
-            (scal! (/ 1.0 n) mean-vec)
-            (set-args! subtract-mean-kernel 0 (buffer data-matrix) (buffer mean-vec))
+            (enq-copy! cqueue cl-acc (buffer cl-vec))
+            (scal! (/ 1.0 n) cl-vec)
+            (set-args! subtract-mean-kernel 0 (buffer data-matrix) (buffer cl-vec))
             (enq-nd! cqueue subtract-mean-kernel (work-size-2d dim n))
+            (transfer! cl-vec mean)
             (enq-fill! cqueue cl-acc (int-array 1))
             (enq-fill! cqueue d-acc (int-array 1))
-            (set-args! autocovariance-kernel 0 (wrap-int lag) cl-acc d-acc (buffer data-matrix))
-            (enq-nd! cqueue autocovariance-kernel (work-size-2d n dim))
-            (set-arg! sum-reduce-kernel 1 cl-acc)
-            (enq-reduce! cqueue sum-reduce-kernel sum-reduction-kernel dim wg-count wgsm wgsn)
-            (enq-read! cqueue cl-acc (buffer c0))
-            (set-arg! sum-reduce-kernel 1 d-acc)
-            (enq-reduce! cqueue sum-reduce-kernel sum-reduction-kernel dim wg-count wgsm wgsn)
-            (enq-read! cqueue cl-acc (buffer d))
-            (->Autocorrelation (div d c0) (transfer mean-vec)
-                               (sqrt! (scal! (/ 1.0 (* (- n lag) n)) d)) n lag)))
+            (set-args! autocovariance-2d-kernel 0 (wrap-int lag) cl-acc d-acc (buffer data-matrix))
+            (enq-nd! cqueue autocovariance-2d-kernel (work-size-2d n dim))
+            (set-args! autocovariance-refine-kernel (wrap-int n)
+                       (wrap-int lag) (wrap-int min-lag) (wrap-int win-mult)
+                       cl-acc d-acc (buffer data-matrix))
+            (enq-nd! cqueue autocovariance-refine-kernel (work-size-1d dim (min dim WGS)))
+            (enq-read! cqueue cl-acc (buffer tau))
+            (enq-read! cqueue d-acc (buffer sigma))
+            (->Autocorrelation tau mean sigma n lag)))
         (throw (IllegalArgumentException.
                 (format (str "The autocorrelation time is too long relative to the variance. "
                              "Number of steps (%d) must not be less than %d.")
@@ -520,7 +522,7 @@
       likelihood-src (slurp (io/resource "uncomplicate/bayadera/internal/opencl/engines/amd-gcn-likelihood.cl"))
       uniform-sampler-src (slurp (io/resource "uncomplicate/bayadera/internal/opencl/rng/uniform-sampler.cl"))
       mcmc-stretch-src (slurp (io/resource "uncomplicate/bayadera/internal/opencl/engines/amd-gcn-mcmc-stretch.cl"))
-      dataset-options "-cl-std=CL2.0 -DREAL=float -DREAL2=float2 -DACCUMULATOR=float -DWGS=%d"
+      dataset-options "-g -DCL_VERSION_2_0 -cl-std=CL2.0 -DREAL=float -DREAL2=float2 -DACCUMULATOR=float -DWGS=%d"
       distribution-options "-cl-std=CL2.0 -DREAL=float -DACCUMULATOR=float -DLOGPDF=%s -DDIM=%d -DWGS=%d -I%s"
       posterior-options "-cl-std=CL2.0 -DREAL=float -DACCUMULATOR=double -DLOGPDF=%s -DLOGLIK=%s -DDIM=%d -DWGS=%d -I%s"
       stretch-options "-cl-std=CL2.0 -DREAL=float -DREAL2=float2 -DACCUMULATOR=float -DLOGFN=%s -DDIM=%d -DWGS=%d -I%s/"]
@@ -577,7 +579,7 @@
       (when (realized? d) (release @d)))
     (when (realized? ds) (release ds))))
 
-(defrecord GCNBayaderaFactory [ctx cqueue tmp-dir-name
+(defrecord GCNBayaderaFactory [ctx cqueue dev-queue tmp-dir-name
                                ^long compute-units ^long WGS
                                dataset-eng neanderthal-factory
                                distribution-engines
@@ -590,6 +592,7 @@
     (release-deref (vals distribution-engines))
     (release-deref (vals direct-samplers))
     (release-deref (vals mcmc-factories))
+    (release dev-queue)
     (delete tmp-dir-name)
     true)
   na/MemoryContext
@@ -623,11 +626,14 @@
 (defn gcn-bayadera-factory
   ([distributions samplers ctx cqueue compute-units WGS]
    (let-release [neanderthal-factory (opencl-float ctx cqueue)
-                 dataset-eng (gcn-dataset-engine ctx cqueue WGS)]
+                 dataset-eng (gcn-dataset-engine ctx cqueue WGS)
+                 dev-queue (command-queue ctx (queue-device cqueue)
+                                          :queue-on-device-default :queue-on-device
+                                          :out-of-order-exec-mode)]
      (let [tmp-dir-name (create-tmp-dir)]
        (copy-philox tmp-dir-name)
        (->GCNBayaderaFactory
-        ctx cqueue tmp-dir-name compute-units WGS dataset-eng neanderthal-factory
+        ctx cqueue dev-queue tmp-dir-name compute-units WGS dataset-eng neanderthal-factory
         (fmap #(delay (gcn-distribution-engine ctx cqueue tmp-dir-name % WGS)) distributions)
         (fmap #(delay (gcn-direct-sampler ctx cqueue tmp-dir-name % WGS))
               (select-keys distributions (keys samplers)))

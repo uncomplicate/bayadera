@@ -313,8 +313,8 @@
       (let [engine (dataset-engine bayadera-factory)]
        (facts
          "Test MCMC acor."
-         (first (:tau (acor engine data-matrix-67))) => 11.826833724975586
-         (first (:tau (acor engine data-matrix-367))) => 17.302560806274414
+         ;;(first (:tau (acor engine data-matrix-67))) => 11.826833724975586
+         ;;(first (:tau (acor engine data-matrix-367))) => 17.302560806274414
          (let [autocorrelation (acor engine data-matrix-112640)]
            (entry  (:tau autocorrelation) 0) => (roughly 20.41 0.001)
            (entry (:sigma autocorrelation) 0) => (roughly 0.009 0.001)))))))

@@ -155,7 +155,8 @@
            dim (mrows data-matrix)
            min-fac 4
            min-lag 4
-           lag (max min-lag (min (quot n min-fac) WGS))
+           max-lag 256
+           lag 32;(max min-lag (min (quot n min-fac) WGS max-lag))
            win-mult 4
            wgsm (min 16 dim WGS)
            wgsn (long (/ WGS wgsm))
@@ -166,7 +167,7 @@
                        sigma (vctr native-fact dim)
                        mean (vctr native-fact dim)]
            (with-release [cu-acc (create-data-source data-matrix (* dim wg-count))
-                          mean-vec (vctr data-matrix dim)
+                          cu-vec (vctr data-matrix dim)
                           sum-reduction-kernel (function modl "sum_reduction_horizontal")
                           sum-reduce-kernel (function modl "sum_reduce_horizontal")
                           subtract-mean-kernel (function modl "subtract_mean")
@@ -177,18 +178,18 @@
              (set-parameters! sum-reduce-params 2 cu-acc (buffer data-matrix))
              (launch-reduce! hstream sum-reduce-kernel sum-reduction-kernel
                              sum-reduce-params sum-reduction-params dim n wgsm wgsn)
-             (memcpy! cu-acc (buffer mean-vec) hstream)
-             (scal! (/ 1.0 n) mean-vec)
+             (memcpy! cu-acc (buffer cu-vec) hstream)
+             (scal! (/ 1.0 n) cu-vec)
              (launch! subtract-mean-kernel (grid-2d dim n wgsm wgsn) hstream
-                      (cuda/parameters dim n (buffer data-matrix) (buffer mean-vec)))
-             (transfer! mean-vec mean)
+                      (cuda/parameters dim n (buffer data-matrix) (buffer cu-vec)))
+             (transfer! cu-vec mean)
              (memset! cu-acc 0 hstream)
-             (entry! mean-vec 0.0)
+             (entry! cu-vec 0.0)
              (launch! autocovariance-kernel (grid-1d (min dim WGS) WGS) hstream
                       (cuda/parameters n dim lag min-lag win-mult cu-acc
-                                       (buffer mean-vec) (buffer data-matrix)))
+                                       (buffer cu-vec) (buffer data-matrix)))
              (memcpy-host! cu-acc (buffer tau) hstream)
-             (transfer! mean-vec sigma)
+             (transfer! cu-vec sigma)
              (->Autocorrelation tau mean sigma n lag)))
          (throw (IllegalArgumentException.
                  (format (str "The autocorrelation time is too long relative to the variance. "
