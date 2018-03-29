@@ -1,6 +1,6 @@
 extern "C" {
 
-    #include <stdint.h>
+#include <stdint.h>
 
 // ======================== Autocovariance =====================================
 
@@ -116,38 +116,32 @@ extern "C" {
         while (dim_id < dim) {
             const REAL c0 = c0acc[dim_id];
             REAL tau = dacc[dim_id] / c0;
-            if (tau * win_mult < lag) {
-                c0acc[dim_id] = tau;
-                dacc[dim_id] = sqrt(dacc[dim_id] / ((REAL)(n - lag) * n));
-            } else {
-                cudaStream_t hstream;
-                cudaStreamCreateWithFlags(&hstream, cudaStreamNonBlocking);
-                uint32_t lag2 = lag;
-                uint32_t n2 = n;
-                uint32_t stride = 1;
-                REAL prev_c0;//TODO remove
-                while ((min_lag < lag2) && (lag2 < tau * win_mult)) {
-                    n2 /= 2;
-                    const uint32_t block_dim = (WGS < n2) ? WGS : n2;
-                    const uint32_t grid_dim = (n2 - 1) / block_dim + 1;
-                    lag2 = ((lag * win_mult) < n2) ? lag : (n2 / win_mult);
-                    const REAL c0 = c0acc[dim_id];
-                    c0acc[dim_id] = 0.0;
-                    dacc[dim_id] = 0.0;
-                    sum_pairwise<<<grid_dim, block_dim, 0, hstream>>>(n2, stride * dim, dim_id, means);
-                    stride *= 2;
-                    autocovariance_1d<<<grid_dim, block_dim, 0, hstream>>>
-                        (n2, stride * dim, dim_id, lag2, c0acc, dacc, means);
-                    cudaDeviceSynchronize();
-                    tau = dacc[dim_id] / c0;
-                    prev_c0 = c0;//TODO remove
-                }
-                cudaStreamDestroy(hstream);
-                const REAL scale = stride * (REAL)(n2 - lag2);
-                c0acc[dim_id] = dacc[dim_id];//dacc[dim_id] * (n - lag) / (scale * c0);                
-                dacc[dim_id] = prev_c0;//sqrt(dacc[dim_id] / (scale * n));
+            cudaStream_t hstream;
+            cudaStreamCreateWithFlags(&hstream, cudaStreamNonBlocking);
+            uint32_t lag2 = lag;
+            uint32_t n2 = n;
+            uint32_t stride = 1;
+            while ((min_lag < lag2) && (lag2 < tau * win_mult)) {
+                n2 /= 2;
+                const uint32_t block_dim = (WGS < n2) ? WGS : n2;
+                const uint32_t grid_dim = (n2 - 1) / block_dim + 1;
+                lag2 = ((lag * win_mult) < n2) ? lag : (n2 / win_mult);
+                const REAL c0 = c0acc[dim_id];
+                c0acc[dim_id] = 0.0;
+                dacc[dim_id] = 0.0;
+                sum_pairwise<<<grid_dim, block_dim, 0, hstream>>>(n2, stride * dim, dim_id, means);
+                stride *= 2;
+                autocovariance_1d<<<grid_dim, block_dim, 0, hstream>>>
+                    (n2, stride * dim, dim_id, lag2, c0acc, dacc, means);
+                cudaDeviceSynchronize();
+                tau = dacc[dim_id] / c0;
             }
-            dim_id += WGS;
+            cudaStreamDestroy(hstream);
+            const REAL scale = stride * (REAL)(n2 - lag2);
+            c0acc[dim_id] = dacc[dim_id] * (n - lag) / (scale * c0);                
+            dacc[dim_id] = sqrt(dacc[dim_id] / (scale * n));
+
+            dim_id += blockDim.x;
         }
                 
     }

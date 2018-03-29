@@ -156,7 +156,7 @@
            min-fac 4
            min-lag 4
            max-lag 256
-           lag 32;(max min-lag (min (quot n min-fac) WGS max-lag))
+           lag (max min-lag (min (quot n min-fac) WGS max-lag))
            win-mult 4
            wgsm (min 16 dim WGS)
            wgsn (long (/ WGS wgsm))
