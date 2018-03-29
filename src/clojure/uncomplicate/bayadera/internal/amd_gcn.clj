@@ -142,7 +142,7 @@
           min-fac 4
           min-lag 4
           max-lag 256
-          lag 32;(max min-lag (min (quot n min-fac) WGS max-lag))
+          lag (max min-lag (min (quot n min-fac) WGS max-lag))
           win-mult 4
           wgsm (min 16 dim WGS)
           wgsn (long (/ WGS wgsm))
@@ -159,7 +159,7 @@
                          sum-reduce-kernel (kernel prog "sum_reduce_horizontal")
                          subtract-mean-kernel (kernel prog "subtract_mean")
                          autocovariance-2d-kernel (kernel prog "autocovariance_2d")
-                         autocovariance-refine-kernel (kernel prog "autocovariance_refine")]
+                         autocovariance-kernel (kernel prog "autocovariance")]
             (set-arg! sum-reduction-kernel 0 cl-acc)
             (set-args! sum-reduce-kernel 0 cl-acc (buffer data-matrix))
             (enq-reduce! cqueue sum-reduce-kernel sum-reduction-kernel dim n wgsm wgsn)
@@ -172,10 +172,10 @@
             (enq-fill! cqueue d-acc (int-array 1))
             (set-args! autocovariance-2d-kernel 0 (wrap-int lag) cl-acc d-acc (buffer data-matrix))
             (enq-nd! cqueue autocovariance-2d-kernel (work-size-2d n dim))
-            (set-args! autocovariance-refine-kernel (wrap-int n)
+            (set-args! autocovariance-kernel (wrap-int n)
                        (wrap-int lag) (wrap-int min-lag) (wrap-int win-mult)
                        cl-acc d-acc (buffer data-matrix))
-            (enq-nd! cqueue autocovariance-refine-kernel (work-size-1d dim (min dim WGS)))
+            (enq-nd! cqueue autocovariance-kernel (work-size-1d dim (min dim WGS)))
             (enq-read! cqueue cl-acc (buffer tau))
             (enq-read! cqueue d-acc (buffer sigma))
             (->Autocorrelation tau mean sigma n lag)))

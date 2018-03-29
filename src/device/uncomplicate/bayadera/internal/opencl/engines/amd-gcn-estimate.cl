@@ -238,9 +238,8 @@ __kernel void autocovariance_1d (const uint stride,
     }
 }
 
-__kernel void sum_reduction_autocovariance (const uint acor_count,
+__kernel void sum_reduction_autocovariance (const uint acor_dim,
                                             const uint stride,
-                                            const uint n1,
                                             const uint dim,
                                             const uint dim_id,
                                             const uint lag,
@@ -248,6 +247,7 @@ __kernel void sum_reduction_autocovariance (const uint acor_count,
                                             const uint win_mult,
                                             const uint orig_n,
                                             const REAL orig_c0,
+                                            const uint prev_n,
                                             const REAL prev_c0,
                                             __global REAL* c0acc,
                                             __global REAL* dacc,
@@ -258,11 +258,11 @@ __kernel void sum_reduction_autocovariance (const uint acor_count,
 
     REAL c0 = 0.0f;
     REAL d = 0.0f;
-    const uint iterations = (acor_count - 1)/get_local_size(0) + 1;
+    const uint iterations = (acor_dim - 1) / get_local_size(0) + 1;
     for (uint i = 0; i < iterations; i++) {
         const uint cnt = i * local_size;
         const uint id = (cnt + gid) * stride * dim + dim_id;
-        const bool valid = (cnt + gid) < acor_count;
+        const bool valid = (cnt + gid) < acor_dim;
         const REAL2 sums = work_group_reduction_autocovariance
             (valid ? c0acc[id] : 0.0f, valid ? dacc[id] : 0.0f);
         c0 += sums.x;
@@ -270,21 +270,16 @@ __kernel void sum_reduction_autocovariance (const uint acor_count,
     }
 
     if (gid == 0) {
-        const REAL kk_c0 = (stride == 1) ? c0 : orig_c0;
-        const REAL c01 = (stride == 1) ? c0 : prev_c0;
-        const REAL tau = d / c01;//TODO
-        const uint lag2 = ((lag * win_mult) < n1) ? lag : (n1 / win_mult);
-        if ((tau * win_mult < lag2) || (lag2 < min_lag)) {
-            const REAL scale = (REAL)stride * (n1 - lag2);
-            c0acc[dim_id] = d * (orig_n - lag) / (scale * kk_c0);
-            dacc[dim_id] = sqrt(d / (scale * orig_n));
-        } else {
+        const REAL start_c0 = (stride == 1) ? c0 : orig_c0;
+        const REAL tau = d / ((stride == 1) ? c0 : prev_c0);
+        const uint lag2 = ((lag * win_mult) < prev_n) ? lag : (prev_n / win_mult);
+        if ((lag2 < tau * win_mult) && (min_lag < lag2)) {
             queue_t queue = get_default_queue();
             clk_event_t sum_pairwise_event;
             clk_event_t autocovariance_event;
             clk_event_t reduction_event;
             clk_event_t marker;
-            const uint n2 = n1 / 2;
+            const uint n2 = prev_n / 2;
             const uint wgs = (WGS < n2) ? WGS : n2;
             enqueue_kernel(queue, CLK_ENQUEUE_FLAGS_NO_WAIT, ndrange_1D(n2, wgs),
                            0, NULL, &sum_pairwise_event,
@@ -292,19 +287,23 @@ __kernel void sum_reduction_autocovariance (const uint acor_count,
             enqueue_kernel(queue, CLK_ENQUEUE_FLAGS_NO_WAIT, ndrange_1D(n2, wgs),
                            1, &sum_pairwise_event, &autocovariance_event,
                            ^{autocovariance_1d(2 * stride * dim, dim_id, lag2, c0acc, dacc, means);});
-            const uint acor_count = (n2-1)/wgs + 1;
-            const uint red_count = (WGS < acor_count) ? WGS : acor_count;
-            enqueue_kernel(queue, CLK_ENQUEUE_FLAGS_NO_WAIT, ndrange_1D(red_count, red_count),
+            const uint acor_dim = (n2-1)/wgs + 1;
+            const uint reduction_dim = (WGS < acor_dim) ? WGS : acor_dim;
+            enqueue_kernel(queue, CLK_ENQUEUE_FLAGS_NO_WAIT, ndrange_1D(reduction_dim, reduction_dim),
                            1, &autocovariance_event, &reduction_event,
-                           ^{sum_reduction_autocovariance(acor_count, stride * 2, n2, dim, dim_id,
+                           ^{sum_reduction_autocovariance(acor_dim, stride * 2, dim, dim_id,
                                                           lag, min_lag, win_mult,
-                                                          orig_n, kk_c0, c0,
+                                                          orig_n, start_c0, n2, c0,
                                                           c0acc, dacc, means);});
             enqueue_marker(queue, 1, &reduction_event, &marker);
             release_event(sum_pairwise_event);
             release_event(autocovariance_event);
             release_event(reduction_event);
             release_event(marker);
+        } else {
+            const REAL scale = (REAL)stride * (prev_n - lag2);
+            c0acc[dim_id] = d * (orig_n - lag) / (scale * start_c0);
+            dacc[dim_id] = sqrt(d / (scale * orig_n));
         }
     }
 
@@ -320,13 +319,13 @@ __kernel void autocovariance_2d (const uint lag,
 
 }
 
-__kernel void autocovariance_refine (const uint n,
-                                     const uint lag,
-                                     const uint min_lag,
-                                     const uint win_mult,
-                                     __global REAL* c0acc,
-                                     __global REAL* dacc,
-                                     __global REAL* means) {
+__kernel void autocovariance (const uint n,
+                              const uint lag,
+                              const uint min_lag,
+                              const uint win_mult,
+                              __global REAL* c0acc,
+                              __global REAL* dacc,
+                              __global REAL* means) {
 
     const uint dim_id = get_global_id(0);
     const uint dim = get_global_size(0);
@@ -334,13 +333,13 @@ __kernel void autocovariance_refine (const uint n,
     queue_t queue = get_default_queue();
     clk_event_t reduction_event;
     clk_event_t marker;
-    const uint acor_count = (n-1)/WGS + 1;
-    const uint red_count = (WGS < acor_count) ? WGS : acor_count;
-    enqueue_kernel(queue, CLK_ENQUEUE_FLAGS_NO_WAIT, ndrange_1D(red_count, red_count),
+    const uint acor_dim = (n-1) / WGS + 1;
+    const uint reduction_dim = (WGS < acor_dim) ? WGS : acor_dim;
+    enqueue_kernel(queue, CLK_ENQUEUE_FLAGS_NO_WAIT, ndrange_1D(reduction_dim, reduction_dim),
                    0, NULL, &reduction_event,
-                   ^{sum_reduction_autocovariance(acor_count, 1, n, dim, dim_id,
+                   ^{sum_reduction_autocovariance(acor_dim, 1, dim, dim_id,
                                                   lag, min_lag, win_mult,
-                                                  n, 0.0f, 0.0f,
+                                                  n, 0.0f, n, 0.0f,
                                                   c0acc, dacc, means);});
     enqueue_marker(queue, 1, &reduction_event, &marker);
     release_event(reduction_event);
