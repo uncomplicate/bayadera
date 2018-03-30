@@ -518,6 +518,7 @@
 
 (let [reduction-src (slurp (io/resource "uncomplicate/clojurecl/kernels/reduction.cl"))
       estimate-src (slurp (io/resource "uncomplicate/bayadera/internal/opencl/engines/amd-gcn-estimate.cl"))
+      acor-src (slurp (io/resource "uncomplicate/bayadera/internal/opencl/engines/amd-gcn-acor.cl"))
       distribution-src (slurp (io/resource "uncomplicate/bayadera/internal/opencl/engines/amd-gcn-distribution.cl"))
       likelihood-src (slurp (io/resource "uncomplicate/bayadera/internal/opencl/engines/amd-gcn-likelihood.cl"))
       uniform-sampler-src (slurp (io/resource "uncomplicate/bayadera/internal/opencl/rng/uniform-sampler.cl"))
@@ -529,7 +530,7 @@
 
   (defn gcn-dataset-engine
     ([ctx cqueue ^long WGS]
-     (let-release [prog (build-program! (program-with-source ctx [reduction-src estimate-src])
+     (let-release [prog (build-program! (program-with-source ctx [reduction-src estimate-src acor-src])
                                         (format dataset-options WGS) nil)]
        (->GCNDatasetEngine ctx cqueue prog WGS)))
     ([ctx queue]
