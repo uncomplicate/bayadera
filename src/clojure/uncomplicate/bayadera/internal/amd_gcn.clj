@@ -136,6 +136,43 @@
         (enq-reduce! cqueue variance-kernel sum-reduction-kernel m n wgsm wgsn)
         (enq-copy! cqueue cl-acc (buffer cl-res-vec))
         (scal! (/ 1.0 n) (transfer cl-res-vec)))))
+  EstimateEngine
+  (histogram [this data-matrix]
+    (let [m (mrows data-matrix)
+          n (ncols data-matrix)
+          wgsn (min n WGS)
+          wgsm (/ WGS wgsn)
+          acc-size (* 2 (max 1 (* m (count-work-groups wgsn n))))
+          claccessor (data-accessor data-matrix)]
+      (with-release [cl-min-max (create-data-source claccessor acc-size)
+                     uint-res (cl-buffer ctx (* Integer/BYTES WGS m) :read-write)
+                     limits (ge data-matrix 2 m)
+                     result (ge data-matrix WGS m)
+                     bin-ranks (ge data-matrix WGS m)
+                     min-max-reduction-kernel (kernel prog "min_max_reduction")
+                     min-max-kernel (kernel prog "min_max_reduce")
+                     histogram-kernel (kernel prog "histogram")
+                     uint-to-real-kernel (kernel prog "uint_to_real")
+                     local-sort-kernel (kernel prog "bitonic_local")]
+        (set-arg! min-max-reduction-kernel 0 cl-min-max)
+        (set-args! min-max-kernel cl-min-max (buffer data-matrix))
+        (enq-reduce! cqueue min-max-kernel min-max-reduction-kernel m n wgsm wgsn)
+        (enq-copy! cqueue cl-min-max (buffer limits))
+        (enq-fill! cqueue uint-res (wrap-int 0))
+        (set-args! histogram-kernel (buffer limits) (buffer data-matrix) uint-res)
+        (enq-nd! cqueue histogram-kernel (work-size-2d m n 1 WGS))
+        (set-args! uint-to-real-kernel (wrap-prim claccessor (/ WGS n)) (buffer limits)
+                   uint-res (buffer result))
+        (enq-nd! cqueue uint-to-real-kernel (work-size-2d WGS m WGS 1))
+        (set-args! local-sort-kernel (buffer result) (buffer bin-ranks))
+        (enq-nd! cqueue local-sort-kernel (work-size-1d (* m WGS)))
+        (->Histogram (transfer limits) (transfer result) (transfer bin-ranks))))))
+
+(deftype GCNAcorEngine [ctx cqueue prog ^long WGS]
+  Releaseable
+  (release [_]
+    (release prog))
+  AcorEngine
   (acor [_ data-matrix]
     (let [n (ncols data-matrix)
           dim (mrows data-matrix)
@@ -182,42 +219,11 @@
         (throw (IllegalArgumentException.
                 (format (str "The autocorrelation time is too long relative to the variance. "
                              "Number of steps (%d) must not be less than %d.")
-                        n (* lag min-fac)))))))
-  EstimateEngine
-  (histogram [this data-matrix]
-    (let [m (mrows data-matrix)
-          n (ncols data-matrix)
-          wgsn (min n WGS)
-          wgsm (/ WGS wgsn)
-          acc-size (* 2 (max 1 (* m (count-work-groups wgsn n))))
-          claccessor (data-accessor data-matrix)]
-      (with-release [cl-min-max (create-data-source claccessor acc-size)
-                     uint-res (cl-buffer ctx (* Integer/BYTES WGS m) :read-write)
-                     limits (ge data-matrix 2 m)
-                     result (ge data-matrix WGS m)
-                     bin-ranks (ge data-matrix WGS m)
-                     min-max-reduction-kernel (kernel prog "min_max_reduction")
-                     min-max-kernel (kernel prog "min_max_reduce")
-                     histogram-kernel (kernel prog "histogram")
-                     uint-to-real-kernel (kernel prog "uint_to_real")
-                     local-sort-kernel (kernel prog "bitonic_local")]
-        (set-arg! min-max-reduction-kernel 0 cl-min-max)
-        (set-args! min-max-kernel cl-min-max (buffer data-matrix))
-        (enq-reduce! cqueue min-max-kernel min-max-reduction-kernel m n wgsm wgsn)
-        (enq-copy! cqueue cl-min-max (buffer limits))
-        (enq-fill! cqueue uint-res (wrap-int 0))
-        (set-args! histogram-kernel (buffer limits) (buffer data-matrix) uint-res)
-        (enq-nd! cqueue histogram-kernel (work-size-2d m n 1 WGS))
-        (set-args! uint-to-real-kernel (wrap-prim claccessor (/ WGS n)) (buffer limits)
-                   uint-res (buffer result))
-        (enq-nd! cqueue uint-to-real-kernel (work-size-2d WGS m WGS 1))
-        (set-args! local-sort-kernel (buffer result) (buffer bin-ranks))
-        (enq-nd! cqueue local-sort-kernel (work-size-1d (* m WGS)))
-        (->Histogram (transfer limits) (transfer result) (transfer bin-ranks))))))
+                        n (* lag min-fac))))))))
 
 ;; ======================== MCMC engine ========================================
 
-(deftype GCNStretch [ctx cqueue neanderthal-factory claccessor dataset-eng
+(deftype GCNStretch [ctx cqueue neanderthal-factory claccessor acor-eng
                      ^long walker-count wsize cl-model ^long DIM ^long WGS
                      ^ints move-counter ^ints move-bare-counter iteration-counter
                      ^ints move-seed
@@ -395,7 +401,7 @@
         (enq-reduce! cqueue sum-accept-kernel sum-accept-reduction-kernel means-count WGS)
         {:acceptance-rate (/ (double (enq-read-long cqueue cl-accept-acc)) (* walker-count n))
          :a (get a 0)
-         :autocorrelation (acor dataset-eng means)})))
+         :autocorrelation (acor acor-eng means)})))
   (acc-rate! [this a]
     (let [a (wrap-prim claccessor a)
           means-count (long (count-work-groups WGS (/ walker-count 2)))]
@@ -460,7 +466,7 @@
   (sd [this]
     (sqrt! (variance this))))
 
-(deftype GCNStretchFactory [ctx queue prog neanderthal-factory dataset-eng model ^long DIM ^long WGS]
+(deftype GCNStretchFactory [ctx queue prog neanderthal-factory acor-eng model ^long DIM ^long WGS]
   Releaseable
   (release [_]
     (release prog))
@@ -484,7 +490,7 @@
                         cl-accept-acc (cl-buffer ctx (* Long/BYTES accept-acc-count) :read-write)
                         cl-acc (create-data-source claccessor acc-count)]
             (->GCNStretch
-             ctx queue neanderthal-factory claccessor dataset-eng walker-count
+             ctx queue neanderthal-factory claccessor acor-eng walker-count
              (work-size-1d (/ walker-count 2)) model DIM WGS
              (int-array 1) (int-array 1) (volatile! 0) (int-array 1)
              cl-params cl-xs cl-s0 cl-s1 cl-logfn-xs cl-logfn-s0 cl-logfn-s1
@@ -530,11 +536,19 @@
 
   (defn gcn-dataset-engine
     ([ctx cqueue ^long WGS]
-     (let-release [prog (build-program! (program-with-source ctx [reduction-src estimate-src acor-src])
+     (let-release [prog (build-program! (program-with-source ctx [reduction-src estimate-src])
                                         (format dataset-options WGS) nil)]
        (->GCNDatasetEngine ctx cqueue prog WGS)))
     ([ctx queue]
      (gcn-dataset-engine ctx queue 256)))
+
+  (defn gcn-acor-engine
+    ([ctx cqueue ^long WGS]
+     (let-release [prog (build-program! (program-with-source ctx [reduction-src estimate-src acor-src]);;TODO estimate-src?
+                                        (format dataset-options WGS) nil)]
+       (->GCNAcorEngine ctx cqueue prog WGS)))
+    ([ctx queue]
+     (gcn-acor-engine ctx queue 256)))
 
   (defn gcn-distribution-engine
     ([ctx cqueue tmp-dir-name model WGS]
@@ -582,13 +596,12 @@
 
 (defrecord GCNBayaderaFactory [ctx cqueue dev-queue tmp-dir-name
                                ^long compute-units ^long WGS
-                               dataset-eng neanderthal-factory
-                               distribution-engines
-                               direct-samplers
-                               mcmc-factories]
+                               neanderthal-factory dataset-eng acor-eng
+                               distribution-engines direct-samplers mcmc-factories]
   Releaseable
   (release [_]
     (release dataset-eng)
+    (release acor-eng)
     (release neanderthal-factory)
     (release-deref (vals distribution-engines))
     (release-deref (vals direct-samplers))
@@ -612,7 +625,7 @@
   (mcmc-factory [_ model]
     (if-let [factory (mcmc-factories model)]
       @factory
-      (gcn-stretch-factory ctx cqueue tmp-dir-name neanderthal-factory dataset-eng model WGS)))
+      (gcn-stretch-factory ctx cqueue tmp-dir-name neanderthal-factory acor-eng model WGS)))
   (processing-elements [_]
     (* compute-units WGS))
   DatasetFactory
@@ -628,13 +641,14 @@
   ([distributions samplers ctx cqueue compute-units WGS]
    (let-release [neanderthal-factory (opencl-float ctx cqueue)
                  dataset-eng (gcn-dataset-engine ctx cqueue WGS)
+                 acor-eng (gcn-acor-engine ctx cqueue WGS)
                  dev-queue (command-queue ctx (queue-device cqueue)
                                           :queue-on-device-default :queue-on-device
                                           :out-of-order-exec-mode)]
      (let [tmp-dir-name (create-tmp-dir)]
        (copy-philox tmp-dir-name)
        (->GCNBayaderaFactory
-        ctx cqueue dev-queue tmp-dir-name compute-units WGS dataset-eng neanderthal-factory
+        ctx cqueue dev-queue tmp-dir-name compute-units WGS neanderthal-factory dataset-eng acor-eng
         (fmap #(delay (gcn-distribution-engine ctx cqueue tmp-dir-name % WGS)) distributions)
         (fmap #(delay (gcn-direct-sampler ctx cqueue tmp-dir-name % WGS))
               (select-keys distributions (keys samplers)))

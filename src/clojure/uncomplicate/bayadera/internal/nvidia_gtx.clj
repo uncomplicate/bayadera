@@ -148,6 +148,45 @@
                          m n wgsm wgsn)
          (memcpy! cu-acc (buffer res) hstream)
          (scal! (/ 1.0 n) (transfer res))))))
+  EstimateEngine
+  (histogram [this data-matrix]
+    (in-context
+     ctx
+     (let [m (mrows data-matrix)
+           n (ncols data-matrix)
+           wgsn (min n WGS)
+           wgsm (/ WGS wgsn)
+           acc-size (* 2 (max 1 (* m (blocks-count wgsn n))))
+           cuaccessor (data-accessor data-matrix)]
+       (with-release [cu-min-max (create-data-source data-matrix acc-size)
+                      uint-res (mem-alloc (* Integer/BYTES WGS m))
+                      limits (ge data-matrix 2 m)
+                      result (ge data-matrix WGS m)
+                      bin-ranks (ge data-matrix WGS m)
+                      min-max-reduction-kernel (function modl "min_max_reduction")
+                      min-max-kernel (function modl "min_max_reduce")
+                      histogram-kernel (function modl "histogram")
+                      uint-to-real-kernel (function modl "uint_to_real")
+                      local-sort-kernel (function modl "bitonic_local")]
+         (launch-reduce! hstream min-max-kernel min-max-reduction-kernel
+                         [cu-min-max (buffer data-matrix)] [cu-min-max]
+                         m n wgsm wgsn)
+         (memcpy! cu-min-max (buffer limits) hstream)
+         (memset! uint-res 0 hstream)
+         (launch! histogram-kernel (grid-2d m n 1 WGS) hstream
+                  (cuda/parameters (int m) (int n) (buffer limits) (buffer data-matrix) uint-res))
+         (launch! uint-to-real-kernel (grid-2d WGS m WGS 1) hstream
+                  (cuda/parameters WGS m (cast-prim cuaccessor (/ WGS n)) (buffer limits)
+                                   uint-res (buffer result)))
+         (launch! local-sort-kernel (grid-1d (* m WGS) WGS) hstream
+                  (cuda/parameters (* m WGS) (buffer result) (buffer bin-ranks)))
+         (->Histogram (transfer limits) (transfer result) (transfer bin-ranks)))))))
+
+(deftype GTXAcorEngine [ctx modl hstream ^long WGS]
+  Releaseable
+  (release [_]
+    (release modl))
+  AcorEngine
   (acor [_ data-matrix]
     (in-context
      ctx
@@ -194,44 +233,11 @@
          (throw (IllegalArgumentException.
                  (format (str "The autocorrelation time is too long relative to the variance. "
                               "Number of steps (%d) must not be less than %d.")
-                         n (* lag min-fac))))))))
-  EstimateEngine
-  (histogram [this data-matrix]
-    (in-context
-     ctx
-     (let [m (mrows data-matrix)
-           n (ncols data-matrix)
-           wgsn (min n WGS)
-           wgsm (/ WGS wgsn)
-           acc-size (* 2 (max 1 (* m (blocks-count wgsn n))))
-           cuaccessor (data-accessor data-matrix)]
-       (with-release [cu-min-max (create-data-source data-matrix acc-size)
-                      uint-res (mem-alloc (* Integer/BYTES WGS m))
-                      limits (ge data-matrix 2 m)
-                      result (ge data-matrix WGS m)
-                      bin-ranks (ge data-matrix WGS m)
-                      min-max-reduction-kernel (function modl "min_max_reduction")
-                      min-max-kernel (function modl "min_max_reduce")
-                      histogram-kernel (function modl "histogram")
-                      uint-to-real-kernel (function modl "uint_to_real")
-                      local-sort-kernel (function modl "bitonic_local")]
-         (launch-reduce! hstream min-max-kernel min-max-reduction-kernel
-                         [cu-min-max (buffer data-matrix)] [cu-min-max]
-                         m n wgsm wgsn)
-         (memcpy! cu-min-max (buffer limits) hstream)
-         (memset! uint-res 0 hstream)
-         (launch! histogram-kernel (grid-2d m n 1 WGS) hstream
-                  (cuda/parameters (int m) (int n) (buffer limits) (buffer data-matrix) uint-res))
-         (launch! uint-to-real-kernel (grid-2d WGS m WGS 1) hstream
-                  (cuda/parameters WGS m (cast-prim cuaccessor (/ WGS n)) (buffer limits)
-                                   uint-res (buffer result)))
-         (launch! local-sort-kernel (grid-1d (* m WGS) WGS) hstream
-                  (cuda/parameters (* m WGS) (buffer result) (buffer bin-ranks)))
-         (->Histogram (transfer limits) (transfer result) (transfer bin-ranks)))))))
+                         n (* lag min-fac)))))))))
 
 ;; ======================== MCMC engine ========================================
 
-(deftype GTXStretch [ctx hstream neanderthal-factory cuaccessor dataset-eng
+(deftype GTXStretch [ctx hstream neanderthal-factory cuaccessor acor-eng
                      ^long walker-count wsize cu-model ^long DIM ^long WGS
                      ^ints move-counter ^ints move-bare-counter iteration-counter
                      ^ints move-seed
@@ -426,7 +432,7 @@
                          sum-accept-params sum-accept-reduction-params means-count WGS)
          {:acceptance-rate (/ (double (read-long hstream cu-accept-acc)) (* walker-count n))
           :a a
-          :autocorrelation (acor dataset-eng means)}))))
+          :autocorrelation (acor acor-eng means)}))))
   (acc-rate! [this a]
     (in-context
      ctx
@@ -502,7 +508,7 @@
      ctx
      (sqrt! (variance this)))))
 
-(deftype GTXStretchFactory [ctx modl hstream neanderthal-factory dataset-eng model ^long DIM ^long WGS]
+(deftype GTXStretchFactory [ctx modl hstream neanderthal-factory acor-eng model ^long DIM ^long WGS]
   Releaseable
   (release [_]
     (release modl))
@@ -529,7 +535,7 @@
                          cu-accept-acc (mem-alloc (* Long/BYTES accept-acc-count))
                          cu-acc (create-data-source cuaccessor acc-count)]
              (->GTXStretch
-              ctx hstream neanderthal-factory cuaccessor dataset-eng walker-count
+              ctx hstream neanderthal-factory cuaccessor acor-eng walker-count
               (grid-1d (/ walker-count 2) WGS) model DIM WGS
               (int-array 1) (int-array 1) (volatile! 0) (int-array 1)
               cu-params cu-xs cu-s0 cu-s1 cu-logfn-xs cu-logfn-s0 cu-logfn-s1
@@ -568,6 +574,10 @@
 ;; ======================== Constructor functions ==============================
 
 (defn ^:private dataset-options [wgs]
+  ["-DREAL=float" "-DREAL2=float2" "-DACCUMULATOR=float" "-default-device" "-use_fast_math"
+   (format "-DWGS=%d" wgs)])
+
+(defn ^:private acor-options [wgs]
   ["-DREAL=float" "-DREAL2=float2" "-DACCUMULATOR=float" "-arch=compute_35" "-default-device"
    "--relocatable-device-code=true" "-use_fast_math" (format "-DWGS=%d" wgs)])
 
@@ -613,16 +623,28 @@
     ([ctx hstream ^long WGS]
      (in-context
       ctx
+      (with-release [prog (compile! (program (format "%s\n%s" reduction-src estimate-src)
+                                             standard-headers)
+                                    (dataset-options WGS))]
+        (let-release [modl (module prog)]
+          (->GTXDatasetEngine ctx modl hstream WGS)))))
+    ([ctx hstream]
+     (gtx-dataset-engine ctx hstream 1024)))
+
+  (defn gtx-acor-engine
+    ([ctx hstream ^long WGS]
+     (in-context
+      ctx
       (with-release [prog (compile! (program (format "%s\n%s\n%s" reduction-src estimate-src acor-src)
                                              standard-headers)
-                                    (dataset-options WGS))
+                                    (acor-options WGS))
                      linked-prog (link [[:library (io/file (or (System/getProperty "uncomplicate.cudadevrt")
                                                                "/usr/local/cuda/lib64/libcudadevrt.a"))]
                                         [:ptx prog]])]
         (let-release [modl (module linked-prog)]
-          (->GTXDatasetEngine ctx modl hstream WGS)))))
+          (->GTXAcorEngine ctx modl hstream WGS)))))
     ([ctx hstream]
-     (gtx-dataset-engine ctx hstream 1024)))
+     (gtx-acor-engine ctx hstream 1024)))
 
   (defn gtx-distribution-engine
     ([ctx hstream model WGS cudart-version]
@@ -691,13 +713,14 @@
     (when (realized? ds) (release ds))))
 
 (defrecord GTXBayaderaFactory [ctx hstream ^long compute-units ^long WGS cudart-version
-                               dataset-eng neanderthal-factory distribution-engines
+                               neanderthal-factory dataset-eng acor-eng distribution-engines
                                direct-samplers mcmc-factories]
   Releaseable
   (release [_]
     (in-context
      ctx
      (release dataset-eng)
+     (release acor-eng)
      (release neanderthal-factory)
      (release-deref (vals distribution-engines))
      (release-deref (vals direct-samplers))
@@ -719,7 +742,7 @@
   (mcmc-factory [_ model]
     (if-let [factory (mcmc-factories model)]
       @factory
-      (gtx-stretch-factory ctx hstream neanderthal-factory dataset-eng model WGS cudart-version)))
+      (gtx-stretch-factory ctx hstream neanderthal-factory acor-eng model WGS cudart-version)))
   (processing-elements [_]
     (* compute-units WGS))
   DatasetFactory
@@ -737,9 +760,10 @@
     ctx
     (let [cudart-version (driver-version)]
       (let-release [neanderthal-factory (cuda-float ctx hstream)
-                    dataset-eng (gtx-dataset-engine ctx hstream WGS)]
+                    dataset-eng (gtx-dataset-engine ctx hstream WGS)
+                    acor-eng (gtx-acor-engine ctx hstream WGS)]
         (->GTXBayaderaFactory
-         ctx hstream compute-units WGS cudart-version dataset-eng neanderthal-factory
+         ctx hstream compute-units WGS cudart-version neanderthal-factory dataset-eng acor-eng
          (fmap #(delay (gtx-distribution-engine ctx hstream % WGS cudart-version)) distributions)
          (fmap #(delay (gtx-direct-sampler ctx hstream % WGS cudart-version))
                (select-keys distributions (keys samplers)))

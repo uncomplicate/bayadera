@@ -61,8 +61,7 @@
 
 (defprotocol DatasetEngine
   (data-mean [engine data-matrix])
-  (data-variance [engine data-matrix])
-  (acor [this data-matrix]))
+  (data-variance [engine data-matrix]))
 
 (defprotocol DistributionEngine
   (log-pdf [_ params x])
@@ -72,6 +71,9 @@
 (defprotocol EstimateEngine
   (histogram! [engine n])
   (histogram [engine] [engine x]))
+
+(defprotocol AcorEngine
+  (acor [this data-matrix]))
 
 ;; ==================== Samplers ====================
 

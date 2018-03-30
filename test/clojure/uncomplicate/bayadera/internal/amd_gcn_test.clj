@@ -299,28 +299,30 @@
         walker-count (* 2 44 wgs)
         seed 123
         a 8.0]
-    (with-philox tmp-dir-name
-      (with-release [bayadera-factory (ocl/gcn-bayadera-factory *context* *command-queue* 44 wgs)
-                     data-matrix-67
-                     (ge bayadera-factory 1 67
-                         (map (comp float read-string)
-                              (split-lines (slurp (io/resource "uncomplicate/bayadera/internal/acor-data-67")))))
-                     data-matrix-367
-                     (ge bayadera-factory 1 367
-                         (map (comp float read-string)
-                              (split-lines (slurp (io/resource "uncomplicate/bayadera/internal/acor-data-367")))))
-                     data-matrix-112640
-                     (ge bayadera-factory 1 112640
-                         (map (comp float read-string)
-                              (split-lines (slurp (io/resource "uncomplicate/bayadera/internal/acor-data-112640")))))]
-        (let [engine (dataset-engine bayadera-factory)]
-          (facts
-           "Test MCMC acor."
-           (first (:tau (acor engine data-matrix-67))) => 10.66264820098877
-           (first (:tau (acor engine data-matrix-367))) => 17.302560806274414
-           (let [autocorrelation (acor engine data-matrix-112640)]
-             (first (:tau autocorrelation)) => 20.410619735717773
-             (first (:sigma autocorrelation)) => 0.008917074650526047)))))))
+    (with-release [dev-queue (command-queue *context* (queue-device *command-queue*)
+                                            :queue-on-device-default :queue-on-device
+                                            :out-of-order-exec-mode)
+                   neanderthal-factory (opencl-float *context* *command-queue* )
+                   engine (gcn-acor-engine *context* *command-queue* wgs)
+                   data-matrix-67
+                   (ge neanderthal-factory 1 67
+                       (map (comp float read-string)
+                            (split-lines (slurp (io/resource "uncomplicate/bayadera/internal/acor-data-67")))))
+                   data-matrix-367
+                   (ge neanderthal-factory 1 367
+                       (map (comp float read-string)
+                            (split-lines (slurp (io/resource "uncomplicate/bayadera/internal/acor-data-367")))))
+                   data-matrix-112640
+                   (ge neanderthal-factory 1 112640
+                       (map (comp float read-string)
+                            (split-lines (slurp (io/resource "uncomplicate/bayadera/internal/acor-data-112640")))))]
+      (facts
+       "Test MCMC acor."
+       (first (:tau (acor engine data-matrix-67))) => 10.66264820098877
+       (first (:tau (acor engine data-matrix-367))) => 17.302560806274414
+       (let [autocorrelation (acor engine data-matrix-112640)]
+         (first (:tau autocorrelation)) => 20.410619735717773
+         (first (:sigma autocorrelation)) => 0.008917074650526047)))))
 
 (with-default
   (with-release [factory (ocl/gcn-bayadera-factory *context* *command-queue*)]

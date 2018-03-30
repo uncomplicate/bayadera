@@ -297,20 +297,21 @@
         walker-count (* 2 44 wgs)
         seed 123
         a 8.0]
-    (with-release [bayadera-factory (cuda/gtx-bayadera-factory (current-context) default-stream 20 wgs)
+    (with-release [neanderthal-factory (cuda-float (current-context) default-stream)
+                   engine (gtx-acor-engine (current-context) default-stream wgs)
                    data-matrix-67
-                   (ge bayadera-factory 1 67
+                   (ge neanderthal-factory 1 67
                        (map (comp float read-string)
                             (split-lines (slurp (io/resource "uncomplicate/bayadera/internal/acor-data-67")))))
                    data-matrix-367
-                   (ge bayadera-factory 1 367
+                   (ge neanderthal-factory 1 367
                        (map (comp float read-string)
                             (split-lines (slurp (io/resource "uncomplicate/bayadera/internal/acor-data-367")))))
                    data-matrix-112640
-                   (ge bayadera-factory 1 112640
+                   (ge neanderthal-factory 1 112640
                        (map (comp float read-string)
                             (split-lines (slurp (io/resource "uncomplicate/bayadera/internal/acor-data-112640")))))]
-      (let [engine (dataset-engine bayadera-factory)]
+      (let []
        (facts
          "Test MCMC acor."
          (first (:tau (acor engine data-matrix-67))) => 11.826833724975586
