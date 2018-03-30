@@ -2,7 +2,7 @@ extern "C" {
 
 #include <stdint.h>
 
-// ======================== Autocovariance =====================================
+// ======================== Acor =====================================
 
     __global__ void sum_pairwise(const uint32_t n,
                                  const uint32_t stride,
@@ -16,7 +16,7 @@ extern "C" {
             
     };
 
-    __global__ void autocovariance_1d (const uint32_t n,
+    __global__ void acor_1d (const uint32_t n,
                                        const uint32_t stride,
                                        const uint32_t dim_id,
                                        const uint32_t lag,
@@ -81,7 +81,7 @@ extern "C" {
 
     }
     
-    __global__ void autocovariance_2d (const uint32_t n,
+    __global__ void acor_2d (const uint32_t n,
                                        const uint32_t dim,
                                        const uint32_t lag,
                                        REAL* c0acc,
@@ -89,10 +89,10 @@ extern "C" {
                                        REAL* means) {
 
         const uint32_t dim_id = blockIdx.y * blockDim.y + threadIdx.y;
-        autocovariance_1d(n, dim, dim_id, lag, c0acc, dacc, means);
+        acor_1d(n, dim, dim_id, lag, c0acc, dacc, means);
     }
 
-    __global__ void autocovariance (const uint32_t n,
+    __global__ void acor (const uint32_t n,
                                     const uint32_t dim,
                                     const uint32_t lag,
                                     const uint32_t min_lag,
@@ -108,7 +108,7 @@ extern "C" {
             const uint32_t grid_dim = (n - 1) / block_dim + 1;
             dim3 blocks(block_dim, 1, 1); 
             dim3 grids(grid_dim, dim, 1);
-            autocovariance_2d<<<grids, blocks>>>(n, dim, lag, c0acc, dacc, means);
+            acor_2d<<<grids, blocks>>>(n, dim, lag, c0acc, dacc, means);
             cudaDeviceSynchronize();
         }
         __syncthreads();
@@ -131,7 +131,7 @@ extern "C" {
                 dacc[dim_id] = 0.0;
                 sum_pairwise<<<grid_dim, block_dim, 0, hstream>>>(n2, stride * dim, dim_id, means);
                 stride *= 2;
-                autocovariance_1d<<<grid_dim, block_dim, 0, hstream>>>
+                acor_1d<<<grid_dim, block_dim, 0, hstream>>>
                     (n2, stride * dim, dim_id, lag2, c0acc, dacc, means);
                 cudaDeviceSynchronize();
                 tau = dacc[dim_id] / c0;

@@ -171,7 +171,7 @@
                           sum-reduction-kernel (function modl "sum_reduction_horizontal")
                           sum-reduce-kernel (function modl "sum_reduce_horizontal")
                           subtract-mean-kernel (function modl "subtract_mean")
-                          autocovariance-kernel (function modl "autocovariance")
+                          acor-kernel (function modl "acor")
                           sum-reduce-params (make-parameters 4)
                           sum-reduction-params (make-parameters 3)]
              (set-parameter! sum-reduction-params 2 cu-acc)
@@ -185,7 +185,7 @@
              (transfer! cu-vec mean)
              (memset! cu-acc 0 hstream)
              (entry! cu-vec 0.0)
-             (launch! autocovariance-kernel (grid-1d (min dim WGS) WGS) hstream
+             (launch! acor-kernel (grid-1d (min dim WGS) WGS) hstream
                       (cuda/parameters n dim lag min-lag win-mult cu-acc
                                        (buffer cu-vec) (buffer data-matrix)))
              (memcpy-host! cu-acc (buffer tau) hstream)
