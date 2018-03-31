@@ -1,3 +1,20 @@
+__kernel void sum_reduce_horizontal (__global REAL* acc, __global REAL* data) {
+    const uint i = get_global_size(0) * get_global_id(1) + get_global_id(0);
+    const uint iacc = get_global_size(0) * get_group_id(1) + get_global_id(0);
+    const REAL sum = work_group_reduction_sum_2(data[i]);
+    if (get_local_id(1) == 0) {
+        acc[iacc] = sum;
+    }
+}
+
+__kernel void subtract_mean (__global REAL* means, __global const REAL* mean) {
+    const uint dim_id = get_global_id(0);
+    const uint dim_size = get_global_size(0);
+    const uint n_id = get_global_id(1);
+
+    means[dim_size * n_id + dim_id] -= mean[dim_id];
+}
+
 // ======================== Acor =====================================
 
 __kernel void sum_pairwise (const uint stride, const uint offset, __global REAL* x){

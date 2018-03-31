@@ -182,14 +182,5 @@ extern "C" {
         }
     }
 
-    __global__ void subtract_mean (const uint32_t dim_size, const uint32_t n, REAL* means, const REAL* mean) {
-        const uint32_t dim_id = blockIdx.x * blockDim.x + threadIdx.x;
-        const uint32_t n_id = blockIdx.y * blockDim.y + threadIdx.y;
-        const bool valid = (dim_id < dim_size) && (n_id < n);
-        if (valid) {
-            means[dim_size * n_id + dim_id] -= mean[dim_id];
-        }
-    }
-
 }
 

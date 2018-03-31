@@ -2,6 +2,27 @@ extern "C" {
 
 #include <stdint.h>
 
+    __global__ void sum_reduce_horizontal (const uint32_t m, const uint32_t n, REAL* acc, const REAL* data) {
+        const uint32_t gid_0 = blockIdx.x * blockDim.x + threadIdx.x;
+        const uint32_t gid_1 = blockIdx.y * blockDim.y + threadIdx.y;
+        const uint32_t i = m * gid_1 + gid_0;
+        const bool valid = (gid_0 < m) && (gid_1 < n);
+        const REAL sum = block_reduction_sum_2( (valid) ? data[i] : 0.0f);
+        const bool write = valid && (threadIdx.y == 0);
+        if (write) {
+            acc[m * blockIdx.y + gid_0] = sum;
+        }
+    }
+
+    __global__ void subtract_mean (const uint32_t dim_size, const uint32_t n, REAL* means, const REAL* mean) {
+        const uint32_t dim_id = blockIdx.x * blockDim.x + threadIdx.x;
+        const uint32_t n_id = blockIdx.y * blockDim.y + threadIdx.y;
+        const bool valid = (dim_id < dim_size) && (n_id < n);
+        if (valid) {
+            means[dim_size * n_id + dim_id] -= mean[dim_id];
+        }
+    }
+    
 // ======================== Acor =====================================
 
     __global__ void sum_pairwise(const uint32_t n,

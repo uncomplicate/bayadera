@@ -638,7 +638,7 @@
     ([ctx hstream ^long WGS]
      (in-context
       ctx
-      (with-release [prog (compile! (program (format "%s\n%s\n%s" reduction-src estimate-src acor-src)
+      (with-release [prog (compile! (program (format "%s\n%s" reduction-src acor-src)
                                              standard-headers)
                                     (acor-options WGS))
                      linked-prog (link [[:library (io/file (or (System/getProperty "uncomplicate.cudadevrt")

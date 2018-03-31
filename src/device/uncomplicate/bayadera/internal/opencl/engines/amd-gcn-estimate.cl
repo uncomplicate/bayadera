@@ -146,11 +146,3 @@ __kernel void variance_reduce(__global ACCUMULATOR* acc,
         acc[iacc] = sum;
     }
 }
-
-__kernel void subtract_mean (__global REAL* means, __global const REAL* mean) {
-    const uint dim_id = get_global_id(0);
-    const uint dim_size = get_global_size(0);
-    const uint n_id = get_global_id(1);
-
-    means[dim_size * n_id + dim_id] -= mean[dim_id];
-}

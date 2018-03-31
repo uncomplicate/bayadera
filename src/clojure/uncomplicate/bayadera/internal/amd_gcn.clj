@@ -544,7 +544,7 @@
 
   (defn gcn-acor-engine
     ([ctx cqueue ^long WGS]
-     (let-release [prog (build-program! (program-with-source ctx [reduction-src estimate-src acor-src]);;TODO estimate-src?
+     (let-release [prog (build-program! (program-with-source ctx [reduction-src acor-src])
                                         (format dataset-options WGS) nil)]
        (->GCNAcorEngine ctx cqueue prog WGS)))
     ([ctx queue]
