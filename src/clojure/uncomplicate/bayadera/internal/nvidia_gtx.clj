@@ -106,12 +106,19 @@
 ;; ============================ Dataset engine =================================
 
 (deftype GTXDatasetEngine [ctx modl hstream ^long WGS
-                           sum-reduction-kernel mean-kernel variance-kernel]
+                           sum-reduction-kernel mean-kernel variance-kernel
+                           min-max-reduction-kernel min-max-kernel histogram-kernel
+                           uint-to-real-kernel local-sort-kernel]
   Releaseable
   (release [_]
     (release sum-reduction-kernel)
     (release mean-kernel)
     (release variance-kernel)
+    (release min-max-reduction-kernel)
+    (release min-max-kernel)
+    (release histogram-kernel)
+    (release uint-to-real-kernel)
+    (release local-sort-kernel)
     (release modl))
   DatasetEngine
   (data-mean [this data-matrix]
@@ -161,12 +168,7 @@
                       uint-res (mem-alloc (* Integer/BYTES WGS m))
                       limits (ge data-matrix 2 m)
                       result (ge data-matrix WGS m)
-                      bin-ranks (ge data-matrix WGS m)
-                      min-max-reduction-kernel (function modl "min_max_reduction")
-                      min-max-kernel (function modl "min_max_reduce")
-                      histogram-kernel (function modl "histogram")
-                      uint-to-real-kernel (function modl "uint_to_real")
-                      local-sort-kernel (function modl "bitonic_local")]
+                      bin-ranks (ge data-matrix WGS m)]
          (launch-reduce! hstream min-max-kernel min-max-reduction-kernel
                          [cu-min-max (buffer data-matrix)] [cu-min-max]
                          m n wgsm wgsn)
@@ -625,8 +627,16 @@
         (let-release [modl (module prog)
                       sum-reduction-kernel (function modl "sum_reduction_horizontal")
                       mean-kernel (function modl "mean_reduce")
-                      variance-kernel (function modl "variance_reduce")]
-          (->GTXDatasetEngine ctx modl hstream WGS sum-reduction-kernel mean-kernel variance-kernel)))))
+                      variance-kernel (function modl "variance_reduce")
+                      min-max-reduction-kernel (function modl "min_max_reduction")
+                      min-max-kernel (function modl "min_max_reduce")
+                      histogram-kernel (function modl "histogram")
+                      uint-to-real-kernel (function modl "uint_to_real")
+                      local-sort-kernel (function modl "bitonic_local")]
+          (->GTXDatasetEngine ctx modl hstream WGS
+                              sum-reduction-kernel mean-kernel variance-kernel
+                              min-max-reduction-kernel min-max-kernel histogram-kernel
+                              uint-to-real-kernel local-sort-kernel)))))
     ([ctx hstream]
      (gtx-dataset-engine ctx hstream 1024)))
 
