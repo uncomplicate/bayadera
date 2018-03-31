@@ -122,7 +122,7 @@
           wgsn (min n WGS)
           wgsm (/ WGS wgsn)
           acc-size (max 1 (* m (count-work-groups wgsn n)))]
-      (with-release [cl-res-vec (vctr data-matrix m)
+      (with-release [res (vctr data-matrix m)
                      cl-acc (create-data-source data-matrix acc-size)
                      sum-reduction-kernel (kernel prog "sum_reduction_horizontal")
                      mean-kernel (kernel prog "mean_reduce")
@@ -130,12 +130,12 @@
         (set-arg! sum-reduction-kernel 0 cl-acc)
         (set-args! mean-kernel cl-acc (buffer data-matrix))
         (enq-reduce! cqueue mean-kernel sum-reduction-kernel m n wgsm wgsn)
-        (enq-copy! cqueue cl-acc (buffer cl-res-vec))
-        (scal! (/ 1.0 n) cl-res-vec)
-        (set-args! variance-kernel 0 cl-acc (buffer data-matrix) (buffer cl-res-vec))
+        (enq-copy! cqueue cl-acc (buffer res))
+        (scal! (/ 1.0 n) res)
+        (set-args! variance-kernel 0 cl-acc (buffer data-matrix) (buffer res))
         (enq-reduce! cqueue variance-kernel sum-reduction-kernel m n wgsm wgsn)
-        (enq-copy! cqueue cl-acc (buffer cl-res-vec))
-        (scal! (/ 1.0 n) (transfer cl-res-vec)))))
+        (enq-copy! cqueue cl-acc (buffer res))
+        (scal! (/ 1.0 n) (transfer res)))))
   EstimateEngine
   (histogram [this data-matrix]
     (let [m (mrows data-matrix)

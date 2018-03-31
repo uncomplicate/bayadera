@@ -48,19 +48,19 @@
 
 ;; ============================ Direct sampler =================================
 
-(deftype GTXDirectSampler [ctx modl hstream ^long DIM ^long WGS]
+(deftype GTXDirectSampler [ctx modl hstream ^long DIM ^long WGS sample-kernel]
   Releaseable
   (release [_]
+    (release sample-kernel)
     (release modl))
   RandomSampler
   (sample [this seed cu-params n]
     (in-context
      ctx
      (let-release [res (ge cu-params DIM n)]
-       (with-release [sample-kernel (function modl "sample")]
-         (launch! sample-kernel (grid-1d n WGS) hstream
-                  (cuda/parameters (int n) (buffer cu-params) seed (buffer res)))
-         res)))))
+       (launch! sample-kernel (grid-1d n WGS) hstream
+                (cuda/parameters (int n) (buffer cu-params) seed (buffer res)))
+       res))))
 
 ;; ============================ Distribution engine ============================
 
@@ -105,9 +105,13 @@
 
 ;; ============================ Dataset engine =================================
 
-(deftype GTXDatasetEngine [ctx modl hstream ^long WGS]
+(deftype GTXDatasetEngine [ctx modl hstream ^long WGS
+                           sum-reduction-kernel mean-kernel variance-kernel]
   Releaseable
   (release [_]
+    (release sum-reduction-kernel)
+    (release mean-kernel)
+    (release variance-kernel)
     (release modl))
   DatasetEngine
   (data-mean [this data-matrix]
@@ -118,9 +122,7 @@
            wgsn (min n WGS)
            wgsm (/ WGS wgsn)
            acc-size (max 1 (* m (blocks-count wgsn n)))]
-       (with-release [acc (vctr data-matrix acc-size)
-                      sum-reduction-kernel (function modl "sum_reduction_horizontal")
-                      mean-kernel (function modl "mean_reduce")]
+       (with-release [acc (vctr data-matrix acc-size)]
          (launch-reduce! hstream mean-kernel sum-reduction-kernel
                          [(buffer acc) (buffer data-matrix)] [(buffer acc)]
                          m n wgsm wgsn)
@@ -134,10 +136,7 @@
            wgsm (/ WGS wgsn)
            acc-size (max 1 (* m (blocks-count wgsn n)))]
        (with-release [res (vctr data-matrix m)
-                      cu-acc (create-data-source data-matrix acc-size)
-                      sum-reduction-kernel (function modl "sum_reduction_horizontal")
-                      mean-kernel (function modl "mean_reduce")
-                      variance-kernel (function modl "variance_reduce")]
+                      cu-acc (create-data-source data-matrix acc-size)]
          (launch-reduce! hstream mean-kernel sum-reduction-kernel
                          [cu-acc (buffer data-matrix)] [cu-acc]
                          m n wgsm wgsn)
@@ -182,9 +181,14 @@
                   (cuda/parameters (* m WGS) (buffer result) (buffer bin-ranks)))
          (->Histogram (transfer limits) (transfer result) (transfer bin-ranks)))))))
 
-(deftype GTXAcorEngine [ctx modl hstream ^long WGS]
+(deftype GTXAcorEngine [ctx modl hstream ^long WGS
+                        sum-reduction-kernel sum-reduce-kernel subtract-mean-kernel acor-kernel]
   Releaseable
   (release [_]
+    (release sum-reduction-kernel)
+    (release sum-reduce-kernel)
+    (release subtract-mean-kernel)
+    (release acor-kernel)
     (release modl))
   AcorEngine
   (acor [_ data-matrix]
@@ -206,17 +210,9 @@
                        sigma (vctr native-fact dim)
                        mean (vctr native-fact dim)]
            (with-release [cu-acc (create-data-source data-matrix (* dim wg-count))
-                          cu-vec (vctr data-matrix dim)
-                          sum-reduction-kernel (function modl "sum_reduction_horizontal")
-                          sum-reduce-kernel (function modl "sum_reduce_horizontal")
-                          subtract-mean-kernel (function modl "subtract_mean")
-                          acor-kernel (function modl "acor")
-                          sum-reduce-params (make-parameters 4)
-                          sum-reduction-params (make-parameters 3)]
-             (set-parameter! sum-reduction-params 2 cu-acc)
-             (set-parameters! sum-reduce-params 2 cu-acc (buffer data-matrix))
+                          cu-vec (vctr data-matrix dim)]
              (launch-reduce! hstream sum-reduce-kernel sum-reduction-kernel
-                             sum-reduce-params sum-reduction-params dim n wgsm wgsn)
+                             [cu-acc (buffer data-matrix)] [cu-acc] dim n wgsm wgsn)
              (memcpy! cu-acc (buffer cu-vec) hstream)
              (scal! (/ 1.0 n) cu-vec)
              (launch! subtract-mean-kernel (grid-2d dim n wgsm wgsn) hstream
@@ -626,8 +622,11 @@
       (with-release [prog (compile! (program (format "%s\n%s" reduction-src estimate-src)
                                              standard-headers)
                                     (dataset-options WGS))]
-        (let-release [modl (module prog)]
-          (->GTXDatasetEngine ctx modl hstream WGS)))))
+        (let-release [modl (module prog)
+                      sum-reduction-kernel (function modl "sum_reduction_horizontal")
+                      mean-kernel (function modl "mean_reduce")
+                      variance-kernel (function modl "variance_reduce")]
+          (->GTXDatasetEngine ctx modl hstream WGS sum-reduction-kernel mean-kernel variance-kernel)))))
     ([ctx hstream]
      (gtx-dataset-engine ctx hstream 1024)))
 
@@ -641,8 +640,13 @@
                      linked-prog (link [[:library (io/file (or (System/getProperty "uncomplicate.cudadevrt")
                                                                "/usr/local/cuda/lib64/libcudadevrt.a"))]
                                         [:ptx prog]])]
-        (let-release [modl (module linked-prog)]
-          (->GTXAcorEngine ctx modl hstream WGS)))))
+        (let-release [modl (module linked-prog)
+                      sum-reduction-kernel (function modl "sum_reduction_horizontal")
+                      sum-reduce-kernel (function modl "sum_reduce_horizontal")
+                      subtract-mean-kernel (function modl "subtract_mean")
+                      acor-kernel (function modl "acor")]
+          (->GTXAcorEngine ctx modl hstream WGS
+                           sum-reduction-kernel sum-reduce-kernel subtract-mean-kernel acor-kernel)))))
     ([ctx hstream]
      (gtx-acor-engine ctx hstream 1024)))
 
@@ -689,8 +693,9 @@
                                                      (apply str (sampler-source model)))
                                              philox-headers)
                                     (direct-sampler-options WGS cudart-version))]
-        (let-release [modl (module prog)]
-          (->GTXDirectSampler ctx modl hstream (dimension model) WGS))))))
+        (let-release [modl (module prog)
+                      sample-kernel (function modl "sample")]
+          (->GTXDirectSampler ctx modl hstream (dimension model) WGS sample-kernel))))))
 
   (defn gtx-stretch-factory [ctx hstream neanderthal-factory dataset-eng model WGS cudart-version]
     (in-context
