@@ -164,7 +164,7 @@
            wgsm (/ WGS wgsn)
            acc-size (* 2 (max 1 (* m (blocks-count wgsn n))))
            cuaccessor (data-accessor data-matrix)]
-       (with-release [cu-min-max (create-data-source data-matrix acc-size)
+       (with-release [cu-min-max (create-data-source cuaccessor acc-size)
                       uint-res (mem-alloc (* Integer/BYTES WGS m))
                       limits (ge data-matrix 2 m)
                       result (ge data-matrix WGS m)
@@ -242,10 +242,8 @@
                      cu-params cu-xs cu-s0 cu-s1
                      cu-logfn-xs cu-logfn-s0 cu-logfn-s1
                      cu-accept cu-accept-acc cu-acc
-                     stretch-move-odd-kernel stretch-move-odd-params
-                     stretch-move-even-kernel stretch-move-even-params
-                     stretch-move-odd-bare-kernel stretch-move-odd-bare-params
-                     stretch-move-even-bare-kernel stretch-move-even-bare-params
+                     stretch-move-kernel stretch-move-odd-params stretch-move-even-params
+                     stretch-move-bare-kernel stretch-move-odd-bare-params stretch-move-even-bare-params
                      init-walkers-kernel init-walkers-params
                      logfn-kernel logfn-params
                      sum-accept-reduction-kernel sum-accept-reduction-params
@@ -270,10 +268,8 @@
     (release cu-accept)
     (release cu-accept-acc)
     (release cu-acc)
-    (release stretch-move-odd-kernel)
-    (release stretch-move-even-kernel)
-    (release stretch-move-odd-bare-kernel)
-    (release stretch-move-even-bare-kernel)
+    (release stretch-move-kernel)
+    (release stretch-move-bare-kernel)
     (release init-walkers-kernel)
     (release logfn-kernel)
     (release sum-accept-reduction-kernel)
@@ -306,16 +302,16 @@
     this)
   (move! [this]
     (set-parameter! stretch-move-odd-params 10 (aget move-counter 0))
-    (launch! stretch-move-odd-kernel wsize hstream stretch-move-odd-params)
+    (launch! stretch-move-kernel wsize hstream stretch-move-odd-params)
     (set-parameter! stretch-move-even-params 10 (aget move-counter 0))
-    (launch! stretch-move-even-kernel wsize hstream stretch-move-even-params)
+    (launch! stretch-move-kernel wsize hstream stretch-move-even-params)
     (inc! move-counter)
     this)
   (move-bare! [this]
     (set-parameter! stretch-move-odd-bare-params 9 (aget move-bare-counter 0))
-    (launch! stretch-move-odd-bare-kernel wsize hstream stretch-move-odd-bare-params)
+    (launch! stretch-move-bare-kernel wsize hstream stretch-move-odd-bare-params)
     (set-parameter! stretch-move-even-bare-params 9 (aget move-bare-counter 0))
-    (launch! stretch-move-even-bare-kernel wsize hstream stretch-move-even-bare-params)
+    (launch! stretch-move-bare-kernel wsize hstream stretch-move-even-bare-params)
     (inc! move-bare-counter)
     this)
   (set-temperature! [this t]
@@ -440,7 +436,7 @@
          (init-move! this cu-means-acc a)
          (move! this)
          (vswap! iteration-counter inc-long)
-         (launch-reduce! hstream sum-accept-kernel sum-accept-reduction-kernel ;;TODO
+         (launch-reduce! hstream sum-accept-kernel sum-accept-reduction-kernel
                          sum-accept-params sum-accept-reduction-params
                          (blocks-count WGS (/ walker-count 2)) WGS)
          (/ (double (read-long hstream cu-accept-acc)) walker-count)))))
@@ -540,11 +536,9 @@
               cu-accept cu-accept-acc cu-acc
               (function modl "stretch_move_accu")
               (cuda/parameters half-walker-count 1 (int 1111) cu-params cu-s1 cu-s0 cu-logfn-s0 cu-accept 8 9 10)
-              (function modl "stretch_move_accu") ;;TODO unnecessary. remove. kernels are stateless in CUDA.
               (cuda/parameters half-walker-count 1 (int 2222) cu-params cu-s0 cu-s1 cu-logfn-s1 cu-accept 8 9 10)
               (function modl "stretch_move_bare")
               (cuda/parameters half-walker-count 1 (int 3333) cu-params cu-s1 cu-s0 cu-logfn-s0 7 8 9)
-              (function modl "stretch_move_bare")
               (cuda/parameters half-walker-count 1 (int 4444) cu-params cu-s0 cu-s1 cu-logfn-s1 7 8 9)
               (function modl "init_walkers")
               (cuda/parameters (int (/ (* DIM walker-count) 4)) 1 2 cu-xs)

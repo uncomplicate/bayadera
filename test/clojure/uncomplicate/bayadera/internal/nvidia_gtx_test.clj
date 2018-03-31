@@ -160,8 +160,8 @@
                                                        neanderthal-factory nil uniform-model
                                                        wgs cudart-version)
                                                       walker-count params)]
-           (let [stretch-move-bare-kernel (.stretch-move-odd-bare-kernel ^GTXStretch uniform-sampler)
-                 stretch-move-kernel (.stretch-move-odd-kernel ^GTXStretch uniform-sampler)
+           (let [stretch-move-bare-kernel (.stretch-move-bare-kernel ^GTXStretch uniform-sampler)
+                 stretch-move-kernel (.stretch-move-kernel ^GTXStretch uniform-sampler)
                  sum-means-kernel (.sum-means-kernel ^GTXStretch uniform-sampler)
                  cu-params (.cu-params ^GTXStretch uniform-sampler)
                  cu-xs (.cu-xs ^GTXStretch uniform-sampler)
