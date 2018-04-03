@@ -21,7 +21,7 @@
                  [uncomplicate/clojurecuda "0.4.0-SNAPSHOT"]
                  [uncomplicate/neanderthal "0.19.0-SNAPSHOT"]
                  [org.apache.commons/commons-math3 "3.6.1"]
-                 [quil "2.6.0"]]
+                 [quil "2.7.1"]]
 
   :codox {:src-dir-uri "http://github.com/uncomplicate/bayadera/blob/master"
           :src-linenum-anchor-prefix "L"

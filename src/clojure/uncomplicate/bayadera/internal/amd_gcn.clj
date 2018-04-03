@@ -21,7 +21,8 @@
              [core :refer [vctr ge ncols mrows scal! transfer transfer! raw submatrix dim]]
              [math :refer [sqrt]]
              [vect-math :refer [sqrt! div div!]]
-             [block :refer [buffer create-data-source wrap-prim initialize entry-width data-accessor]]
+             [block :refer [buffer create-data-source wrap-prim initialize entry-width data-accessor
+                            offset stride]]
              [opencl :refer [opencl-float]]]
             [uncomplicate.bayadera.util :refer [srand-int]]
             [uncomplicate.bayadera.internal
@@ -112,7 +113,8 @@
                        sum-reduction-kernel (kernel prog "sum_reduction_horizontal")
                        mean-kernel (kernel prog "mean_reduce")]
           (set-arg! sum-reduction-kernel 0 cl-acc)
-          (set-args! mean-kernel cl-acc (buffer data-matrix))
+          (set-args! mean-kernel cl-acc
+                     (buffer data-matrix) (wrap-int (offset data-matrix)) (wrap-int (stride data-matrix)))
           (enq-reduce! cqueue mean-kernel sum-reduction-kernel m n wgsm wgsn)
           (enq-read! cqueue cl-acc (buffer res-vec))
           (scal! (/ 1.0 n) res-vec)))))
@@ -128,11 +130,14 @@
                      mean-kernel (kernel prog "mean_reduce")
                      variance-kernel (kernel prog "variance_reduce")]
         (set-arg! sum-reduction-kernel 0 cl-acc)
-        (set-args! mean-kernel cl-acc (buffer data-matrix))
+        (set-args! mean-kernel cl-acc
+                   (buffer data-matrix) (wrap-int (offset data-matrix)) (wrap-int (stride data-matrix)))
         (enq-reduce! cqueue mean-kernel sum-reduction-kernel m n wgsm wgsn)
         (enq-copy! cqueue cl-acc (buffer res))
         (scal! (/ 1.0 n) res)
-        (set-args! variance-kernel 0 cl-acc (buffer data-matrix) (buffer res))
+        (set-args! variance-kernel 0 cl-acc
+                   (buffer data-matrix) (wrap-int (offset data-matrix)) (wrap-int (stride data-matrix))
+                   (buffer res))
         (enq-reduce! cqueue variance-kernel sum-reduction-kernel m n wgsm wgsn)
         (enq-copy! cqueue cl-acc (buffer res))
         (scal! (/ 1.0 n) (transfer res)))))
@@ -459,7 +464,7 @@
       (enq-reduce! cqueue mean-kernel sum-reduction-kernel DIM walker-count 1 WGS)
       (enq-copy! cqueue cl-acc (buffer res-vec))
       (scal! (/ 1.0 walker-count) res-vec)
-      (set-arg! variance-kernel 2 (buffer res-vec))
+      (set-arg! variance-kernel 4 (buffer res-vec))
       (enq-reduce! cqueue variance-kernel sum-reduction-kernel DIM walker-count 1 WGS)
       (enq-copy! cqueue cl-acc (buffer res-vec))
       (scal! (/ 1.0 walker-count) (transfer res-vec))))
@@ -515,8 +520,8 @@
              (kernel prog "histogram")
              (kernel prog "uint_to_real")
              (kernel prog "bitonic_local")
-             (set-args! (kernel prog "mean_reduce") 0 cl-acc cl-xs)
-             (set-args! (kernel prog "variance_reduce") 0 cl-acc cl-xs))))
+             (set-args! (kernel prog "mean_reduce") 0 cl-acc cl-xs (wrap-int 0) (wrap-int DIM))
+             (set-args! (kernel prog "variance_reduce") 0 cl-acc cl-xs (wrap-int 0) (wrap-int DIM)))))
         (throw (IllegalArgumentException.
                 (format "Number of walkers (%d) must be a multiple of %d." walker-count (* 2 WGS))))))))
 

@@ -127,8 +127,9 @@ __kernel void sum_reduce_horizontal (__global REAL* acc, __global REAL* data) {
     }
 }
 
-__kernel void mean_reduce(__global ACCUMULATOR* acc, __global const REAL* x) {
-    const uint i = get_global_size(0) * get_global_id(1) + get_global_id(0);
+__kernel void mean_reduce(__global ACCUMULATOR* acc,
+                          __global const REAL* x, const uint offset_x, const uint ld_x) {
+    const uint i = offset_x + ld_x * get_global_id(1) + get_global_id(0);
     const uint iacc = get_global_size(0) * get_group_id(1) + get_global_id(0);
     const ACCUMULATOR sum = work_group_reduction_sum_2(x[i]);
     if (get_local_id(1) == 0) {
@@ -137,8 +138,9 @@ __kernel void mean_reduce(__global ACCUMULATOR* acc, __global const REAL* x) {
 }
 
 __kernel void variance_reduce(__global ACCUMULATOR* acc,
-                              __global const REAL* x, __global const REAL* mu) {
-    const uint i = get_global_size(0) * get_global_id(1) + get_global_id(0);
+                              __global const REAL* x, const uint offset_x, const uint ld_x,
+                              __global const REAL* mu) {
+    const uint i = offset_x + ld_x * get_global_id(1) + get_global_id(0);
     const uint iacc = get_global_size(0) * get_group_id(1) + get_global_id(0);
     const REAL diff = x[i] - mu[get_global_id(0)];
     const ACCUMULATOR sum = work_group_reduction_sum_2(diff * diff);

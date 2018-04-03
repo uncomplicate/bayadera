@@ -156,10 +156,11 @@ extern "C" {
         }
     }
 
-    __global__ void mean_reduce (const uint32_t m, const uint32_t n, ACCUMULATOR* acc, const REAL* a) {
+    __global__ void mean_reduce (const uint32_t m, const uint32_t n, ACCUMULATOR* acc,
+                                 const REAL* a, const uint32_t offset_x, const uint32_t ld_x) {
         const uint32_t gid_0 = blockIdx.x * blockDim.x + threadIdx.x;
         const uint32_t gid_1 = blockIdx.y * blockDim.y + threadIdx.y;
-        const uint32_t i = m * gid_1 + gid_0;
+        const uint32_t i = offset_x + ld_x * gid_1 + gid_0;
         const bool valid = (gid_0 < m) && (gid_1 < n);
         const ACCUMULATOR sum = block_reduction_sum_2( (valid) ? a[i] : 0.0);
         const bool write = valid && (threadIdx.y == 0);
@@ -168,11 +169,12 @@ extern "C" {
         }
     }
 
-    __global__ void variance_reduce (const uint32_t m, const uint32_t n,
-                                     ACCUMULATOR* acc, const REAL* x, const REAL* mu) {
+    __global__ void variance_reduce (const uint32_t m, const uint32_t n, ACCUMULATOR* acc,
+                                     const REAL* x, const uint32_t offset_x, const uint32_t ld_x,
+                                     const REAL* mu) {
         const uint32_t gid_0 = blockIdx.x * blockDim.x + threadIdx.x;
         const uint32_t gid_1 = blockIdx.y * blockDim.y + threadIdx.y;
-        const uint32_t i = m * gid_1 + gid_0;
+        const uint32_t i = offset_x + ld_x * gid_1 + gid_0;
         const bool valid = (gid_0 < m) && (gid_1 < n);
         const REAL diff = (valid) ? x[i] - mu[gid_0] : 0.0;
         const ACCUMULATOR sum = block_reduction_sum_2(diff * diff);

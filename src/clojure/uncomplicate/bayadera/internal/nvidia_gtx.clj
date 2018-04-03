@@ -22,8 +22,8 @@
              [core :refer [vctr ge ncols mrows scal! transfer transfer! raw submatrix dim copy! entry!]]
              [math :refer [sqrt]]
              [vect-math :refer [sqrt!]]
-             [block :refer [buffer create-data-source wrap-prim initialize entry-width data-accessor
-                            cast-prim]]
+             [block :refer [buffer offset stride create-data-source wrap-prim initialize entry-width
+                            data-accessor cast-prim]]
              [cuda :refer [cuda-float]]]
             [uncomplicate.bayadera.util :refer [srand-int]]
             [uncomplicate.bayadera.internal
@@ -131,8 +131,8 @@
            acc-size (max 1 (* m (blocks-count wgsn n)))]
        (with-release [acc (vctr data-matrix acc-size)]
          (launch-reduce! hstream mean-kernel sum-reduction-kernel
-                         [(buffer acc) (buffer data-matrix)] [(buffer acc)]
-                         m n wgsm wgsn)
+                         [(buffer acc) (buffer data-matrix) (offset data-matrix) (stride data-matrix)]
+                         [(buffer acc)] m n wgsm wgsn)
          (scal! (/ 1.0 n) (transfer acc))))))
   (data-variance [this data-matrix]
     (in-context
@@ -145,12 +145,15 @@
        (with-release [res (vctr data-matrix m)
                       cu-acc (create-data-source data-matrix acc-size)]
          (launch-reduce! hstream mean-kernel sum-reduction-kernel
-                         [cu-acc (buffer data-matrix)] [cu-acc]
-                         m n wgsm wgsn)
+                         [cu-acc (buffer data-matrix) (offset data-matrix) (stride data-matrix)]
+                         [cu-acc] m n wgsm wgsn)
          (memcpy! cu-acc (buffer res) hstream)
          (scal! (/ 1.0 n) res)
          (launch-reduce! hstream variance-kernel sum-reduction-kernel
-                         [cu-acc (buffer data-matrix) (buffer res)] [cu-acc]
+                         [cu-acc
+                          (buffer data-matrix) (offset data-matrix) (stride data-matrix)
+                          (buffer res)]
+                         [cu-acc]
                          m n wgsm wgsn)
          (memcpy! cu-acc (buffer res) hstream)
          (scal! (/ 1.0 n) (transfer res))))))
@@ -479,8 +482,9 @@
     (in-context
      ctx
      (let-release [res-vec (vctr (na/native-factory neanderthal-factory) DIM)]
-       (launch-reduce! hstream mean-kernel sum-reduction-kernel
-                       mean-params [cu-acc] DIM walker-count 1 WGS)
+       (set-parameter! mean-params 0 cu-acc)
+       (launch-reduce! hstream mean-kernel sum-reduction-kernel mean-params [cu-acc]
+                       DIM walker-count 1 WGS)
        (memcpy-host! cu-acc (buffer res-vec) hstream)
        (scal! (/ 1.0 walker-count) res-vec))))
   Spread
@@ -488,11 +492,12 @@
     (in-context
      ctx
      (let-release [res-vec (vctr neanderthal-factory DIM)]
+       (set-parameter! mean-params 0 cu-acc)
        (launch-reduce! hstream mean-kernel sum-reduction-kernel mean-params [cu-acc]
                        DIM walker-count 1 WGS)
        (memcpy! cu-acc (buffer res-vec) hstream)
        (scal! (/ 1.0 walker-count) res-vec)
-       (set-parameters! variance-params 4 (buffer res-vec))
+       (set-parameter! variance-params 6 (buffer res-vec))
        (launch-reduce! hstream variance-kernel sum-reduction-kernel variance-params [cu-acc]
                        DIM walker-count 1 WGS)
        (memcpy! cu-acc (buffer res-vec) hstream)
@@ -557,9 +562,9 @@
               (function modl "uint_to_real")
               (function modl "bitonic_local")
               (function modl "mean_reduce")
-              (cuda/parameters DIM walker-count cu-acc cu-xs)
+              (cuda/parameters DIM walker-count cu-acc cu-xs 0 DIM)
               (function modl "variance_reduce")
-              (cuda/parameters DIM walker-count cu-acc cu-xs 4))))
+              (cuda/parameters DIM walker-count cu-acc cu-xs 0 DIM 6))))
          (throw (IllegalArgumentException.
                  (format "Number of walkers (%d) must be a multiple of %d." walker-count (* 2 WGS)))))))))
 
