@@ -38,12 +38,12 @@ extern "C" {
     };
 
     __global__ void acor_1d (const uint32_t n,
-                                       const uint32_t stride,
-                                       const uint32_t dim_id,
-                                       const uint32_t lag,
-                                       REAL* c0acc,
-                                       REAL* dacc,
-                                       REAL* means) {
+                             const uint32_t stride,
+                             const uint32_t dim_id,
+                             const uint32_t lag,
+                             REAL* c0acc,
+                             REAL* dacc,
+                             REAL* means) {
 
         const uint32_t gid = blockIdx.x * blockDim.x + threadIdx.x;
         const uint32_t local_size = blockDim.x;
@@ -103,24 +103,24 @@ extern "C" {
     }
     
     __global__ void acor_2d (const uint32_t n,
-                                       const uint32_t dim,
-                                       const uint32_t lag,
-                                       REAL* c0acc,
-                                       REAL* dacc,
-                                       REAL* means) {
+                             const uint32_t dim,
+                             const uint32_t lag,
+                             REAL* c0acc,
+                             REAL* dacc,
+                             REAL* means) {
 
         const uint32_t dim_id = blockIdx.y * blockDim.y + threadIdx.y;
         acor_1d(n, dim, dim_id, lag, c0acc, dacc, means);
     }
 
     __global__ void acor (const uint32_t n,
-                                    const uint32_t dim,
-                                    const uint32_t lag,
-                                    const uint32_t min_lag,
-                                    const uint32_t win_mult,
-                                    REAL* c0acc,
-                                    REAL* dacc,
-                                    REAL* means) {
+                          const uint32_t dim,
+                          const uint32_t lag,
+                          const uint32_t min_lag,
+                          const uint32_t win_mult,
+                          REAL* c0acc,
+                          REAL* dacc,
+                          REAL* means) {
 
         uint32_t dim_id = blockIdx.x * blockDim.x + threadIdx.x;
 
