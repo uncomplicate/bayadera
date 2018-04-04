@@ -215,6 +215,7 @@
       (recur (inc j) (+ res (hypergeometric-pmf N K n j))))))
 
 ;; ==================== Poisson Distribution ================
+
 (defn poisson-check
   ([^double lambda]
    (< 0 lambda))

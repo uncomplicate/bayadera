@@ -53,15 +53,22 @@
   ([^double a ^double b]
    (uniform *bayadera-factory* a b))
   ([factory ^double a ^double b]
-   (->UniformDistribution factory (p/distribution-engine factory :uniform)
-                          (vctr factory (uniform-params a b)) a b)))
+   (if-let [params (uniform-params a b)]
+     (->UniformDistribution factory (p/distribution-engine factory :uniform)
+                            (vctr factory params) a b)
+     (dragan-says-ex "Uniform distribution parameters are illegal."
+                     {:a a :b b :errors
+                      (when-not (< a b) "a is not less than b")}))))
 
 (defn gaussian
   ([^double mu ^double sigma]
    (gaussian *bayadera-factory* mu sigma))
   ([factory ^double mu ^double sigma]
-   (->GaussianDistribution factory (p/distribution-engine factory :gaussian)
-                           (vctr factory (gaussian-params mu sigma)) mu sigma)))
+   (if-let [params (gaussian-params mu sigma)]
+     (->GaussianDistribution factory (p/distribution-engine factory :gaussian)
+                             (vctr factory params) mu sigma)
+     (dragan-says-ex "Gaussian distribution parameters are illegal."
+                     {:mu mu :sigma sigma :errors (when-not (< 0.0 sigma) "sigma is not positive")}))))
 
 (defn student-t
   ([^double nu ^double mu ^double sigma]
@@ -69,8 +76,14 @@
   ([^double nu]
    (student-t nu 0.0 1.0))
   ([factory ^double nu ^double mu ^double sigma]
-   (->StudentTDistribution factory (p/distribution-engine factory :student-t)
-                           (vctr factory (student-t-params nu mu sigma)) nu mu sigma))
+   (if-let [params (student-t-params nu mu sigma)]
+     (->StudentTDistribution factory (p/distribution-engine factory :student-t)
+                             (vctr factory params) nu mu sigma)
+     (dragan-says-ex "Student's t distribution parameters are illegal."
+                     {:nu nu :mu mu :sigma sigma :errors
+                      (cond-into []
+                                 (not (< 0.0 nu) "nu is not positive")
+                                 (not (< 0.0 sigma)) "sigma is not positive")})))
   ([factory ^double nu]
    (student-t factory nu 0.0 1.0)))
 
@@ -78,29 +91,50 @@
   ([^double a ^double b]
    (beta *bayadera-factory* a b))
   ([factory ^double a ^double b]
-   (->BetaDistribution factory (p/distribution-engine factory :beta)
-                       (vctr factory (beta-params a b)) a b)))
+   (if-let [params (beta-params a b)]
+     (->BetaDistribution factory (p/distribution-engine factory :beta)
+                         (vctr factory params) a b)
+     (dragan-says-ex "Beta distribution parameters are illegal."
+                     {:a a :b b :errors
+                      (cond-into []
+                                 (not (< 0.0 a) "a is not positive")
+                                 (not (< 0.0 b)) "b is not positive")}))))
 
 (defn gamma
   ([^double theta ^double k]
    (beta *bayadera-factory* theta k))
   ([factory ^double theta ^double k]
-   (->BetaDistribution factory (p/distribution-engine factory :gamma)
-                       (vctr factory (gamma-params theta k)) theta k)))
+   (if-let [params (gamma-params theta k)]
+     (->GammaDistribution factory (p/distribution-engine factory :gamma)
+                          (vctr factory params) theta k)
+     (dragan-says-ex "Gamma distribution parameters are illegal."
+                     {:theta theta :k k :errors
+                      (cond-into []
+                                 (not (< 0.0 theta) "theta is not positive")
+                                 (not (< 0.0 k)) "k is not positive")}))))
 
- (defn exponential
+(defn exponential
   ([^double lambda]
    (exponential *bayadera-factory* lambda))
   ([factory ^double lambda]
-   (->ExponentialDistribution factory (p/distribution-engine factory :exponential)
-                              (vctr factory (exponential-params lambda)) lambda)))
+   (if-let [params (exponential-params lambda)]
+     (->ExponentialDistribution factory (p/distribution-engine factory :exponential)
+                                (vctr factory params) lambda)
+     (dragan-says-ex "Exponential distribution parameters are illegal."
+                     {:lambda lambda :errors (when-not (< 0.0 lambda) "lambda is not positive")}))))
 
 (defn erlang
   ([^double lambda ^long k]
    (erlang *bayadera-factory* lambda k))
   ([factory ^double lambda ^long k]
-   (->ErlangDistribution factory (p/distribution-engine factory :erlang)
-                         (vctr factory (erlang-params lambda k)) lambda k)))
+   (if-let [params (erlang-params lambda k)]
+     (->ErlangDistribution factory (p/distribution-engine factory :erlang)
+                           (vctr factory params) lambda k)
+     (dragan-says-ex "Erlang distribution parameters are illegal."
+                     {:lambda lambda :k k :errors
+                      (cond-into []
+                                 (not (< 0.0 lambda) "lambda is not positive")
+                                 (not (< 0.0 k)) "k is not positive")}))))
 
 ;; ====================== Distribution =========================================
 

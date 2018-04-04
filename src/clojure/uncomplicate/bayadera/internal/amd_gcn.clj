@@ -103,7 +103,6 @@
     (release prog))
   DatasetEngine
   (data-mean [this data-matrix]
-
     (let [m (mrows data-matrix)
           n (ncols data-matrix)
           wgsn (min n WGS)
