@@ -9,7 +9,7 @@
 (ns ^{:author "Dragan Djuric"}
     uncomplicate.bayadera.cuda
   (:require [clojure.java.io :as io]
-            [uncomplicate.clojurecuda.core :refer [with-default]]
+            [uncomplicate.clojurecuda.core :refer [with-default current-context default-stream]]
             [uncomplicate.bayadera.core :refer [with-bayadera *bayadera-factory*]]
             [uncomplicate.bayadera.internal
              [models :as models]
@@ -63,7 +63,7 @@
 (defmacro with-default-bayadera
   [& body]
   `(with-default
-     (with-bayadera gtx-bayadera-factory [*context* *command-queue*] ~@body)))
+     (with-bayadera gtx-bayadera-factory [(current-context) default-stream] ~@body)))
 
 ;; ==================== Function template ======================================
 

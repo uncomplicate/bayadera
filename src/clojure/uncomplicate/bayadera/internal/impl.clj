@@ -14,7 +14,8 @@
             [uncomplicate.neanderthal
              [math :refer [sqrt]]
              [vect-math :refer [sqrt!]]
-             [core :refer [transfer ge dim]]]
+             [core :refer [transfer ge dim]]
+             [block :refer [column?]]]
             [uncomplicate.neanderthal.internal.api :as na]
             [uncomplicate.bayadera
              [distributions :refer :all]
@@ -382,8 +383,7 @@
   IFn
   (invoke [_ params]
     (if (= (params-size dist-model) (dim params))
-      (->DistributionImpl factory dist-eng sampler-factory
-                          (transfer (na/factory factory) params) dist-model)
+      (->DistributionImpl factory dist-eng sampler-factory (transfer factory params) dist-model)
       (throw (IllegalArgumentException.
               (format INVALID_PARAMS_MESSAGE (params-size dist-model) (dim params))))))
   (invoke [this data hyperparams]

@@ -8,9 +8,12 @@
 
 (ns ^{:author "Dragan Djuric"}
     uncomplicate.bayadera.core
-  (:require [uncomplicate.commons.core :refer [release with-release let-release double-fn]]
-            [uncomplicate.neanderthal.core :refer [transfer vctr native!]]
-            [uncomplicate.neanderthal.internal.api :as na]
+  (:require [uncomplicate.commons
+             [core :refer [release with-release let-release double-fn]]
+             [utils :refer [dragan-says-ex cond-into]]]
+            [uncomplicate.neanderthal
+             [core :refer [transfer vctr native! matrix-type compatible? info]]
+             [block :refer [column?]]]
             [uncomplicate.bayadera
              [distributions :refer [uniform-params gaussian-params student-t-params beta-params
                                     gamma-params exponential-params erlang-params]]
@@ -33,9 +36,16 @@
   ([data-matrix]
    (dataset *bayadera-factory* data-matrix))
   ([factory data-matrix]
-   (if (na/compatible? factory data-matrix)
+   (if (and (compatible? factory data-matrix)
+            (= :ge (matrix-type data-matrix)) (column? data-matrix))
      (->DatasetImpl (p/dataset-engine factory) data-matrix)
-     (throw (IllegalArgumentException. (format "Incompatible data source: %s." data-matrix))))))
+     (dragan-says-ex {:matrix-type (matrix-type data-matrix) :data (info data-matrix)
+                      :factory (info factory) :errors
+                      (cond-into []
+                                 (not (= :ge (matrix-type data-matrix))) "matrix type is not :ge"
+                                 (not (compatible? factory data-matrix))
+                                 "data is not compatible with factory"
+                                 (not (column? data-matrix)) "only column-major layout is supported")}))))
 
 ;; =================== Distributions ===========================================
 
@@ -44,14 +54,14 @@
    (uniform *bayadera-factory* a b))
   ([factory ^double a ^double b]
    (->UniformDistribution factory (p/distribution-engine factory :uniform)
-                          (vctr (na/factory factory) (uniform-params a b)) a b)))
+                          (vctr factory (uniform-params a b)) a b)))
 
 (defn gaussian
   ([^double mu ^double sigma]
    (gaussian *bayadera-factory* mu sigma))
   ([factory ^double mu ^double sigma]
    (->GaussianDistribution factory (p/distribution-engine factory :gaussian)
-                           (vctr (na/factory factory) (gaussian-params mu sigma)) mu sigma)))
+                           (vctr factory (gaussian-params mu sigma)) mu sigma)))
 
 (defn student-t
   ([^double nu ^double mu ^double sigma]
@@ -60,7 +70,7 @@
    (student-t nu 0.0 1.0))
   ([factory ^double nu ^double mu ^double sigma]
    (->StudentTDistribution factory (p/distribution-engine factory :student-t)
-                           (vctr (na/factory factory) (student-t-params nu mu sigma)) nu mu sigma))
+                           (vctr factory (student-t-params nu mu sigma)) nu mu sigma))
   ([factory ^double nu]
    (student-t factory nu 0.0 1.0)))
 
@@ -69,28 +79,28 @@
    (beta *bayadera-factory* a b))
   ([factory ^double a ^double b]
    (->BetaDistribution factory (p/distribution-engine factory :beta)
-                       (vctr (na/factory factory) (beta-params a b)) a b)))
+                       (vctr factory (beta-params a b)) a b)))
 
 (defn gamma
   ([^double theta ^double k]
    (beta *bayadera-factory* theta k))
   ([factory ^double theta ^double k]
    (->BetaDistribution factory (p/distribution-engine factory :gamma)
-                       (vctr (na/factory factory) (gamma-params theta k)) theta k)))
+                       (vctr factory (gamma-params theta k)) theta k)))
 
  (defn exponential
   ([^double lambda]
    (exponential *bayadera-factory* lambda))
   ([factory ^double lambda]
    (->ExponentialDistribution factory (p/distribution-engine factory :exponential)
-                              (vctr (na/factory factory) (exponential-params lambda)) lambda)))
+                              (vctr factory (exponential-params lambda)) lambda)))
 
 (defn erlang
   ([^double lambda ^long k]
    (erlang *bayadera-factory* lambda k))
   ([factory ^double lambda ^long k]
    (->ErlangDistribution factory (p/distribution-engine factory :erlang)
-                         (vctr (na/factory factory) (erlang-params lambda k)) lambda k)))
+                         (vctr factory (erlang-params lambda k)) lambda k)))
 
 ;; ====================== Distribution =========================================
 
@@ -98,14 +108,14 @@
   ([model]
    (distribution *bayadera-factory* model))
   ([factory model]
-   (if (na/compatible? factory model)
+   (if (compatible? factory model)
      (->DistributionCreator factory (p/distribution-engine factory model)
                             (p/mcmc-factory factory model) model)
      (throw (IllegalArgumentException. (format "Incompatible model type: %s." (type model)))))))
 
 (defn posterior-model
   ([name likelihood prior]
-   (if (na/compatible? likelihood (p/model prior))
+   (if (compatible? likelihood (p/model prior))
      (p/posterior-model (p/model prior) name likelihood)
      (throw (IllegalArgumentException.
              (format "Incompatible model types: %s and %s." (type likelihood) (type (p/model prior)))))))
@@ -116,7 +126,7 @@
   ([model]
    (posterior *bayadera-factory* model))
   ([factory model]
-   (if (na/compatible? factory model)
+   (if (compatible? factory model)
      (->DistributionCreator factory (p/posterior-engine factory model)
                             (p/mcmc-factory factory model) model)
      (throw (IllegalArgumentException. (format "Incompatible model type: %s." (type model))))))
@@ -125,7 +135,7 @@
   ([factory ^String name likelihood prior]
    (let-release [dist-creator (posterior factory (posterior-model name likelihood prior))]
      (if (satisfies? p/Distribution prior)
-       (if (na/compatible? factory (p/parameters prior))
+       (if (compatible? factory (p/parameters prior))
          (->PosteriorCreator dist-creator (transfer (p/parameters prior)))
          (throw (IllegalArgumentException.
                  (format "Incompatible parameters type: %s."
@@ -151,13 +161,13 @@
 
 ;;TODO rename to pd or density
 (defn pdf [dist xs]
-  (if (na/compatible? dist (p/data xs))
+  (if (compatible? dist (p/data xs))
     (p/pdf (p/engine dist) (p/parameters dist) (p/data xs))
     (format "Incompatible xs: %s." (type xs))))
 
 ;;TODO rename to log-pd or log-density
 (defn log-pdf [dist xs]
-  (if (na/compatible? dist (p/data xs))
+  (if (compatible? dist (p/data xs))
     (p/log-pdf (p/engine dist) (p/parameters dist) (p/data xs))
     (format "Incompatible xs: %s." (type xs))))
 
@@ -165,7 +175,7 @@
   (throw (UnsupportedOperationException. "TODO")))
 
 (defn evidence ^double [dist xs]
-  (if (na/compatible? dist (p/data xs))
+  (if (compatible? dist (p/data xs))
     (p/evidence (p/engine dist) (p/parameters dist) (p/data xs))
     (format "Incompatible xs: %s." (type xs))))
 

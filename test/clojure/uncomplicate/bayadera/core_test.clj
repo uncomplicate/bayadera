@@ -29,7 +29,8 @@
                     uniform-sampler (sampler dist)
                     cl-sample (dataset factory (sample uniform-sampler))
                     cl-pdf (pdf dist cl-sample)]
-
+       (dim (mean cl-sample)) => 1
+       (dim (sd cl-sample)) => 1
        (entry (mean cl-sample) 0) => (roughly100 (mean dist))
        (entry (sd cl-sample) 0) => (roughly100 (sd dist))
        (/ (sum cl-pdf) (dim cl-pdf)) => (roughly (/ 1.0 (- b a)))))))

@@ -129,11 +129,13 @@
            wgsn (min n WGS)
            wgsm (/ WGS wgsn)
            acc-size (max 1 (* m (blocks-count wgsn n)))]
-       (with-release [acc (vctr data-matrix acc-size)]
-         (launch-reduce! hstream mean-kernel sum-reduction-kernel
-                         [(buffer acc) (buffer data-matrix) (offset data-matrix) (stride data-matrix)]
-                         [(buffer acc)] m n wgsm wgsn)
-         (scal! (/ 1.0 n) (transfer acc))))))
+       (let-release [res-vec (vctr (na/native-factory data-matrix) m)]
+         (with-release [cu-acc (create-data-source data-matrix acc-size)]
+           (launch-reduce! hstream mean-kernel sum-reduction-kernel
+                           [cu-acc (buffer data-matrix) (offset data-matrix) (stride data-matrix)]
+                           [cu-acc] m n wgsm wgsn)
+           (memcpy-host! cu-acc (buffer res-vec))
+           (scal! (/ 1.0 n) res-vec))))))
   (data-variance [this data-matrix]
     (in-context
      ctx
