@@ -175,12 +175,14 @@
                       result (ge data-matrix WGS m)
                       bin-ranks (ge data-matrix WGS m)]
          (launch-reduce! hstream min-max-kernel min-max-reduction-kernel
-                         [cu-min-max (buffer data-matrix)] [cu-min-max]
-                         m n wgsm wgsn)
+                         [cu-min-max (buffer data-matrix) (offset data-matrix) (stride data-matrix)]
+                         [cu-min-max] m n wgsm wgsn)
          (memcpy! cu-min-max (buffer limits) hstream)
          (memset! uint-res 0 hstream)
          (launch! histogram-kernel (grid-2d m n 1 WGS) hstream
-                  (cuda/parameters (int m) (int n) (buffer limits) (buffer data-matrix) uint-res))
+                  (cuda/parameters (int m) (int n) (buffer limits)
+                                   (buffer data-matrix) (offset data-matrix) (stride data-matrix)
+                                   uint-res))
          (launch! uint-to-real-kernel (grid-2d WGS m WGS 1) hstream
                   (cuda/parameters WGS m (cast-prim cuaccessor (/ WGS n)) (buffer limits)
                                    uint-res (buffer result)))

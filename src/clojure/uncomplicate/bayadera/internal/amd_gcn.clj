@@ -161,11 +161,14 @@
                      uint-to-real-kernel (kernel prog "uint_to_real")
                      local-sort-kernel (kernel prog "bitonic_local")]
         (set-arg! min-max-reduction-kernel 0 cl-min-max)
-        (set-args! min-max-kernel cl-min-max (buffer data-matrix))
+        (set-args! min-max-kernel cl-min-max
+                   (buffer data-matrix) (wrap-int (offset data-matrix)) (wrap-int (stride data-matrix)))
         (enq-reduce! cqueue min-max-kernel min-max-reduction-kernel m n wgsm wgsn)
         (enq-copy! cqueue cl-min-max (buffer limits))
         (enq-fill! cqueue uint-res (wrap-int 0))
-        (set-args! histogram-kernel (buffer limits) (buffer data-matrix) uint-res)
+        (set-args! histogram-kernel (buffer limits)
+                   (buffer data-matrix) (wrap-int (offset data-matrix)) (wrap-int (stride data-matrix))
+                   uint-res)
         (enq-nd! cqueue histogram-kernel (work-size-2d m n 1 WGS))
         (set-args! uint-to-real-kernel (wrap-prim claccessor (/ WGS n)) (buffer limits)
                    uint-res (buffer result))

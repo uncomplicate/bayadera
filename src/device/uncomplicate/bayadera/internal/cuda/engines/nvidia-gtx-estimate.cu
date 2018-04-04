@@ -3,7 +3,8 @@ extern "C" {
     #include <stdint.h>
 
     __global__ void histogram(const uint32_t dim, const uint32_t n,
-                              const REAL* limits, const REAL* data,
+                              const REAL* limits,
+                              const REAL* data, const uint32_t offset, const uint32_t ld,
                               uint32_t* res) {
 
         const uint32_t dim_id = blockIdx.x * blockDim.x + threadIdx.x;
@@ -18,7 +19,7 @@ extern "C" {
         if (valid) {
             const REAL lower = limits[dim_id * 2];
             const REAL upper = limits[dim_id * 2 + 1];
-            const REAL x = data[dim * gid + dim_id];
+            const REAL x = data[offset + ld * gid + dim_id];
             uint32_t bin = (uint32_t) ((x - lower) / (upper - lower) * WGS);
             bin = (bin < WGS) ? bin : WGS - 1;
 
@@ -100,11 +101,12 @@ extern "C" {
         }
     }
 
-    __global__ void min_max_reduce (const uint32_t m, const uint32_t n, REAL2* acc, const REAL* a) {
+    __global__ void min_max_reduce (const uint32_t m, const uint32_t n, REAL2* acc,
+                                    const REAL* a, const uint32_t offset, const uint32_t ld) {
         const uint32_t gid_0 = blockIdx.x * blockDim.x + threadIdx.x;
         const uint32_t gid_1 = blockIdx.y * blockDim.y + threadIdx.y;
         const bool valid = (gid_0 < m) && (gid_1 < n);
-        const REAL val = (valid) ? a[m * gid_1 + gid_0] : 0.0;
+        const REAL val = (valid) ? a[offset + ld * gid_1 + gid_0] : 0.0;
         const REAL2 min_max = block_reduction_min_max_2(val, val);
         const bool write = valid && (threadIdx.y == 0);
         if (write) {

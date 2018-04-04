@@ -1,7 +1,8 @@
 __attribute__((reqd_work_group_size(1, WGS, 1)))
-__kernel void histogram(__global const REAL* limits, __global const REAL* data, __global uint* res) {
+__kernel void histogram(__global const REAL* limits,
+                        __global const REAL* data, const uint offset, const uint ld,
+                        __global uint* res) {
 
-    const uint dim = get_global_size(0);
     const uint dim_id = get_global_id(0);
     const uint lid = get_local_id(1);
     const uint gid = get_global_id(1);
@@ -12,7 +13,7 @@ __kernel void histogram(__global const REAL* limits, __global const REAL* data, 
     hist[lid] = 0;
     work_group_barrier(CLK_LOCAL_MEM_FENCE);
 
-    const REAL x = data[dim * gid + dim_id];
+    const REAL x = data[offset + ld * gid + dim_id];
     uint bin = (uint) ((x - lower) / (upper - lower) * WGS);
     bin = (bin < WGS) ? bin : WGS - 1;
 
@@ -80,8 +81,9 @@ __kernel void min_max_reduction (__global REAL2* acc) {
     }
 }
 
-__kernel void min_max_reduce (__global REAL2* acc, __global const REAL* a) {
-    const REAL val = a[get_global_size(0) * get_global_id(1) + get_global_id(0)];
+__kernel void min_max_reduce (__global REAL2* acc,
+                              __global const REAL* a, const uint offset, const uint ld) {
+    const REAL val = a[offset + ld * get_global_id(1) + get_global_id(0)];
     const REAL2 min_max = work_group_reduction_min_max_2((REAL2)(val, val));
     if (get_local_id(1) == 0) {
         acc[get_global_size(0) * get_group_id(1) + get_global_id(0)] = min_max;
