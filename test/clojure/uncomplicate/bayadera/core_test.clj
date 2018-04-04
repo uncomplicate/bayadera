@@ -157,7 +157,10 @@
        (/ (sum (col (:pdf (histogram data-set)) 4)) (mrows (:pdf (histogram data-set)))) => (roughly 1.0))
       (facts
        "Test variance"
-       (sum (axpy! -1 (variance (p/data data-set)) (p/variance data-set))) => (roughly 0 0.003)))))
+       (sum (axpy! -1 (variance (p/data data-set)) (p/variance data-set))) => (roughly 0 0.003))
+      (facts
+       "Test mean"
+       (sum (axpy! -1 (mean (p/data data-set)) (p/mean data-set))) => (roughly 0 0.003)))))
 
 (defn test-all [factory binomial-lik-model]
   (test-uniform factory)
