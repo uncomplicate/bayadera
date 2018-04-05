@@ -199,13 +199,15 @@
 (defn pdf [dist xs]
   (if (compatible? dist (p/data xs))
     (p/pdf (p/engine dist) (p/parameters dist) (p/data xs))
-    (format "Incompatible xs: %s." (type xs))))
+    (dragan-says-ex (format "Data type is incompatible with distribution engine"
+                            {:type (type dist) :factory (info (p/data xs))}))))
 
 ;;TODO rename to log-pd or log-density
 (defn log-pdf [dist xs]
   (if (compatible? dist (p/data xs))
     (p/log-pdf (p/engine dist) (p/parameters dist) (p/data xs))
-    (format "Incompatible xs: %s." (type xs))))
+    (dragan-says-ex (format "Data type is incompatible with distribution engine"
+                            {:type (type dist) :factory (info (p/data xs))}))))
 
 (defn likelihood [lik xs]
   (throw (UnsupportedOperationException. "TODO")))
@@ -213,7 +215,8 @@
 (defn evidence ^double [dist xs]
   (if (compatible? dist (p/data xs))
     (p/evidence (p/engine dist) (p/parameters dist) (p/data xs))
-    (format "Incompatible xs: %s." (type xs))))
+    (dragan-says-ex (format "Data type is incompatible with distribution engine"
+                            {:type (type dist) :factory (info (p/data xs))}))))
 
 ;; ================= Estimation ===============================================
 
@@ -226,13 +229,13 @@
 (defn sample!
   ([sampler]
    (p/sample! sampler))
-  ([sampler n]
+  ([sampler ^long n]
    (p/sample! sampler n)))
 
 (defn sample
   ([sampler]
    (p/sample sampler))
-  ([sampler n]
+  ([sampler ^long n]
    (p/sample sampler n)))
 
 (defn init!
@@ -242,7 +245,7 @@
    (p/init! samp (srand-int))))
 
 (defn histogram!
-  ([estimator n]
+  ([estimator ^long n]
    (p/histogram! estimator n)))
 
 (defn histogram
