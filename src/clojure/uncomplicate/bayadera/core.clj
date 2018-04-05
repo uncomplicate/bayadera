@@ -45,7 +45,7 @@
                                  (not (= :ge (matrix-type data-matrix))) "matrix type is not :ge"
                                  (not (compatible? factory data-matrix))
                                  "data is not compatible with factory"
-                                 (not (column? data-matrix)) "only column-major layout is supported")}))))
+                                 (not (column? data-matrix)) "data matrix is not column-major")}))))
 
 ;; =================== Distributions ===========================================
 
@@ -145,14 +145,15 @@
    (if (compatible? factory model)
      (->DistributionCreator factory (p/distribution-engine factory model)
                             (p/mcmc-factory factory model) model)
-     (throw (IllegalArgumentException. (format "Incompatible model type: %s." (type model)))))))
+     (dragan-says-ex (format "Model type is incompatible with factory."
+                             {:type (type model) :factory (type factory)})))))
 
 (defn posterior-model
   ([name likelihood prior]
    (if (compatible? likelihood (p/model prior))
      (p/posterior-model (p/model prior) name likelihood)
-     (throw (IllegalArgumentException.
-             (format "Incompatible model types: %s and %s." (type likelihood) (type (p/model prior)))))))
+     (dragan-says-ex (format "Incompatible types of likelihood and prior models."
+                             {:likelihood-type (type likelihood) :prior-type (type prior)}))))
   ([likelihood prior]
    (posterior-model (str (gensym "posterior")) likelihood prior)))
 
@@ -163,7 +164,8 @@
    (if (compatible? factory model)
      (->DistributionCreator factory (p/posterior-engine factory model)
                             (p/mcmc-factory factory model) model)
-     (throw (IllegalArgumentException. (format "Incompatible model type: %s." (type model))))))
+     (dragan-says-ex (format "Model type is incompatible with factory."
+                             {:type (type model) :factory (type factory)}))))
   ([^String name likelihood prior]
    (posterior *bayadera-factory* name likelihood prior))
   ([factory ^String name likelihood prior]
@@ -171,9 +173,9 @@
      (if (satisfies? p/Distribution prior)
        (if (compatible? factory (p/parameters prior))
          (->PosteriorCreator dist-creator (transfer (p/parameters prior)))
-         (throw (IllegalArgumentException.
-                 (format "Incompatible parameters type: %s."
-                         (type (p/parameters prior))))))
+         (dragan-says-ex (format "Incompatible types of likelihood and prior models."
+                                 {:likelihood-type (type likelihood)
+                                  :prior-type (type (p/parameters prior))})))
        dist-creator))))
 
 ;; ====================== Measures =============================================
