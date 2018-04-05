@@ -129,12 +129,12 @@
            wgsn (min n WGS)
            wgsm (/ WGS wgsn)
            acc-size (max 1 (* m (blocks-count wgsn n)))]
-       (let-release [res-vec (vctr (na/native-factory data-matrix) m)]
+       (let-release [res-vec (vctr data-matrix m)]
          (with-release [cu-acc (create-data-source data-matrix acc-size)]
            (launch-reduce! hstream mean-kernel sum-reduction-kernel
                            [cu-acc (buffer data-matrix) (offset data-matrix) (stride data-matrix)]
                            [cu-acc] m n wgsm wgsn)
-           (memcpy-host! cu-acc (buffer res-vec))
+           (memcpy! cu-acc (buffer res-vec))
            (scal! (/ 1.0 n) res-vec))))))
   (data-variance [this data-matrix]
     (in-context
@@ -144,21 +144,21 @@
            wgsn (min n WGS)
            wgsm (/ WGS wgsn)
            acc-size (max 1 (* m (blocks-count wgsn n)))]
-       (with-release [res (vctr data-matrix m)
-                      cu-acc (create-data-source data-matrix acc-size)]
-         (launch-reduce! hstream mean-kernel sum-reduction-kernel
-                         [cu-acc (buffer data-matrix) (offset data-matrix) (stride data-matrix)]
-                         [cu-acc] m n wgsm wgsn)
-         (memcpy! cu-acc (buffer res) hstream)
-         (scal! (/ 1.0 n) res)
-         (launch-reduce! hstream variance-kernel sum-reduction-kernel
-                         [cu-acc
-                          (buffer data-matrix) (offset data-matrix) (stride data-matrix)
-                          (buffer res)]
-                         [cu-acc]
-                         m n wgsm wgsn)
-         (memcpy! cu-acc (buffer res) hstream)
-         (scal! (/ 1.0 n) (transfer res))))))
+       (let-release [res (vctr data-matrix m)]
+         (with-release [cu-acc (create-data-source data-matrix acc-size)]
+           (launch-reduce! hstream mean-kernel sum-reduction-kernel
+                           [cu-acc (buffer data-matrix) (offset data-matrix) (stride data-matrix)]
+                           [cu-acc] m n wgsm wgsn)
+           (memcpy! cu-acc (buffer res) hstream)
+           (scal! (/ 1.0 n) res)
+           (launch-reduce! hstream variance-kernel sum-reduction-kernel
+                           [cu-acc
+                            (buffer data-matrix) (offset data-matrix) (stride data-matrix)
+                            (buffer res)]
+                           [cu-acc]
+                           m n wgsm wgsn)
+           (memcpy! cu-acc (buffer res) hstream)
+           (scal! (/ 1.0 n) res))))))
   EstimateEngine
   (histogram [this data-matrix]
     (in-context
@@ -485,11 +485,11 @@
   (mean [_]
     (in-context
      ctx
-     (let-release [res-vec (vctr (na/native-factory neanderthal-factory) DIM)]
+     (let-release [res-vec (vctr neanderthal-factory DIM)]
        (set-parameter! mean-params 0 cu-acc)
        (launch-reduce! hstream mean-kernel sum-reduction-kernel mean-params [cu-acc]
                        DIM walker-count 1 WGS)
-       (memcpy-host! cu-acc (buffer res-vec) hstream)
+       (memcpy! cu-acc (buffer res-vec) hstream)
        (scal! (/ 1.0 walker-count) res-vec))))
   Spread
   (variance [_]
@@ -505,7 +505,7 @@
        (launch-reduce! hstream variance-kernel sum-reduction-kernel variance-params [cu-acc]
                        DIM walker-count 1 WGS)
        (memcpy! cu-acc (buffer res-vec) hstream)
-       (scal! (/ 1.0 walker-count) (transfer res-vec)))))
+       (scal! (/ 1.0 walker-count) res-vec))))
   (sd [this]
     (in-context
      ctx

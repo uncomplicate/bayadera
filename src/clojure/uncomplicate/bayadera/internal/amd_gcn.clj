@@ -108,7 +108,7 @@
           wgsn (min n WGS)
           wgsm (/ WGS wgsn)
           acc-size (max 1 (* m (count-work-groups wgsn n)))]
-      (let-release [res-vec (vctr (na/native-factory data-matrix) m)]
+      (let-release [res-vec (vctr data-matrix m)]
         (with-release [cl-acc (create-data-source data-matrix acc-size)
                        sum-reduction-kernel (kernel prog "sum_reduction_horizontal")
                        mean-kernel (kernel prog "mean_reduce")]
@@ -116,7 +116,7 @@
           (set-args! mean-kernel cl-acc
                      (buffer data-matrix) (wrap-int (offset data-matrix)) (wrap-int (stride data-matrix)))
           (enq-reduce! cqueue mean-kernel sum-reduction-kernel m n wgsm wgsn)
-          (enq-read! cqueue cl-acc (buffer res-vec))
+          (enq-copy! cqueue cl-acc (buffer res-vec))
           (scal! (/ 1.0 n) res-vec)))))
   (data-variance [this data-matrix]
     (let [m (mrows data-matrix)
@@ -124,23 +124,23 @@
           wgsn (min n WGS)
           wgsm (/ WGS wgsn)
           acc-size (max 1 (* m (count-work-groups wgsn n)))]
-      (with-release [res (vctr data-matrix m)
-                     cl-acc (create-data-source data-matrix acc-size)
-                     sum-reduction-kernel (kernel prog "sum_reduction_horizontal")
-                     mean-kernel (kernel prog "mean_reduce")
-                     variance-kernel (kernel prog "variance_reduce")]
-        (set-arg! sum-reduction-kernel 0 cl-acc)
-        (set-args! mean-kernel cl-acc
-                   (buffer data-matrix) (wrap-int (offset data-matrix)) (wrap-int (stride data-matrix)))
-        (enq-reduce! cqueue mean-kernel sum-reduction-kernel m n wgsm wgsn)
-        (enq-copy! cqueue cl-acc (buffer res))
-        (scal! (/ 1.0 n) res)
-        (set-args! variance-kernel 0 cl-acc
-                   (buffer data-matrix) (wrap-int (offset data-matrix)) (wrap-int (stride data-matrix))
-                   (buffer res))
-        (enq-reduce! cqueue variance-kernel sum-reduction-kernel m n wgsm wgsn)
-        (enq-copy! cqueue cl-acc (buffer res))
-        (scal! (/ 1.0 n) (transfer res)))))
+      (let-release [res (vctr data-matrix m)]
+        (with-release [cl-acc (create-data-source data-matrix acc-size)
+                       sum-reduction-kernel (kernel prog "sum_reduction_horizontal")
+                       mean-kernel (kernel prog "mean_reduce")
+                       variance-kernel (kernel prog "variance_reduce")]
+          (set-arg! sum-reduction-kernel 0 cl-acc)
+          (set-args! mean-kernel cl-acc
+                     (buffer data-matrix) (wrap-int (offset data-matrix)) (wrap-int (stride data-matrix)))
+          (enq-reduce! cqueue mean-kernel sum-reduction-kernel m n wgsm wgsn)
+          (enq-copy! cqueue cl-acc (buffer res))
+          (scal! (/ 1.0 n) res)
+          (set-args! variance-kernel 0 cl-acc
+                     (buffer data-matrix) (wrap-int (offset data-matrix)) (wrap-int (stride data-matrix))
+                     (buffer res))
+          (enq-reduce! cqueue variance-kernel sum-reduction-kernel m n wgsm wgsn)
+          (enq-copy! cqueue cl-acc (buffer res))
+          (scal! (/ 1.0 n) res)))))
   EstimateEngine
   (histogram [this data-matrix]
     (let [m (mrows data-matrix)
@@ -455,10 +455,10 @@
         (->Histogram (transfer limits) (transfer result) (transfer bin-ranks)))))
   Location
   (mean [_]
-    (let-release [res-vec (vctr (na/native-factory neanderthal-factory) DIM)]
+    (let-release [res-vec (vctr neanderthal-factory DIM)]
       (set-arg! sum-reduction-kernel 0 cl-acc)
       (enq-reduce! cqueue mean-kernel sum-reduction-kernel DIM walker-count 1 WGS)
-      (enq-read! cqueue cl-acc (buffer res-vec))
+      (enq-copy! cqueue cl-acc (buffer res-vec))
       (scal! (/ 1.0 walker-count) res-vec)))
   Spread
   (variance [_]
@@ -470,7 +470,7 @@
       (set-arg! variance-kernel 4 (buffer res-vec))
       (enq-reduce! cqueue variance-kernel sum-reduction-kernel DIM walker-count 1 WGS)
       (enq-copy! cqueue cl-acc (buffer res-vec))
-      (scal! (/ 1.0 walker-count) (transfer res-vec))))
+      (scal! (/ 1.0 walker-count) res-vec)))
   (sd [this]
     (sqrt! (variance this))))
 
