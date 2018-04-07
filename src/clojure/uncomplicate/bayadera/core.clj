@@ -9,11 +9,11 @@
 (ns ^{:author "Dragan Djuric"}
     uncomplicate.bayadera.core
   (:require [uncomplicate.commons
-             [core :refer [release with-release let-release double-fn]]
+             [core :refer [release with-release let-release info double-fn]]
              [utils :refer [dragan-says-ex cond-into]]]
             [uncomplicate.neanderthal
-             [core :refer [transfer vctr native! matrix-type compatible? info]]
-             [block :refer [column?]]]
+             [core :refer [transfer vctr native! matrix-type compatible?]]
+             [block :refer [column? gapless?]]]
             [uncomplicate.bayadera
              [distributions :refer [uniform-params gaussian-params student-t-params beta-params
                                     gamma-params exponential-params erlang-params]]
@@ -37,7 +37,7 @@
    (dataset *bayadera-factory* data-matrix))
   ([factory data-matrix]
    (if (and (compatible? factory data-matrix)
-            (= :ge (matrix-type data-matrix)) (column? data-matrix))
+            (column? data-matrix) (= :ge (matrix-type data-matrix)))
      (->DatasetImpl (p/dataset-engine factory) data-matrix)
      (dragan-says-ex {:matrix-type (matrix-type data-matrix) :data (info data-matrix)
                       :factory (info factory) :errors
@@ -239,7 +239,7 @@
    (p/sample sampler n)))
 
 (defn init!
-  ([samp seed]
+  ([samp ^long seed]
    (p/init! samp seed))
   ([samp]
    (p/init! samp (srand-int))))

@@ -83,7 +83,6 @@
   (sample! [this] [this n]))
 
 (defprotocol MCMC
-  (info [this])
   (init-position! [this position] [this seed limits])
   (burn-in! [this n a])
   (anneal! [this schedule n a])

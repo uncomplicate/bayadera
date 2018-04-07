@@ -9,8 +9,8 @@
 (ns ^{:author "Dragan Djuric"}
     uncomplicate.bayadera.internal.nvidia-gtx
   (:require [clojure.java.io :as io]
-            [uncomplicate.commons.core :refer [Releaseable release with-release let-release wrap-int
-                                               double-fn long-fn]]
+            [uncomplicate.commons.core
+             :refer [Releaseable release with-release let-release Info info wrap-int double-fn long-fn]]
             [uncomplicate.fluokitten.core :refer [fmap op]]
             [uncomplicate.clojurecuda
              [core :refer :all :as cuda :exclude [parameters]]
@@ -292,6 +292,10 @@
     (release mean-kernel)
     (release variance-kernel)
     true)
+  Info
+  (info [this]
+    {:walker-count walker-count
+     :iteration-counter @iteration-counter})
   ModelProvider
   (model [this]
     cu-model)
@@ -326,9 +330,6 @@
       (set-parameter! stretch-move-odd-bare-params 8 beta)
       (set-parameter! stretch-move-even-bare-params 8 beta))
     this)
-  (info [this]
-    {:walker-count walker-count
-     :iteration-counter @iteration-counter})
   RandomSampler
   (init! [this seed]
     (let [a (cast-prim cuaccessor 2.0)]

@@ -10,7 +10,7 @@
     uncomplicate.bayadera.internal.amd-gcn
   (:require [clojure.java.io :as io]
             [uncomplicate.commons.core
-             :refer [Releaseable release with-release let-release wrap-int double-fn long-fn]]
+             :refer [Releaseable release with-release let-release Info info  wrap-int double-fn long-fn]]
             [uncomplicate.fluokitten.core :refer [fmap op]]
             [uncomplicate.clojurecl
              [core :refer :all]
@@ -281,6 +281,10 @@
     (release mean-kernel)
     (release variance-kernel)
     true)
+  Info
+  (info [this]
+    {:walker-count walker-count
+     :iteration-counter @iteration-counter})
   ModelProvider
   (model [this]
     cl-model)
@@ -315,9 +319,6 @@
       (set-arg! stretch-move-odd-bare-kernel 7 beta)
       (set-arg! stretch-move-even-bare-kernel 7 beta))
     this)
-  (info [this]
-    {:walker-count walker-count
-     :iteration-counter @iteration-counter})
   RandomSampler
   (init! [this seed]
     (let [a (wrap-prim claccessor 2.0)]

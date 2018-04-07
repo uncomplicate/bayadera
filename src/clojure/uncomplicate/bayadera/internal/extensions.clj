@@ -8,16 +8,18 @@
 
 (ns ^{:author "Dragan Djuric"}
     uncomplicate.bayadera.internal.extensions
-  (:require [uncomplicate.commons.core
-             :refer [with-release let-release Releaseable release releaseable?]]
+  (:require [uncomplicate.commons
+             [core :refer [with-release let-release Releaseable release releaseable? info]]
+             [utils :refer [dragan-says-ex cond-into]]]
             [uncomplicate.fluokitten.core :refer [fmap]]
             [uncomplicate.neanderthal.internal.api :as na]
             [uncomplicate.neanderthal
              [math :refer [sqrt sqr]]
              [vect-math :refer [sqr! sqrt!]]
-             [core :refer [dim mrows ncols raw axpy! imax row col rows
-                           scal! mv! copy! rk! vctr native!]]
-             [real :refer [entry! sum nrm2]]]
+             [core :refer [dim mrows ncols raw axpy! imax row col rows scal! mv! copy! rk! vctr
+                           native! matrix-type]]
+             [real :refer [entry! sum nrm2]]
+             [block :refer [column? gapless?]]]
             [uncomplicate.bayadera.internal.protocols :refer :all])
   (:import [clojure.lang Sequential]
            [uncomplicate.neanderthal.internal.api Vector Matrix]))
@@ -61,7 +63,14 @@
 (extend-type Matrix
   Dataset
   (data [this]
-    this)
+    (if (and (column? this) (gapless? this) (= :ge (matrix-type this)))
+      this
+      (dragan-says-ex (format "Only gapless column-major GE matrices are valid data sources."
+                              {:data (info this) :errors
+                               (cond-into []
+                                          (not (= :ge (matrix-type this)) "Matrix is not GE")
+                                          (not (column? this)) "layout is not column-major"
+                                          (not (gapless? this)) "matrix has stride and/or offset")}))))
   Location
   (mean
     ([a]

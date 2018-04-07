@@ -99,6 +99,3 @@
        {:a a :acc-rate (acc-rate! samp a) :acc-rate-2.0 (acc-rate! samp)})))
   ([samp]
    (mix! samp nil)))
-
-(defn info [samp]
-  (p/info samp))
