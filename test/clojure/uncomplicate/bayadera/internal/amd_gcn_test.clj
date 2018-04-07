@@ -17,12 +17,12 @@
             [uncomplicate.bayadera
              [distributions :refer [gaussian-pdf gaussian-log-pdf binomial-lik-params beta-params]]
              [opencl :refer :all :as ocl :exclude [gcn-bayadera-factory]]]
-            [uncomplicate.bayadera.internal
-             [protocols :refer :all]
-             [amd-gcn :refer :all]
-             [util :refer [create-tmp-dir with-philox]]]
+            [uncomplicate.bayadera.internal.protocols :refer :all]
+            [uncomplicate.bayadera.internal.device
+             [util :refer [create-tmp-dir with-philox]]
+             [amd-gcn :refer :all]]
             [uncomplicate.bayadera.core-test :refer [test-all]])
-  (:import [uncomplicate.bayadera.internal.amd_gcn GCNStretch]))
+  (:import [uncomplicate.bayadera.internal.device.amd_gcn GCNStretch]))
 
 (with-default
   (let [dev (queue-device *command-queue*)

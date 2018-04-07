@@ -7,7 +7,7 @@
 ;;   You must not remove this notice, or any other, from this software.
 
 (ns ^{:author "Dragan Djuric"}
-    uncomplicate.bayadera.internal.nvidia-gtx
+    uncomplicate.bayadera.internal.device.nvidia-gtx
   (:require [clojure.java.io :as io]
             [uncomplicate.commons.core
              :refer [Releaseable release with-release let-release Info info wrap-int double-fn long-fn]]
@@ -26,9 +26,8 @@
                             data-accessor cast-prim]]
              [cuda :refer [cuda-float]]]
             [uncomplicate.bayadera.util :refer [srand-int]]
-            [uncomplicate.bayadera.internal
-             [protocols :refer :all]
-             [models :refer [source sampler-source CLModel]]]))
+            [uncomplicate.bayadera.internal.protocols :refer :all]
+            [uncomplicate.bayadera.internal.device.models :refer [source sampler-source CLModel]]))
 
 ;; ============================ Private utillities =============================
 

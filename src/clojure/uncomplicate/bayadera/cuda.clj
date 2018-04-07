@@ -11,7 +11,7 @@
   (:require [clojure.java.io :as io]
             [uncomplicate.clojurecuda.core :refer [with-default current-context default-stream]]
             [uncomplicate.bayadera.core :refer [with-bayadera *bayadera-factory*]]
-            [uncomplicate.bayadera.internal
+            [uncomplicate.bayadera.internal.device
              [models :as models]
              [nvidia-gtx :as nvidia-gtx]]))
 

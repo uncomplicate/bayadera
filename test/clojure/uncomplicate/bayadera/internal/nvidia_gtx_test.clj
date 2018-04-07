@@ -16,12 +16,11 @@
             [uncomplicate.bayadera
              [distributions :refer [gaussian-pdf gaussian-log-pdf binomial-lik-params beta-params]]
              [cuda :refer :all :as cuda :exclude [gtx-bayadera-factory]]]
-            [uncomplicate.bayadera.internal
-             [protocols :refer :all]
-             [nvidia-gtx :refer :all]]
+            [uncomplicate.bayadera.internal.protocols :refer :all]
+            [uncomplicate.bayadera.internal.device.nvidia-gtx :refer :all]
             [uncomplicate.bayadera.core-test :refer :all]
             [uncomplicate.bayadera.core-test :refer [test-all]])
-  (:import [uncomplicate.bayadera.internal.nvidia_gtx GTXStretch]))
+  (:import [uncomplicate.bayadera.internal.device.nvidia_gtx GTXStretch]))
 
 (with-default
   (let [dev (ctx-device)
