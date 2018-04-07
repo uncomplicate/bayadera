@@ -28,7 +28,7 @@
             [uncomplicate.bayadera.internal.protocols :refer :all]
             [uncomplicate.bayadera.internal.device
              [util :refer [create-tmp-dir copy-philox delete]]
-             [models :refer [source sampler-source CLModel]]]))
+             [models :refer [source sampler-source DeviceModel]]]))
 
 ;; ============================ Private utillities =============================
 
@@ -620,7 +620,7 @@
     true)
   na/MemoryContext
   (compatible? [_ o]
-    (or (satisfies? CLModel o) (na/compatible? neanderthal-factory o)))
+    (or (satisfies? DeviceModel o) (na/compatible? neanderthal-factory o)))
   DistributionEngineFactory
   (distribution-engine [_ model]
     (if-let [eng (distribution-engines model)]

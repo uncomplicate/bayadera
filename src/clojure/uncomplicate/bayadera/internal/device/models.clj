@@ -16,23 +16,23 @@
              [native :refer [fge]]]
             [uncomplicate.bayadera.internal.protocols :refer :all]))
 
-(defprotocol CLModel
+(defprotocol DeviceModel
   (source [this])
   (sampler-source [this]))
 
 ;; ==================== Likelihood model ====================================
 
-(deftype CLLikelihoodModel [name loglik-name ^long lik-params-size model-source]
+(deftype DeviceLikelihoodModel [name loglik-name ^long lik-params-size model-source]
   Releaseable
   (release [_]
     true)
   na/MemoryContext
   (compatible? [_ o]
-    (satisfies? CLModel o))
+    (satisfies? DeviceModel o))
   Model
   (params-size [_]
     lik-params-size)
-  CLModel
+  DeviceModel
   (source [_]
     model-source)
   (sampler-source [_]
@@ -45,21 +45,21 @@
                                   :or {name (str (gensym "likelihood"))
                                        loglik (format "%s_loglik" name)
                                        params-size 1}}]
-  (->CLLikelihoodModel name loglik params-size (if (sequential? source) source [source])))
+  (->DeviceLikelihoodModel name loglik params-size (if (sequential? source) source [source])))
 
 ;; ==================== Distribution model ====================================
 
-(declare cl-posterior-model)
+(declare device-posterior-model)
 
-(deftype CLDistributionModel [post-template name logpdf-name mcmc-logpdf-name
-                              ^long dist-dimension ^long dist-params-size
-                              model-limits model-source sampler-kernels]
+(deftype DeviceDistributionModel [post-template name logpdf-name mcmc-logpdf-name
+                                  ^long dist-dimension ^long dist-params-size
+                                  model-limits model-source sampler-kernels]
   Releaseable
   (release [_]
     (release model-limits))
   na/MemoryContext
   (compatible? [_ o]
-    (satisfies? CLModel o))
+    (satisfies? DeviceModel o))
   Model
   (params-size [_]
     dist-params-size)
@@ -74,8 +74,8 @@
     model-limits)
   PriorModel
   (posterior-model [prior name likelihood]
-    (cl-posterior-model post-template prior name likelihood))
-  CLModel
+    (device-posterior-model post-template prior name likelihood))
+  DeviceModel
   (source [_]
     model-source)
   (sampler-source [_]
@@ -90,21 +90,21 @@
                            :or {name (str (gensym "distribution"))
                                 logpdf (format "%s_logpdf" name)
                                 mcmc-logpdf logpdf dimension 1 params-size 1}}]
-  (->CLDistributionModel post-template name logpdf mcmc-logpdf dimension params-size limits
-                         (if (sequential? source) source [source])
-                         (if (sequential? sampler-source) sampler-source [sampler-source])))
+  (->DeviceDistributionModel post-template name logpdf mcmc-logpdf dimension params-size limits
+                             (if (sequential? source) source [source])
+                             (if (sequential? sampler-source) sampler-source [sampler-source])))
 
 ;; ==================== Posterior model ====================================
 
-(deftype CLPosteriorModel [post-template name logpdf-name mcmc-logpdf-name
-                           ^long dist-dimension ^long dist-params-size
-                           model-limits model-source likelihood-model]
+(deftype DevicePosteriorModel [post-template name logpdf-name mcmc-logpdf-name
+                               ^long dist-dimension ^long dist-params-size
+                               model-limits model-source likelihood-model]
   Releaseable
   (release [_]
     (release model-limits))
   na/MemoryContext
   (compatible? [_ o]
-    (satisfies? CLModel o))
+    (satisfies? DeviceModel o))
   Model
   (params-size [_]
     dist-params-size)
@@ -122,8 +122,8 @@
     (loglik likelihood-model))
   PriorModel
   (posterior-model [prior name likelihood]
-    (cl-posterior-model post-template prior name likelihood))
-  CLModel
+    (device-posterior-model post-template prior name likelihood))
+  DeviceModel
   (source [_]
     model-source)
   (sampler-source [_]
@@ -132,23 +132,23 @@
   (model [this]
     this))
 
-(defn cl-posterior-model [post-template prior name lik]
+(defn device-posterior-model [post-template prior name lik]
   (let [post-name (str (gensym name))
         post-logpdf (format "%s_logpdf" post-name)
         post-mcmc-logpdf (format "%s_mcmc_logpdf" post-name)
         post-params-size (+ ^long (params-size lik) ^long (params-size prior))]
-    (->CLPosteriorModel post-template post-name post-logpdf post-mcmc-logpdf
-                        (dimension prior) post-params-size
-                        (when (limits prior) (copy (limits prior)))
-                        (conj (vec (distinct (into (source prior) (source lik))))
-                              (format "%s\n%s"
-                                      (format post-template post-logpdf
-                                              (loglik lik) (logpdf prior)
-                                              (params-size lik))
-                                      (format post-template post-mcmc-logpdf
-                                              (loglik lik) (mcmc-logpdf prior)
-                                              (params-size lik))))
-                        lik)))
+    (->DevicePosteriorModel post-template post-name post-logpdf post-mcmc-logpdf
+                            (dimension prior) post-params-size
+                            (when (limits prior) (copy (limits prior)))
+                            (conj (vec (distinct (into (source prior) (source lik))))
+                                  (format "%s\n%s"
+                                          (format post-template post-logpdf
+                                                  (loglik lik) (logpdf prior)
+                                                  (params-size lik))
+                                          (format post-template post-mcmc-logpdf
+                                                  (loglik lik) (mcmc-logpdf prior)
+                                                  (params-size lik))))
+                            lik)))
 
 
 ;; ==================== Distribution Models ====================================
