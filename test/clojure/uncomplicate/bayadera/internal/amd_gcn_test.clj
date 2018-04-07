@@ -22,7 +22,7 @@
              [util :refer [create-tmp-dir with-philox]]
              [amd-gcn :refer :all]]
             [uncomplicate.bayadera.core-test :refer [test-all]])
-  (:import [uncomplicate.bayadera.internal.device.amd_gcn GCNStretch]))
+  (:import uncomplicate.bayadera.internal.device.amd_gcn.GCNStretch))
 
 (with-default
   (let [dev (queue-device *command-queue*)
