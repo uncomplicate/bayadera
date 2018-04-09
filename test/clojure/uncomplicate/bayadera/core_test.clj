@@ -28,7 +28,7 @@
      (with-release [dist (uniform factory a b)
                     uniform-sampler (sampler dist)
                     cl-sample (dataset factory (sample uniform-sampler))
-                    cl-pdf (pdf dist cl-sample)]
+                    cl-pdf (density dist cl-sample)]
        (dim (mean cl-sample)) => 1
        (dim (sd cl-sample)) => 1
        (entry (mean cl-sample) 0) => (roughly100 (mean dist))
@@ -72,7 +72,7 @@
      (with-release [dist (beta factory a b)
                     beta-sampler (sampler dist)
                     cl-sample (dataset factory (sample beta-sampler))
-                    cl-pdf (pdf dist cl-sample)
+                    cl-pdf (density dist cl-sample)
                     host-sample-data (transfer (p/data cl-sample))]
        (entry (mean beta-sampler) 0) => (roughly100 (mean dist))
        (entry (mean cl-sample) 0) => (roughly100 (mean dist))
@@ -87,7 +87,7 @@
      (with-release [dist (gamma factory theta k)
                     gamma-sampler (sampler dist)
                     cl-sample (dataset factory (sample gamma-sampler))
-                    cl-pdf (pdf dist cl-sample)
+                    cl-pdf (density dist cl-sample)
                     host-sample-data (transfer (p/data cl-sample))]
        (entry (mean gamma-sampler) 0) => (roughly100 (mean dist))
        (entry (mean cl-sample) 0) => (roughly100 (mean dist))
@@ -128,17 +128,19 @@
     (with-release [prior-dist (beta factory a b)
                    prior-sampler (sampler prior-dist)
                    prior-sample (dataset factory (sample prior-sampler))
-                   post (posterior factory "post" binomial-lik-model prior-dist)
+                   binomial-lik (likelihood factory binomial-lik-model);;TODO prettify
+                   binomial-lik-nz (binomial-lik (fv (binomial-lik-params N z)))
+                   post (distribution factory binomial-lik-model prior-dist)
                    post-dist (post (fv (binomial-lik-params N z)))
                    post-sampler (doto (sampler post-dist) (mix!))
                    post-sample (dataset factory (sample post-sampler))
-                   post-pdf (pdf post-dist post-sample)
+                   post-pdf (density post-dist post-sample)
                    real-post (beta factory a1 b1)
                    real-sampler (sampler real-post)
                    real-sample (dataset factory (sample real-sampler))
-                   real-pdf (pdf real-post real-sample)]
+                   real-pdf (density real-post real-sample)]
 
-      (let [prior-evidence (evidence post-dist prior-sample)]
+      (let [prior-evidence (evidence binomial-lik-nz prior-sample)]
         (facts
          "Core functions for beta-bernoulli distribution."
          (entry (mean prior-sample) 0) => (roughly (mean prior-dist))

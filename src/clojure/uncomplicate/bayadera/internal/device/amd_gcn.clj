@@ -69,31 +69,53 @@
   ModelProvider
   (model [_]
     dist-model)
-  DistributionEngine
-  (log-pdf [this cl-params x]
+  DensityEngine
+  (log-density [this cl-params x]
     (let-release [res (vctr x (ncols x))]
       (with-release [logpdf-kernel (kernel prog "logpdf")]
-        (set-args! logpdf-kernel 0 (buffer cl-params) (buffer x) (buffer res))
+        (set-args! logpdf-kernel 0 (wrap-int (mrows x)) (buffer cl-params) (buffer x) (buffer res))
         (enq-nd! cqueue logpdf-kernel (work-size-1d (ncols x)))
         res)))
-  (pdf [this cl-params x]
+  (density [this cl-params x]
     (let-release [res (vctr x (ncols x))]
       (with-release [pdf-kernel (kernel prog "pdf")]
-        (set-args! pdf-kernel 0 (buffer cl-params) (buffer x) (buffer res))
+        (set-args! pdf-kernel 0 (wrap-int (mrows x)) (buffer cl-params) (buffer x) (buffer res))
         (enq-nd! cqueue pdf-kernel (work-size-1d (ncols x)))
+        res))))
+
+;; ============================ Likelihood engine ============================
+
+(deftype GCNLikelihoodEngine [ctx cqueue prog ^long WGS lik-model]
+  Releaseable
+  (release [_]
+    (release prog))
+  ModelProvider
+  (model [_]
+    lik-model)
+  DensityEngine
+  (log-density [this cl-params x]
+    (let-release [res (vctr x (ncols x))]
+      (with-release [loglik-kernel (kernel prog "loglik")]
+        (set-args! loglik-kernel 0 (wrap-int (mrows x)) (buffer cl-params) (buffer x) (buffer res))
+        (enq-nd! cqueue loglik-kernel (work-size-1d (ncols x)))
         res)))
+  (density [this cl-params x]
+    (let-release [res (vctr x (ncols x))]
+      (with-release [lik-kernel (kernel prog "lik")]
+        (set-args! lik-kernel 0 (wrap-int (mrows x)) (buffer cl-params) (buffer x) (buffer res))
+        (enq-nd! cqueue lik-kernel (work-size-1d (ncols x)))
+        res)))
+  LikelihoodEngine
   (evidence [this cl-params x]
-    (if (satisfies? LikelihoodModel dist-model)
-      (let [n (ncols x)
-            acc-size (* Double/BYTES (count-work-groups WGS n))]
-        (with-release [evidence-kernel (kernel prog "evidence_reduce")
-                       sum-reduction-kernel (kernel prog "sum_reduction")
-                       cl-acc (cl-buffer ctx acc-size :read-write)]
-          (set-args! evidence-kernel 0 cl-acc (buffer cl-params) (buffer x))
-          (set-arg! sum-reduction-kernel 0 cl-acc)
-          (enq-reduce! cqueue evidence-kernel sum-reduction-kernel n WGS)
-          (/ (enq-read-double cqueue cl-acc) n)))
-      Double/NaN)))
+    (let [n (ncols x)
+          acc-size (* Double/BYTES (count-work-groups WGS n))]
+      (with-release [evidence-kernel (kernel prog "evidence_reduce")
+                     sum-reduction-kernel (kernel prog "sum_reduction")
+                     cl-acc (cl-buffer ctx acc-size :read-write)]
+        (set-args! evidence-kernel 0 (wrap-int (mrows x)) cl-acc (buffer cl-params) (buffer x))
+        (set-arg! sum-reduction-kernel 0 cl-acc)
+        (enq-reduce! cqueue evidence-kernel sum-reduction-kernel n WGS)
+        (/ (enq-read-double cqueue cl-acc) n)))))
 
 ;; ============================ Dataset engine =================================
 
@@ -539,8 +561,8 @@
       uniform-sampler-src (slurp (io/resource "uncomplicate/bayadera/internal/opencl/rng/uniform-sampler.cl"))
       mcmc-stretch-src (slurp (io/resource "uncomplicate/bayadera/internal/opencl/engines/amd-gcn-mcmc-stretch.cl"))
       dataset-options "-g -DCL_VERSION_2_0 -cl-std=CL2.0 -DREAL=float -DREAL2=float2 -DACCUMULATOR=float -DWGS=%d"
-      distribution-options "-cl-std=CL2.0 -DREAL=float -DACCUMULATOR=float -DLOGPDF=%s -DDIM=%d -DWGS=%d -I%s"
-      posterior-options "-cl-std=CL2.0 -DREAL=float -DACCUMULATOR=double -DLOGPDF=%s -DLOGLIK=%s -DDIM=%d -DWGS=%d -I%s"
+      distribution-options "-cl-std=CL2.0 -DREAL=float -DACCUMULATOR=float -DLOGPDF=%s -DWGS=%d"
+      likelihood-options "-cl-std=CL2.0 -DREAL=float -DACCUMULATOR=double -DLOGLIK=%s -DWGS=%d"
       stretch-options "-cl-std=CL2.0 -DREAL=float -DREAL2=float2 -DACCUMULATOR=float -DLOGFN=%s -DDIM=%d -DWGS=%d -I%s/"]
 
   (defn gcn-dataset-engine
@@ -560,22 +582,20 @@
      (gcn-acor-engine ctx queue 256)))
 
   (defn gcn-distribution-engine
-    ([ctx cqueue tmp-dir-name model WGS]
+    ([ctx cqueue model WGS]
      (let-release [prog (build-program!
                          (program-with-source ctx (conj (source model) distribution-src))
-                         (format distribution-options (logpdf model) (dimension model) WGS tmp-dir-name)
+                         (format distribution-options (logpdf model) WGS)
                          nil)]
        (->GCNDistributionEngine ctx cqueue prog WGS model))))
 
-  (defn gcn-posterior-engine
-    ([ctx cqueue tmp-dir-name model WGS]
+  (defn gcn-likelihood-engine
+    ([ctx cqueue model WGS]
      (let-release [prog (build-program!
-                         (program-with-source ctx (op (source model)
-                                                      [reduction-src likelihood-src distribution-src]))
-                         (format posterior-options (logpdf model) (loglik model) (dimension model)
-                                 WGS tmp-dir-name)
+                         (program-with-source ctx (op (source model) [reduction-src likelihood-src]))
+                         (format likelihood-options (loglik model) WGS)
                          nil)]
-       (->GCNDistributionEngine ctx cqueue prog WGS model))))
+       (->GCNLikelihoodEngine ctx cqueue prog WGS model))))
 
   (defn gcn-direct-sampler
     ([ctx cqueue tmp-dir-name model WGS]
@@ -621,13 +641,14 @@
   na/MemoryContext
   (compatible? [_ o]
     (or (satisfies? DeviceModel o) (na/compatible? neanderthal-factory o)))
+  LikelihoodEngineFactory
+  (likelihood-engine [_ model]
+    (gcn-likelihood-engine ctx cqueue model WGS))
   DistributionEngineFactory
   (distribution-engine [_ model]
     (if-let [eng (distribution-engines model)]
       @eng
-      (gcn-distribution-engine ctx cqueue tmp-dir-name model WGS)))
-  (posterior-engine [_ model]
-    (gcn-posterior-engine ctx cqueue tmp-dir-name model WGS))
+      (gcn-distribution-engine ctx cqueue model WGS)))
   SamplerFactory
   (direct-sampler [_ id]
     (deref (direct-samplers id)))
@@ -658,7 +679,7 @@
        (copy-philox tmp-dir-name)
        (->GCNBayaderaFactory
         ctx cqueue dev-queue tmp-dir-name compute-units WGS neanderthal-factory dataset-eng acor-eng
-        (fmap #(delay (gcn-distribution-engine ctx cqueue tmp-dir-name % WGS)) distributions)
+        (fmap #(delay (gcn-distribution-engine ctx cqueue % WGS)) distributions)
         (fmap #(delay (gcn-direct-sampler ctx cqueue tmp-dir-name % WGS))
               (select-keys distributions (keys samplers)))
         (fmap #(delay (gcn-stretch-factory ctx cqueue tmp-dir-name neanderthal-factory dataset-eng % WGS))

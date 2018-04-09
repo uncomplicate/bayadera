@@ -138,6 +138,24 @@
 
 ;; ====================== Distribution =========================================
 
+(defn posterior-model
+  ([name likelihood prior]
+   (if (compatible? (p/model likelihood) (p/model prior))
+     (p/posterior-model (p/model prior) name (p/model likelihood))
+     (dragan-says-ex (format "Incompatible types of likelihood and prior models."
+                             {:likelihood-type (type likelihood) :prior-type (type prior)}))))
+  ([likelihood prior]
+   (posterior-model (str (gensym "posterior")) likelihood prior)))
+
+(defn likelihood
+  ([model]
+   (likelihood *bayadera-factory* model))
+  ([factory model]
+   (if (compatible? factory model)
+     (->LikelihoodCreator factory (p/likelihood-engine factory model) model)
+     (dragan-says-ex (format "Model dialect is incompatible with factory."
+                             {:type (type model) :factory (type factory)})))))
+
 (defn distribution
   ([model]
    (distribution *bayadera-factory* model))
@@ -145,38 +163,18 @@
    (if (compatible? factory model)
      (->DistributionCreator factory (p/distribution-engine factory model)
                             (p/mcmc-factory factory model) model)
-     (dragan-says-ex (format "Model type is incompatible with factory."
-                             {:type (type model) :factory (type factory)})))))
-
-(defn posterior-model
-  ([name likelihood prior]
-   (if (compatible? likelihood (p/model prior))
-     (p/posterior-model (p/model prior) name likelihood)
-     (dragan-says-ex (format "Incompatible types of likelihood and prior models."
-                             {:likelihood-type (type likelihood) :prior-type (type prior)}))))
-  ([likelihood prior]
-   (posterior-model (str (gensym "posterior")) likelihood prior)))
-
-(defn posterior
-  ([model]
-   (posterior *bayadera-factory* model))
-  ([factory model]
-   (if (compatible? factory model)
-     (->DistributionCreator factory (p/posterior-engine factory model)
-                            (p/mcmc-factory factory model) model)
-     (dragan-says-ex (format "Model type is incompatible with factory."
+     (dragan-says-ex (format "Model dialect is incompatible with factory."
                              {:type (type model) :factory (type factory)}))))
-  ([^String name likelihood prior]
-   (posterior *bayadera-factory* name likelihood prior))
+  ([factory-or-name likelihood prior]
+   (if (string? factory-or-name)
+     (distribution *bayadera-factory* factory-or-name likelihood prior)
+     (distribution factory-or-name (str (gensym "posterior")) likelihood prior)))
   ([factory ^String name likelihood prior]
-   (let-release [dist-creator (posterior factory (posterior-model name likelihood prior))]
-     (if (satisfies? p/Distribution prior)
-       (if (compatible? factory (p/parameters prior))
-         (->PosteriorCreator dist-creator (transfer (p/parameters prior)))
-         (dragan-says-ex (format "Incompatible types of likelihood and prior models."
-                                 {:likelihood-type (type likelihood)
-                                  :prior-type (type (p/parameters prior))})))
-       dist-creator))))
+   (let [model (posterior-model name likelihood prior)]
+     (if (satisfies? p/ParameterProvider prior)
+       (->PosteriorCreator factory (p/distribution-engine factory model)
+                           (p/mcmc-factory factory model) model (transfer (p/parameters prior)))
+       (distribution factory model)))))
 
 ;; ====================== Measures =============================================
 
@@ -195,28 +193,23 @@
 (defn sd [x]
   (native! (p/sd x)))
 
-;;TODO rename to pd or density
-(defn pdf [dist xs]
-  (if (compatible? dist (p/data xs))
-    (p/pdf (p/engine dist) (p/parameters dist) (p/data xs))
-    (dragan-says-ex (format "Data type is incompatible with distribution engine"
-                            {:type (type dist) :factory (info (p/data xs))}))))
+(defn density [d xs]
+  (if (compatible? d (p/data xs))
+    (p/density (p/engine d) (p/parameters d) (p/data xs))
+    (dragan-says-ex (format "Data type is incompatible with the engine."
+                            {:type (type d) :factory (info (p/data xs))}))))
 
-;;TODO rename to log-pd or log-density
-(defn log-pdf [dist xs]
-  (if (compatible? dist (p/data xs))
-    (p/log-pdf (p/engine dist) (p/parameters dist) (p/data xs))
-    (dragan-says-ex (format "Data type is incompatible with distribution engine"
-                            {:type (type dist) :factory (info (p/data xs))}))))
+(defn log-density [d xs]
+  (if (compatible? d (p/data xs))
+    (p/log-density (p/engine d) (p/parameters d) (p/data xs))
+    (dragan-says-ex (format  "Data type is incompatible with the engine."
+                            {:type (type d) :factory (info (p/data xs))}))))
 
-(defn likelihood [lik xs]
-  (throw (UnsupportedOperationException. "TODO")))
-
-(defn evidence ^double [dist xs]
-  (if (compatible? dist (p/data xs))
-    (p/evidence (p/engine dist) (p/parameters dist) (p/data xs))
-    (dragan-says-ex (format "Data type is incompatible with distribution engine"
-                            {:type (type dist) :factory (info (p/data xs))}))))
+(defn evidence ^double [lik xs]
+  (if (compatible? lik (p/data xs))
+    (p/evidence (p/engine lik) (p/parameters lik) (p/data xs))
+    (dragan-says-ex (format "Data type is incompatible with likelihood engine"
+                            {:type (type lik) :factory (info (p/data xs))}))))
 
 ;; ================= Estimation ===============================================
 

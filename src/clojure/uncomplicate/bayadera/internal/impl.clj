@@ -84,7 +84,7 @@
                      (volatile! (or (:seed options) (srand-int)))))
   (sampler [this]
     (sampler this nil))
-  Distribution
+  ParameterProvider
   (parameters [_]
     params)
   EngineProvider
@@ -119,7 +119,7 @@
                      (volatile! (or (:seed options) (srand-int)))))
   (sampler [this]
     (sampler this nil))
-  Distribution
+  ParameterProvider
   (parameters [_]
     params)
   EngineProvider
@@ -162,7 +162,7 @@
           samp))))
   (sampler [this]
     (sampler this nil))
-  Distribution
+  ParameterProvider
   (parameters [_]
     params)
   EngineProvider
@@ -203,7 +203,7 @@
           samp))))
   (sampler [this]
     (sampler this nil))
-  Distribution
+  ParameterProvider
   (parameters [_]
     params)
   EngineProvider
@@ -245,7 +245,7 @@
           samp))))
   (sampler [this]
     (sampler this nil))
-  Distribution
+  ParameterProvider
   (parameters [_]
     params)
   EngineProvider
@@ -280,7 +280,7 @@
                      (volatile! (or (:seed options) (srand-int)))))
   (sampler [this]
     (sampler this nil))
-  Distribution
+  ParameterProvider
   (parameters [_]
     params)
   EngineProvider
@@ -302,8 +302,7 @@
   (sd [_]
     (sqrt (exponential-variance lambda))))
 
-(deftype ErlangDistribution [factory dist-eng params
-                             ^double lambda ^long k]
+(deftype ErlangDistribution [factory dist-eng params ^double lambda ^long k]
   Releaseable
   (release [_]
     (release params))
@@ -316,7 +315,7 @@
                      (processing-elements factory) (volatile! (or (:seed options) (srand-int)))))
   (sampler [this]
     (sampler this nil))
-  Distribution
+  ParameterProvider
   (parameters [_]
     params)
   EngineProvider
@@ -338,6 +337,37 @@
   (sd [_]
     (sqrt (erlang-variance lambda k))))
 
+(deftype LikelihoodImpl [factory lik-eng params lik-model]
+  Releaseable
+  (release [_]
+    (release params))
+  na/MemoryContext
+  (compatible? [_ o]
+    (na/compatible? factory o))
+  ParameterProvider
+  (parameters [_]
+    params)
+  EngineProvider
+  (engine [_]
+    lik-eng)
+  ModelProvider
+  (model [_]
+    lik-model))
+
+(deftype LikelihoodCreator [factory lik-eng lik-model]
+  Releaseable
+  (release [_]
+    (release lik-eng))
+  IFn
+  (invoke [_ params]
+    (if (= (params-size lik-model) (dim params))
+      (->LikelihoodImpl factory lik-eng (transfer factory params) lik-model)
+      (throw (IllegalArgumentException.
+              (format INVALID_PARAMS_MESSAGE (params-size lik-model) (dim params))))))
+  ModelProvider
+  (model [_]
+    lik-model))
+
 (deftype DistributionImpl [factory dist-eng sampler-factory params dist-model]
   Releaseable
   (release [_]
@@ -357,7 +387,7 @@
         samp)))
   (sampler [this]
     (sampler this nil))
-  Distribution
+  ParameterProvider
   (parameters [_]
     params)
   EngineProvider
@@ -386,17 +416,25 @@
       (->DistributionImpl factory dist-eng sampler-factory (transfer factory params) dist-model)
       (throw (IllegalArgumentException.
               (format INVALID_PARAMS_MESSAGE (params-size dist-model) (dim params))))))
-  (invoke [this data hyperparams]
+  (invoke [this data hyperparams];;TODO transpose params if posterior template changes params order.
     (.invoke this (op data hyperparams)))
   ModelProvider
   (model [_]
     dist-model))
 
-(deftype PosteriorCreator [^IFn dist-creator hyperparams]
+(deftype PosteriorCreator [factory dist-eng sampler-factory dist-model hyperparams]
   Releaseable
   (release [_]
     (release hyperparams)
-    (release dist-creator))
+    (release dist-eng)
+    (release sampler-factory))
   IFn
-  (invoke [_ data]
-    (.invoke dist-creator data hyperparams)))
+  (invoke [_ params-data]
+    (let [params (op params-data hyperparams)]
+      (if (= (params-size dist-model) (dim params))
+        (->DistributionImpl factory dist-eng sampler-factory (transfer factory params) dist-model)
+        (throw (IllegalArgumentException.
+                (format INVALID_PARAMS_MESSAGE (params-size dist-model) (dim params)))))))
+  ModelProvider
+  (model [_]
+    dist-model))

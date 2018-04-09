@@ -6,7 +6,7 @@
 ;;   the terms of this license.
 ;;   You must not remove this notice, or any other, from this software.
 
-(defproject uncomplicate/bayadera "0.2.0-SNAPSHOT"
+(defproject uncomplicate/bayadera "0.3.0-SNAPSHOT"
   :description "Bayesian Inference and Probabilistic Machine Learning Library for Clojure"
   :author "Dragan Djuric"
   :url "http://github.com/uncomplicate/bayadera"

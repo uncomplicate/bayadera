@@ -99,49 +99,48 @@
   (let [dev (queue-device *command-queue*)
         wgs 256
         tmp-dir-name (create-tmp-dir)]
-    (with-philox tmp-dir-name
-      (with-release [neanderthal-factory (opencl-float *context* *command-queue*)]
+    (with-release [neanderthal-factory (opencl-float *context* *command-queue*)]
+      (facts
+       "OpenCL GCN distribution engine with Gaussian distribution"
+       (with-release [gaussian-engine (gcn-distribution-engine *context* *command-queue* gaussian-model wgs)
+                      params (vctr neanderthal-factory [0.0 1.0])
+                      x (ge neanderthal-factory 1 200 (range -10 10 0.1))
+                      native-x-pdf (native! (density gaussian-engine params x))
+                      native-x-log-pdf (native! (log-density gaussian-engine params x))
+                      native-x0 (native x)
+                      native-x1 (copy native-x0)]
 
-        (facts
-         "OpenCL GCN distribution engine with Gaussian distribution"
-         (with-release [gaussian-engine (gcn-distribution-engine *context* *command-queue* tmp-dir-name
-                                                                 gaussian-model wgs)
-                        params (vctr neanderthal-factory [0.0 1.0])
-                        x (ge neanderthal-factory 1 200 (range -10 10 0.1))
-                        native-x-pdf (native! (pdf gaussian-engine params x))
-                        native-x-log-pdf (native! (log-pdf gaussian-engine params x))
-                        native-x0 (native x)
-                        native-x1 (copy native-x0)]
+         (nrm2 (axpy! -1 (row (fmap! (fn ^double [^double x] (gaussian-pdf 0.0 1.0 x)) native-x0) 0)
+                      native-x-pdf)) => (roughly 0.0 0.00001)
 
-           (nrm2 (axpy! -1 (row (fmap! (fn ^double [^double x] (gaussian-pdf 0.0 1.0 x)) native-x0) 0)
-                        native-x-pdf)) => (roughly 0.0 0.00001)
+         (nrm2 (axpy! -1 (row (fmap! (fn ^double [^double x] (gaussian-log-pdf 0.0 1.0 x)) native-x1) 0)
+                      native-x-log-pdf)) => (roughly 0.0 0.0001)))
 
-           (nrm2 (axpy! -1 (row (fmap! (fn ^double [^double x] (gaussian-log-pdf 0.0 1.0 x)) native-x1) 0)
-                        native-x-log-pdf)) => (roughly 0.0 0.0001)
-           (Double/isNaN (evidence gaussian-engine params x)) => truthy))
+      (facts
+       "OpenCL GCN posterior engine with Beta-Binomial model."
+       (let [n 50
+             z 15
+             a 3
+             b 2]
+         (with-release [post-engine (gcn-distribution-engine
+                                     *context* *command-queue*
+                                     (posterior-model beta-model "beta_binomial" binomial-lik-model)
+                                     wgs)
+                        beta-engine
+                        (gcn-distribution-engine *context* *command-queue* beta-model wgs)
+                        binomial-lik-engine;;TODO prettify
+                        (gcn-likelihood-engine *context* *command-queue* binomial-lik-model wgs)
+                        lik-params (vctr neanderthal-factory (binomial-lik-params n z))
+                        params (vctr neanderthal-factory (op (binomial-lik-params n z) (beta-params a b)))
+                        beta-params (vctr neanderthal-factory (beta-params (+ a z) (+ b (- n z))))
+                        x (ge neanderthal-factory 1 200 (range 0.001 1 0.001))
+                        x-pdf (density post-engine params x)
+                        x-log-pdf (log-density post-engine params x)
+                        x-beta-pdf (density beta-engine beta-params x)
+                        x-beta-log-pdf (log-density beta-engine beta-params x)]
 
-        (facts
-         "OpenCL GCN posterior engine with Beta-Binomial model."
-         (let [n 50
-               z 15
-               a 3
-               b 2]
-           (with-release [post-engine (gcn-posterior-engine
-                                       *context* *command-queue* tmp-dir-name
-                                       (posterior-model beta-model "beta_binomial" binomial-lik-model)
-                                       wgs)
-                          beta-engine (gcn-distribution-engine *context* *command-queue* tmp-dir-name
-                                                               beta-model wgs)
-                          params (vctr neanderthal-factory (op (binomial-lik-params n z) (beta-params a b)))
-                          beta-params (vctr neanderthal-factory (beta-params (+ a z) (+ b (- n z))))
-                          x (ge neanderthal-factory 1 200 (range 0.001 1 0.001))
-                          x-pdf (pdf post-engine params x)
-                          x-log-pdf (log-pdf post-engine params x)
-                          x-beta-pdf (pdf beta-engine beta-params x)
-                          x-beta-log-pdf (log-pdf beta-engine beta-params x)]
-
-             (nrm2 (linear-frac! (axpy! -1 x-log-pdf x-beta-log-pdf) -32.61044)) => (roughly 0.0 0.0001)
-             (evidence post-engine params x) => 1.6357374080751345E-15)))))))
+           (nrm2 (linear-frac! (axpy! -1 x-log-pdf x-beta-log-pdf) -32.61044)) => (roughly 0.0 0.0001)
+           (evidence binomial-lik-engine lik-params x) => 1.6357374080751345E-15))))))
 
 (with-default
   (let [dev (queue-device *command-queue*)

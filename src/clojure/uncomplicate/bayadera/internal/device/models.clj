@@ -17,49 +17,56 @@
             [uncomplicate.bayadera.internal.protocols :refer :all]))
 
 (defprotocol DeviceModel
+  (dialect [this])
   (source [this])
   (sampler-source [this]))
 
 ;; ==================== Likelihood model ====================================
 
-(deftype DeviceLikelihoodModel [name loglik-name ^long lik-params-size model-source]
+(deftype DeviceLikelihoodModel [model-dialect name loglik-name ^long lik-params-size model-source]
   Releaseable
   (release [_]
     true)
   na/MemoryContext
   (compatible? [_ o]
-    (satisfies? DeviceModel o))
+    (and (satisfies? DeviceModel o) (= model-dialect (dialect o))))
   Model
   (params-size [_]
     lik-params-size)
   DeviceModel
+  (dialect [_]
+    model-dialect)
   (source [_]
     model-source)
-  (sampler-source [_]
+  (sampler-source [_];;TODO remove? integrate into source?
     nil)
   LikelihoodModel
   (loglik [_]
-    loglik-name))
+    loglik-name)
+  ModelProvider
+  (model [this]
+    this))
 
-(defn likelihood-model [source & {:keys [name loglik params-size]
-                                  :or {name (str (gensym "likelihood"))
+(defn likelihood-model [source & {:keys [dialect name loglik params-size]
+                                  :or {dialect :c99
+                                       name (str (gensym "likelihood"))
                                        loglik (format "%s_loglik" name)
                                        params-size 1}}]
-  (->DeviceLikelihoodModel name loglik params-size (if (sequential? source) source [source])))
+  (->DeviceLikelihoodModel dialect name loglik params-size (if (sequential? source) source [source])))
 
 ;; ==================== Distribution model ====================================
 
 (declare device-posterior-model)
 
-(deftype DeviceDistributionModel [post-template name logpdf-name mcmc-logpdf-name
+(deftype DeviceDistributionModel [model-dialect post-template name logpdf-name mcmc-logpdf-name
                                   ^long dist-dimension ^long dist-params-size
-                                  model-limits model-source sampler-kernels]
+                                  model-limits model-source sampler-src]
   Releaseable
   (release [_]
     (release model-limits))
   na/MemoryContext
   (compatible? [_ o]
-    (satisfies? DeviceModel o))
+    (and (satisfies? DeviceModel o) (= model-dialect (dialect o))))
   Model
   (params-size [_]
     dist-params-size)
@@ -74,82 +81,46 @@
     model-limits)
   PriorModel
   (posterior-model [prior name likelihood]
-    (device-posterior-model post-template prior name likelihood))
+    (device-posterior-model post-template model-dialect prior name likelihood))
   DeviceModel
+  (dialect [_]
+    model-dialect)
   (source [_]
     model-source)
   (sampler-source [_]
-    sampler-kernels)
+    sampler-src)
   ModelProvider
   (model [this]
     this))
 
 (defn distribution-model
-  [post-template source & {:keys [name logpdf mcmc-logpdf dimension params-size
+  [post-template source & {:keys [dialect name logpdf mcmc-logpdf dimension params-size
                                   limits sampler-source]
-                           :or {name (str (gensym "distribution"))
+                           :or {dialect :c99
+                                name (str (gensym "distribution"))
                                 logpdf (format "%s_logpdf" name)
                                 mcmc-logpdf logpdf dimension 1 params-size 1}}]
-  (->DeviceDistributionModel post-template name logpdf mcmc-logpdf dimension params-size limits
+  (->DeviceDistributionModel dialect post-template name logpdf mcmc-logpdf dimension params-size limits
                              (if (sequential? source) source [source])
                              (if (sequential? sampler-source) sampler-source [sampler-source])))
 
-;; ==================== Posterior model ====================================
-
-(deftype DevicePosteriorModel [post-template name logpdf-name mcmc-logpdf-name
-                               ^long dist-dimension ^long dist-params-size
-                               model-limits model-source likelihood-model]
-  Releaseable
-  (release [_]
-    (release model-limits))
-  na/MemoryContext
-  (compatible? [_ o]
-    (satisfies? DeviceModel o))
-  Model
-  (params-size [_]
-    dist-params-size)
-  DistributionModel
-  (logpdf [_]
-    logpdf-name)
-  (mcmc-logpdf [_]
-    mcmc-logpdf-name)
-  (dimension [_]
-    dist-dimension)
-  (limits [_]
-    model-limits)
-  LikelihoodModel
-  (loglik [_]
-    (loglik likelihood-model))
-  PriorModel
-  (posterior-model [prior name likelihood]
-    (device-posterior-model post-template prior name likelihood))
-  DeviceModel
-  (source [_]
-    model-source)
-  (sampler-source [_]
-    nil)
-  ModelProvider
-  (model [this]
-    this))
-
-(defn device-posterior-model [post-template prior name lik]
+(defn device-posterior-model [post-template dialect prior name lik]
   (let [post-name (str (gensym name))
         post-logpdf (format "%s_logpdf" post-name)
         post-mcmc-logpdf (format "%s_mcmc_logpdf" post-name)
         post-params-size (+ ^long (params-size lik) ^long (params-size prior))]
-    (->DevicePosteriorModel post-template post-name post-logpdf post-mcmc-logpdf
-                            (dimension prior) post-params-size
-                            (when (limits prior) (copy (limits prior)))
-                            (conj (vec (distinct (into (source prior) (source lik))))
-                                  (format "%s\n%s"
-                                          (format post-template post-logpdf
-                                                  (loglik lik) (logpdf prior)
-                                                  (params-size lik))
-                                          (format post-template post-mcmc-logpdf
-                                                  (loglik lik) (mcmc-logpdf prior)
-                                                  (params-size lik))))
-                            lik)))
-
+    (->DeviceDistributionModel dialect post-template post-name post-logpdf post-mcmc-logpdf
+                               (dimension prior) post-params-size
+                               (when (limits prior) (copy (limits prior)))
+                               (conj (vec (distinct (into (source prior) (source lik))))
+                                     (format "%s\n%s"
+                                             (format post-template post-logpdf
+                                                     (loglik lik) (logpdf prior)
+                                                     (params-size lik))
+                                             (format post-template post-mcmc-logpdf
+                                                     (loglik lik) (mcmc-logpdf prior)
+                                                     (params-size lik))))
+                               nil)))
 
 ;; ==================== Distribution Models ====================================
 

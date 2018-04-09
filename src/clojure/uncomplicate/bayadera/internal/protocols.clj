@@ -34,9 +34,6 @@
 (defprotocol Dataset
   (data [_]))
 
-(defprotocol Distribution
-  (parameters [_]))
-
 ;; ==================== Models ======================================
 
 (defprotocol Model
@@ -57,15 +54,20 @@
 (defprotocol ModelProvider
   (model [this]))
 
+(defprotocol ParameterProvider
+  (parameters [_]))
+
 ;; ==================== Engines ====================
 
 (defprotocol DatasetEngine
   (data-mean [engine data-matrix])
   (data-variance [engine data-matrix]))
 
-(defprotocol DistributionEngine
-  (log-pdf [_ params x])
-  (pdf [_ params x])
+(defprotocol DensityEngine
+  (log-density [_ params x])
+  (density [_ params x]))
+
+(defprotocol LikelihoodEngine
   (evidence [_ params x]))
 
 (defprotocol EstimateEngine
@@ -116,6 +118,9 @@
 (defprotocol DistributionEngineFactory
   (distribution-engine [this model])
   (posterior-engine [this model]))
+
+(defprotocol LikelihoodEngineFactory
+  (likelihood-engine [this model]))
 
 (defprotocol SamplerFactory
   (direct-sampler [this id])

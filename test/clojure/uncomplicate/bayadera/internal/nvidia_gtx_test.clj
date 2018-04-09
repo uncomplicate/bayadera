@@ -93,18 +93,17 @@
 
 (with-default
   (let [dev (ctx-device)
-        wgs 256
-        cudart-version (driver-version)]
+        wgs 256]
     (with-release [neanderthal-factory (cuda-float (current-context) default-stream)]
 
       (facts
        "Nvidia GTX distribution engine with Gaussian distribution"
        (with-release [gaussian-engine (gtx-distribution-engine (current-context) default-stream
-                                                               gaussian-model wgs cudart-version)
+                                                               gaussian-model wgs)
                       params (vctr neanderthal-factory [0.0 1.0])
                       x (ge neanderthal-factory 1 200 (range -10 10 0.1))
-                      native-x-pdf (native! (pdf gaussian-engine params x))
-                      native-x-log-pdf (native! (log-pdf gaussian-engine params x))
+                      native-x-pdf (native! (density gaussian-engine params x))
+                      native-x-log-pdf (native! (log-density gaussian-engine params x))
                       native-x0 (native x)
                       native-x1 (copy native-x0)]
 
@@ -112,8 +111,7 @@
                       native-x-pdf)) => (roughly 0.0 0.00001)
 
          (nrm2 (axpy! -1 (row (fmap! (fn ^double [^double x] (gaussian-log-pdf 0.0 1.0 x)) native-x1) 0)
-                      native-x-log-pdf)) => (roughly 0.0 0.0001)
-         (Double/isNaN (evidence gaussian-engine params x)) => truthy))
+                      native-x-log-pdf)) => (roughly 0.0 0.0001)))
 
       (facts
        "Nvidia GTX posterior engine with Beta-Binomial model."
@@ -121,22 +119,25 @@
              z 15
              a 3
              b 2]
-         (with-release [post-engine (gtx-posterior-engine
+         (with-release [post-engine (gtx-distribution-engine
                                      (current-context) default-stream
                                      (posterior-model beta-model "beta_binomial" binomial-lik-model)
-                                     wgs cudart-version)
+                                     wgs)
                         beta-engine (gtx-distribution-engine (current-context) default-stream
-                                                             beta-model wgs cudart-version)
+                                                             beta-model wgs)
+                        binomial-lik-engine (gtx-likelihood-engine (current-context) default-stream
+                                                                   binomial-lik-model wgs)
+                        lik-params (vctr neanderthal-factory (binomial-lik-params n z))
                         params (vctr neanderthal-factory (op (binomial-lik-params n z) (beta-params a b)))
                         beta-params (vctr neanderthal-factory (beta-params (+ a z) (+ b (- n z))))
                         x (ge neanderthal-factory 1 200 (range 0.001 1 0.001))
-                        x-pdf (pdf post-engine params x)
-                        x-log-pdf (log-pdf post-engine params x)
-                        x-beta-pdf (pdf beta-engine beta-params x)
-                        x-beta-log-pdf (log-pdf beta-engine beta-params x)]
+                        x-pdf (density post-engine params x)
+                        x-log-pdf (log-density post-engine params x)
+                        x-beta-pdf (density beta-engine beta-params x)
+                        x-beta-log-pdf (log-density beta-engine beta-params x)]
 
            (nrm2 (linear-frac! (axpy! -1 x-log-pdf x-beta-log-pdf) -32.61044)) => (roughly 0.0 0.0001)
-           (evidence post-engine params x) => 1.6357453252754427E-15))))))
+           (evidence binomial-lik-engine lik-params x) => 1.6357453252754427E-15))))))
 
 (with-default
   (let [dev (ctx-device)

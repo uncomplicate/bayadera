@@ -63,44 +63,70 @@
 
 ;; ============================ Distribution engine ============================
 
-(deftype GTXDistributionEngine [ctx modl hstream ^long WGS dist-model
-                                logpdf-kernel pdf-kernel evidence-kernel sum-reduction-kernel]
+(deftype GTXDistributionEngine [ctx modl hstream ^long WGS dist-model logpdf-kernel pdf-kernel]
   Releaseable
   (release [_]
     (release logpdf-kernel)
     (release pdf-kernel)
+    (release modl))
+  ModelProvider
+  (model [_]
+    dist-model)
+  DensityEngine
+  (log-density [this cu-params x]
+    (in-context
+     ctx
+     (let-release [res (vctr cu-params (ncols x))]
+       (launch! logpdf-kernel (grid-1d (ncols x) WGS) hstream
+                (cuda/parameters (ncols x) (mrows x) (buffer cu-params) (buffer x) (buffer res)))
+       res)))
+  (density [this cu-params x]
+    (in-context
+     ctx
+     (let-release [res (vctr cu-params (ncols x))]
+       (launch! pdf-kernel (grid-1d (ncols x) WGS) hstream
+                (cuda/parameters (ncols x) (mrows x) (buffer cu-params) (buffer x) (buffer res)))
+       res))))
+
+;; ============================ Likelihood engine ============================
+
+(deftype GTXLikelihoodEngine [ctx modl hstream ^long WGS dist-model
+                              loglik-kernel lik-kernel evidence-kernel sum-reduction-kernel]
+  Releaseable
+  (release [_]
+    (release loglik-kernel)
+    (release lik-kernel)
     (release evidence-kernel)
     (release sum-reduction-kernel)
     (release modl))
   ModelProvider
   (model [_]
     dist-model)
-  DistributionEngine
-  (log-pdf [this cu-params x]
+  DensityEngine
+  (log-density [this cu-params x]
     (in-context
      ctx
      (let-release [res (vctr cu-params (ncols x))]
-       (launch! logpdf-kernel (grid-1d (ncols x) WGS) hstream
-                (cuda/parameters (ncols x) (buffer cu-params) (buffer x) (buffer res)))
+       (launch! loglik-kernel (grid-1d (ncols x) WGS) hstream
+                (cuda/parameters (ncols x) (mrows x) (buffer cu-params) (buffer x) (buffer res)))
        res)))
-  (pdf [this cu-params x]
+  (density [this cu-params x]
     (in-context
      ctx
      (let-release [res (vctr cu-params (ncols x))]
-       (launch! pdf-kernel (grid-1d (ncols x) WGS) hstream
-                (cuda/parameters (ncols x) (buffer cu-params) (buffer x) (buffer res)))
+       (launch! lik-kernel (grid-1d (ncols x) WGS) hstream
+                (cuda/parameters (ncols x) (mrows x) (buffer cu-params) (buffer x) (buffer res)))
        res)))
+  LikelihoodEngine
   (evidence [this cu-params x]
-    (if (satisfies? LikelihoodModel dist-model)
-      (in-context
-       ctx
-       (let [n (ncols x)
-             acc-size (* Double/BYTES (blocks-count WGS n))]
-         (with-release [cu-acc (mem-alloc acc-size)]
-           (launch-reduce! hstream evidence-kernel sum-reduction-kernel
-                           [cu-acc (buffer cu-params) (buffer x)] [cu-acc] n WGS)
-           (/ (read-double hstream cu-acc) n))))
-      Double/NaN)))
+    (in-context
+     ctx
+     (let [n (ncols x)
+           acc-size (* Double/BYTES (blocks-count WGS n))]
+       (with-release [cu-acc (mem-alloc acc-size)]
+         (launch-reduce! hstream evidence-kernel sum-reduction-kernel
+                         [(mrows x) cu-acc (buffer cu-params) (buffer x)] [cu-acc] n WGS)
+         (/ (read-double hstream cu-acc) n))))))
 
 ;; ============================ Dataset engine =================================
 
@@ -582,15 +608,13 @@
   ["-DREAL=float" "-DREAL2=float2" "-DACCUMULATOR=float" "-arch=compute_35" "-default-device"
    "--relocatable-device-code=true" "-use_fast_math" (format "-DWGS=%d" wgs)])
 
-(defn ^:private distribution-options [logpdf dim wgs cudart-version]
+(defn ^:private distribution-options [logpdf wgs]
   ["-DREAL=float" "-DACCUMULATOR=float" "-arch=compute_30" "-default-device" "-use_fast_math"
-   (format "-DLOGPDF=%s" logpdf) (format "-DDIM=%d" dim) (format "-DWGS=%d" wgs)
-   (format "-DCUDART_VERSION=%s" cudart-version)])
+   (format "-DLOGPDF=%s" logpdf) (format "-DWGS=%d" wgs)])
 
-(defn ^:private posterior-options [logpdf loglik dim wgs cudart-version]
+(defn ^:private likelihood-options [loglik wgs]
   ["-DREAL=float" "-DACCUMULATOR=double" "-arch=compute_30" "-default-device" "-use_fast_math"
-   (format "-DLOGPDF=%s" logpdf) (format "-DLOGLIK=%s" loglik) (format "-DDIM=%d" dim)
-   (format "-DWGS=%d" wgs) (format "-DCUDART_VERSION=%s" cudart-version)])
+   (format "-DLOGLIK=%s" loglik) (format "-DWGS=%d" wgs)])
 
 (defn ^:private stretch-options [logfn dim wgs cudart-version]
   ["-DREAL=float" "-DREAL2=float2" "-DACCUMULATOR=float" "-arch=compute_30" "-default-device"
@@ -664,38 +688,37 @@
      (gtx-acor-engine ctx hstream 1024)))
 
   (defn gtx-distribution-engine
-    ([ctx hstream model WGS cudart-version]
+    ([ctx hstream model WGS]
      (in-context
       ctx
       (let [include-likelihood (satisfies? LikelihoodModel model)]
-        (with-release [prog (compile! (program (format "%s\n%s" (apply str (source model)) distribution-src)
-                                               philox-headers)
-                                      (distribution-options (logpdf model) (dimension model) WGS cudart-version))]
+        (with-release [prog (compile!
+                             (program (format "%s\n%s" (apply str (source model)) distribution-src)
+                                      philox-headers)
+                             (distribution-options (logpdf model) WGS))]
           (let-release [modl (module prog)
                         logpdf-kernel (function modl "logpdf")
                         pdf-kernel (function modl "pdf")
                         evidence-kernel (if include-likelihood (function modl "evidence_reduce") nil)
                         sum-reduction-kernel (if include-likelihood (function modl "sum_reduction") nil)]
-            (->GTXDistributionEngine ctx modl hstream WGS model
-                                     logpdf-kernel pdf-kernel evidence-kernel sum-reduction-kernel)))))))
+            (->GTXDistributionEngine ctx modl hstream WGS model logpdf-kernel pdf-kernel)))))))
 
-  (defn gtx-posterior-engine
-    ([ctx hstream model WGS cudart-version]
+  (defn gtx-likelihood-engine
+    ([ctx hstream model WGS]
      (in-context
       ctx
-      (with-release [prog (compile! (program (format "%s\n%s\n%s\n%s"
-                                                     (apply str (source model))
-                                                     reduction-src likelihood-src distribution-src)
-                                             philox-headers)
-                                    (posterior-options (logpdf model) (loglik model) (dimension model)
-                                                       WGS cudart-version))]
+      (with-release [prog (compile!
+                           (program (format "%s\n%s\n%s"
+                                            (apply str (source model)) reduction-src likelihood-src)
+                                    philox-headers)
+                           (likelihood-options (loglik model) WGS))]
         (let-release [modl (module prog)
-                      logpdf-kernel (function modl "logpdf")
-                      pdf-kernel (function modl "pdf")
+                      loglik-kernel (function modl "loglik")
+                      lik-kernel (function modl "lik")
                       evidence-kernel (function modl "evidence_reduce")
                       sum-reduction-kernel (function modl "sum_reduction")]
-          (->GTXDistributionEngine ctx modl hstream WGS model
-                                   logpdf-kernel pdf-kernel evidence-kernel sum-reduction-kernel))))))
+          (->GTXLikelihoodEngine ctx modl hstream WGS model loglik-kernel lik-kernel
+                                 evidence-kernel sum-reduction-kernel))))))
 
   (defn gtx-direct-sampler
     ([ctx hstream model WGS cudart-version]
@@ -747,13 +770,14 @@
   na/MemoryContext
   (compatible? [_ o]
     (or (satisfies? DeviceModel o) (na/compatible? neanderthal-factory o)))
+  LikelihoodEngineFactory
+  (likelihood-engine [_ model]
+    (gtx-likelihood-engine ctx hstream model WGS))
   DistributionEngineFactory
   (distribution-engine [_ model]
     (if-let [eng (distribution-engines model)]
       @eng
       (gtx-distribution-engine ctx hstream model WGS)))
-  (posterior-engine [_ model]
-    (gtx-posterior-engine ctx hstream model WGS cudart-version))
   SamplerFactory
   (direct-sampler [_ id]
     (deref (direct-samplers id)))
@@ -782,7 +806,7 @@
                     acor-eng (gtx-acor-engine ctx hstream WGS)]
         (->GTXBayaderaFactory
          ctx hstream compute-units WGS cudart-version neanderthal-factory dataset-eng acor-eng
-         (fmap #(delay (gtx-distribution-engine ctx hstream % WGS cudart-version)) distributions)
+         (fmap #(delay (gtx-distribution-engine ctx hstream % WGS)) distributions)
          (fmap #(delay (gtx-direct-sampler ctx hstream % WGS cudart-version))
                (select-keys distributions (keys samplers)))
          (fmap #(delay (gtx-stretch-factory ctx hstream neanderthal-factory dataset-eng % WGS cudart-version))
