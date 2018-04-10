@@ -38,7 +38,7 @@
     model-dialect)
   (source [_]
     model-source)
-  (sampler-source [_];;TODO remove? integrate into source?
+  (sampler-source [_]
     nil)
   LikelihoodModel
   (loglik [_]

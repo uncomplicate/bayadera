@@ -416,7 +416,7 @@
       (->DistributionImpl factory dist-eng sampler-factory (transfer factory params) dist-model)
       (throw (IllegalArgumentException.
               (format INVALID_PARAMS_MESSAGE (params-size dist-model) (dim params))))))
-  (invoke [this data hyperparams];;TODO transpose params if posterior template changes params order.
+  (invoke [this data hyperparams]
     (.invoke this (op data hyperparams)))
   ModelProvider
   (model [_]

@@ -4,7 +4,6 @@
 
 inline REAL gaussian_log_unscaled(const REAL mu, const REAL sigma, const REAL x) {
     return (x - mu) * (x - mu) / (-2.0f * sigma * sigma);
-
 }
 
 inline REAL gaussian_log_scale(const REAL sigma) {
