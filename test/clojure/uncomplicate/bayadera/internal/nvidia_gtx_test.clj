@@ -191,19 +191,19 @@
              => [1.0883402824401855 1.3920516967773438 -0.8245221972465515 0.47322529554367065]
 
              (launch! stretch-move-bare-kernel (grid-1d (/ walker-count 2) wgs) hstream
-                      (clojurecuda/parameters (/ walker-count 2) (int seed) (int 3333)
+                      (clojurecuda/parameters (/ walker-count 2) (int seed) (int 3333) 2
                                               cu-params cu-s1 cu-s0 cu-logfn-s0 (float a) (float 1.0) (int 0)))
              (launch! stretch-move-bare-kernel (grid-1d (/ walker-count 2) wgs) hstream
-                      (clojurecuda/parameters (/ walker-count 2) (inc (int seed)) (int 4444)
+                      (clojurecuda/parameters (/ walker-count 2) (inc (int seed)) (int 4444) 2
                                               cu-params cu-s0 cu-s1 cu-logfn-s1 (float a) (float 1.0) (int 0)))
              (take 4 (native (row (sample uniform-sampler) 0)))
              => [0.7279692888259888 1.81407630443573 0.040318019688129425 0.4697103202342987]
 
              (launch! stretch-move-bare-kernel (grid-1d (/ walker-count 2) wgs) hstream
-                      (clojurecuda/parameters (/ walker-count 2) (int seed) (int 3333) cu-params
+                      (clojurecuda/parameters (/ walker-count 2) (int seed) (int 3333) 2 cu-params
                                               cu-s1 cu-s0 cu-logfn-s0 (float a) (float 1.0) (int 1)))
              (launch! stretch-move-bare-kernel (grid-1d (/ walker-count 2) wgs) hstream
-                      (clojurecuda/parameters (/ walker-count 2) (inc (int seed)) (int 4444) cu-params
+                      (clojurecuda/parameters (/ walker-count 2) (inc (int seed)) (int 4444) 2 cu-params
                                               cu-s0 cu-s1 cu-logfn-s1 (float a) (float 1.0) (int 1)))
              (take 4 (native (row (sample uniform-sampler) 0)))
              => [1.040357232093811 1.4457943439483643 0.3761849105358124 1.5768483877182007]
@@ -211,11 +211,11 @@
              (memset! cu-accept (int 0) hstream)
              (memset! cu-means-acc (float 0) hstream)
              (launch! stretch-move-kernel (grid-1d (/ walker-count 2) wgs) hstream
-                      (clojurecuda/parameters (/ walker-count 2) (int seed) (int 1111)
+                      (clojurecuda/parameters (/ walker-count 2) (int seed) (int 1111) 2
                                               cu-params cu-s1 cu-s0 cu-logfn-s0 cu-accept cu-means-acc
                                               (float a) (int 0)))
              (launch! stretch-move-kernel (grid-1d (/ walker-count 2) wgs) hstream
-                      (clojurecuda/parameters (/ walker-count 2) (inc (int seed)) (int 2222)
+                      (clojurecuda/parameters (/ walker-count 2) (inc (int seed)) (int 2222) 2
                                               cu-params cu-s0 cu-s1 cu-logfn-s1 cu-accept cu-means-acc
                                               (float a) (int 0)))
              (take 4 (native (row (sample uniform-sampler) 0)))

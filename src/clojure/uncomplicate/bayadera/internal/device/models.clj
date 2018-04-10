@@ -115,11 +115,9 @@
                                (conj (vec (distinct (into (source prior) (source lik))))
                                      (format "%s\n%s"
                                              (format post-template post-logpdf
-                                                     (loglik lik) (logpdf prior)
-                                                     (params-size lik))
+                                                     (params-size lik) (loglik lik) (logpdf prior))
                                              (format post-template post-mcmc-logpdf
-                                                     (loglik lik) (mcmc-logpdf prior)
-                                                     (params-size lik))))
+                                                     (params-size lik) (loglik lik) (logpdf prior))))
                                nil)))
 
 ;; ==================== Distribution Models ====================================

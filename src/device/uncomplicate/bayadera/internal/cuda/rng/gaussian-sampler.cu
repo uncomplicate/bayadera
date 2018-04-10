@@ -1,7 +1,8 @@
 extern "C" {
 
 #include "Random123/philox.h"
-
+#include <stdint.h>
+    
 #ifndef M_2PI_F
 #define M_2PI_F 6.2831855f
 #endif

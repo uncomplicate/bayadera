@@ -12,14 +12,14 @@ inline REAL binomial_log(const REAL n, const REAL p, const REAL k) {
 
 // ============= With params ========================================
 
-REAL binomial_mcmc_logpdf(const REAL* params, const REAL* k) {
+REAL binomial_mcmc_logpdf(const uint params_len, const REAL* params, const uint dim, const REAL* k) {
     return binomial_log_unscaled(params[0], params[1], k[0]);
 }
 
-REAL binomial_logpdf(const REAL* params, const REAL* k) {
+REAL binomial_logpdf(const uint params_len, const REAL* params, const uint dim, const REAL* k) {
     return binomial_log(params[0], params[1], k[0]);
 }
 
-REAL binomial_loglik(const REAL* params, const REAL* p) {
+REAL binomial_loglik(const uint params_len, const REAL* params, const uint dim, const REAL* p) {
     return binomial_log_unscaled(params[0], p[0], params[1]);
 }

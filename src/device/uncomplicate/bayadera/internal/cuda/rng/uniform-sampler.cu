@@ -1,7 +1,8 @@
 extern "C" {
 
 #include "Random123/philox.h"
-
+#include <stdint.h>
+    
 #ifndef R123_0x1p_23f
 #define R123_0x1p_23f 1.1920928955078125E-7f
 #endif
