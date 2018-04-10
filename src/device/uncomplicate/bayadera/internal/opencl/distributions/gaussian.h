@@ -16,11 +16,13 @@ inline REAL gaussian_log(const REAL mu, const REAL sigma, const REAL x) {
 
 // ============= With params ========================================
 
-REAL gaussian_mcmc_logpdf(const uint params_len, const REAL* params, const uint dim, const REAL* x) {
+REAL gaussian_mcmc_logpdf(const uint data_len, const uint params_len, const REAL* params,
+                          const uint dim, const REAL* x) {
     return gaussian_log_unscaled(params[0], params[1], x[0]);
 }
 
-REAL gaussian_logpdf(const uint params_len, const REAL* params, const uint dim, const REAL* x) {
+REAL gaussian_logpdf(const uint data_len, const uint params_len, const REAL* params,
+                     const uint dim, const REAL* x) {
     return gaussian_log(params[0], params[1], x[0]);
 }
 

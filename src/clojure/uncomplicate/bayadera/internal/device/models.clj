@@ -31,7 +31,7 @@
   (compatible? [_ o]
     (and (satisfies? DeviceModel o) (= model-dialect (dialect o))))
   Model
-  (params-size [_]
+  (params-size [_];;TODO remove
     lik-params-size)
   DeviceModel
   (dialect [_]
@@ -107,17 +107,16 @@
 (defn device-posterior-model [post-template dialect prior name lik]
   (let [post-name (str (gensym name))
         post-logpdf (format "%s_logpdf" post-name)
-        post-mcmc-logpdf (format "%s_mcmc_logpdf" post-name)
-        post-params-size (+ ^long (params-size lik) ^long (params-size prior))]
+        post-mcmc-logpdf (format "%s_mcmc_logpdf" post-name)]
     (->DeviceDistributionModel dialect post-template post-name post-logpdf post-mcmc-logpdf
-                               (dimension prior) post-params-size
+                               (dimension prior) (params-size prior)
                                (when (limits prior) (copy (limits prior)))
                                (conj (vec (distinct (into (source prior) (source lik))))
                                      (format "%s\n%s"
                                              (format post-template post-logpdf
-                                                     (params-size lik) (loglik lik) (logpdf prior))
+                                                     (loglik lik) (logpdf prior))
                                              (format post-template post-mcmc-logpdf
-                                                     (params-size lik) (loglik lik) (logpdf prior))))
+                                                     (loglik lik) (logpdf prior))))
                                nil)))
 
 ;; ==================== Distribution Models ====================================

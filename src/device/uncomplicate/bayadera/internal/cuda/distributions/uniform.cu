@@ -11,7 +11,8 @@ extern "C" {
 
 // ============= With params ========================================
 
-    REAL uniform_logpdf(const uint32_t params_len, const REAL* params, const uint32_t dim, const REAL* x) {
+    REAL uniform_logpdf(const uint32_t data_len, const uint32_t params_len, const REAL* params,
+                        const uint32_t dim, const REAL* x) {
         return uniform_log(params[0], params[1], x[0]);
     }
 }

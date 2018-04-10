@@ -34,6 +34,7 @@ extern "C" {
 
     bool stretch_move(const uint32_t K,
                       const uint32_t seed,
+                      const uint32_t data_len,
                       const uint32_t params_len,
                       const REAL* params,
                       const REAL* Scompl,
@@ -83,7 +84,7 @@ extern "C" {
             Y[i] = Xji + z * (X[k0 + i] - Xji);
         }
         
-        const REAL logfn_y = LOGFN(params_len, params, DIM, Y);
+        const REAL logfn_y = LOGFN(data_len, params_len, params, DIM, Y);
         const REAL q = (isfinite(logfn_y)) ?
             powf(z, DIM - 1) * exp(beta * (logfn_y - logfn_X[k])) : 0.0f;
 
@@ -102,6 +103,7 @@ extern "C" {
     __global__ void stretch_move_accu(const uint32_t n,
                                       const uint32_t seed,
                                       const uint32_t odd_or_even,
+                                      const uint32_t data_len,
                                       const uint32_t params_len,
                                       const REAL* params,
                                       const REAL* Scompl,
@@ -114,7 +116,8 @@ extern "C" {
 
         const uint32_t gid = blockIdx.x * blockDim.x + threadIdx.x;
         const bool accepted = (gid < n) &&
-            stretch_move(n, seed, params_len, params, Scompl, X, logfn_X, a, 1.0f, step_counter, odd_or_even);
+            stretch_move(n, seed, data_len, params_len, params, Scompl, X, logfn_X, a, 1.0f,
+                         step_counter, odd_or_even);
 
         const uint32_t accepted_sum = block_reduction_sum_uint(accepted ? 1 : 0);
         if (threadIdx.x == 0) {
@@ -135,6 +138,7 @@ extern "C" {
     __global__ void stretch_move_bare(const uint32_t n,
                                       const uint32_t seed,
                                       const uint32_t odd_or_even,
+                                      const uint32_t data_len,
                                       const uint32_t params_len,
                                       const REAL* params,
                                       const REAL* Scompl,
@@ -146,7 +150,8 @@ extern "C" {
 
         const uint32_t gid = blockIdx.x * blockDim.x + threadIdx.x;
         if (gid < n) {
-            stretch_move(n, seed, params_len, params, Scompl, X, logfn_X, a, beta, step_counter, odd_or_even);
+            stretch_move(n, seed, data_len, params_len, params, Scompl, X, logfn_X, a, beta,
+                         step_counter, odd_or_even);
         }
     }
 
@@ -192,13 +197,13 @@ extern "C" {
     }
 
     __global__ void logfn(const uint32_t n,
-                          const uint32_t params_len, const REAL* params,
+                          const uint32_t data_len, const uint32_t params_len, const REAL* params,
                           const REAL* x, REAL* res) {
         
         const uint32_t gid = blockIdx.x * blockDim.x + threadIdx.x;
         if (gid < n) {
             const uint32_t start = DIM * gid;
-            res[gid] = LOGFN(params_len, params, DIM, x + start);
+            res[gid] = LOGFN(data_len, params_len, params, DIM, x + start);
         }
     }
 

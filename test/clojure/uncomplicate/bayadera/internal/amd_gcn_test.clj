@@ -192,19 +192,19 @@
              (take 4 (native (row (sample uniform-sampler) 0)))
              => [1.0883402824401855 1.3920516967773438 -0.8245221972465515 0.47322529554367065]
 
-             (set-args! stretch-move-bare-kernel 0 (wrap-int seed) (wrap-int 3333) (wrap-int 2)
+             (set-args! stretch-move-bare-kernel 0 (wrap-int seed) (wrap-int 3333) (wrap-int 0) (wrap-int 2)
                         cl-params cl-s1 cl-s0 cl-logfn-s0 (wrap-float a) (wrap-float 1.0) (wrap-int 0))
              (enq-nd! cqueue stretch-move-bare-kernel (work-size-1d (/ walker-count 2)))
-             (set-args! stretch-move-bare-kernel 0 (wrap-int (inc seed)) (wrap-int 4444) (wrap-int 2)
+             (set-args! stretch-move-bare-kernel 0 (wrap-int (inc seed)) (wrap-int 4444) (wrap-int 0) (wrap-int 2)
                         cl-params cl-s0 cl-s1 cl-logfn-s1 (wrap-float a) (wrap-float 1.0) (wrap-int 0))
              (enq-nd! cqueue stretch-move-bare-kernel (work-size-1d (/ walker-count 2)))
              (take 4 (native (row (sample uniform-sampler) 0)))
              => [0.7279692888259888 1.8140764236450195 0.04031801223754883 0.4697103500366211]
 
-             (set-args! stretch-move-bare-kernel 0 (wrap-int seed) (wrap-int 3333) (wrap-int 2)
+             (set-args! stretch-move-bare-kernel 0 (wrap-int seed) (wrap-int 3333) (wrap-int 0) (wrap-int 2)
                         cl-params cl-s1 cl-s0 cl-logfn-s0 (wrap-float a) (wrap-float 1.0) (wrap-int 1))
              (enq-nd! cqueue stretch-move-bare-kernel (work-size-1d (/ walker-count 2)))
-             (set-args! stretch-move-bare-kernel 0 (wrap-int (inc seed)) (wrap-int 4444) (wrap-int 2)
+             (set-args! stretch-move-bare-kernel 0 (wrap-int (inc seed)) (wrap-int 4444) (wrap-int 0) (wrap-int 2)
                         cl-params cl-s0 cl-s1 cl-logfn-s1 (wrap-float a) (wrap-float 1.0) (wrap-int 1))
              (enq-nd! cqueue stretch-move-bare-kernel (work-size-1d (/ walker-count 2)))
              (take 4 (native (row (sample uniform-sampler) 0)))
@@ -212,11 +212,11 @@
 
              (enq-fill! cqueue cl-accept (int-array 1))
              (enq-fill! cqueue cl-means-acc (float-array 1))
-             (set-args! stretch-move-kernel 0 (wrap-int seed) (wrap-int 1111) (wrap-int 2)
+             (set-args! stretch-move-kernel 0 (wrap-int seed) (wrap-int 1111) (wrap-int 0) (wrap-int 2)
                         cl-params cl-s1 cl-s0 cl-logfn-s0 cl-accept cl-means-acc (wrap-float a)
                         (wrap-int 0))
              (enq-nd! cqueue stretch-move-kernel (work-size-1d (/ walker-count 2)))
-             (set-args! stretch-move-kernel 0 (wrap-int (inc seed)) (wrap-int 2222) (wrap-int 2)
+             (set-args! stretch-move-kernel 0 (wrap-int (inc seed)) (wrap-int 2222) (wrap-int 0) (wrap-int 2)
                         cl-params cl-s0 cl-s1 cl-logfn-s1 cl-accept cl-means-acc (wrap-float a)
                         (wrap-int 0))
              (enq-nd! cqueue stretch-move-kernel (work-size-1d (/ walker-count 2)))

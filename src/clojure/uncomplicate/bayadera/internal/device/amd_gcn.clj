@@ -71,18 +71,22 @@
     dist-model)
   DensityEngine
   (log-density [this cl-params x]
-    (let [params-len (wrap-int (count-entries (data-accessor cl-params) (buffer cl-params)))]
+    (let [params-len (long (params-size dist-model))
+          data-len (max 0 (- ^long (count-entries (data-accessor cl-params) (buffer cl-params))
+                             params-len))]
       (let-release [res (vctr x (ncols x))]
         (with-release [logpdf-kernel (kernel prog "logpdf")]
-          (set-args! logpdf-kernel 0 params-len (buffer cl-params)
+          (set-args! logpdf-kernel 0 (wrap-int data-len) (wrap-int params-len) (buffer cl-params)
                      (wrap-int (mrows x)) (buffer x) (buffer res))
           (enq-nd! cqueue logpdf-kernel (work-size-1d (ncols x)))
           res))))
   (density [this cl-params x]
-    (let [params-len (wrap-int (count-entries (data-accessor cl-params) (buffer cl-params)))]
+    (let [params-len (long (params-size dist-model))
+          data-len (max 0 (- ^long (count-entries (data-accessor cl-params) (buffer cl-params))
+                             params-len))]
       (let-release [res (vctr x (ncols x))]
         (with-release [pdf-kernel (kernel prog "pdf")]
-          (set-args! pdf-kernel 0 params-len (buffer cl-params)
+          (set-args! pdf-kernel 0 (wrap-int data-len) (wrap-int params-len) (buffer cl-params)
                      (wrap-int (mrows x)) (buffer x) (buffer res))
           (enq-nd! cqueue pdf-kernel (work-size-1d (ncols x)))
           res)))))
@@ -97,31 +101,31 @@
   (model [_]
     lik-model)
   DensityEngine
-  (log-density [this cl-params x]
-    (let [params-len (wrap-int (count-entries (data-accessor cl-params) (buffer cl-params)))]
+  (log-density [this cl-data x]
+    (let [data-len (wrap-int (count-entries (data-accessor cl-data) (buffer cl-data)))]
       (let-release [res (vctr x (ncols x))]
         (with-release [loglik-kernel (kernel prog "loglik")]
-          (set-args! loglik-kernel 0 params-len (buffer cl-params)
+          (set-args! loglik-kernel 0 data-len (buffer cl-data)
                      (wrap-int (mrows x)) (buffer x) (buffer res))
           (enq-nd! cqueue loglik-kernel (work-size-1d (ncols x)))
           res))))
-  (density [this cl-params x]
-    (let [params-len (wrap-int (count-entries (data-accessor cl-params) (buffer cl-params)))]
+  (density [this cl-data x]
+    (let [data-len (wrap-int (count-entries (data-accessor cl-data) (buffer cl-data)))]
       (let-release [res (vctr x (ncols x))]
         (with-release [lik-kernel (kernel prog "lik")]
-          (set-args! lik-kernel 0 params-len (buffer cl-params)
+          (set-args! lik-kernel 0 data-len (buffer cl-data)
                      (wrap-int (mrows x)) (buffer x) (buffer res))
           (enq-nd! cqueue lik-kernel (work-size-1d (ncols x)))
           res))))
   LikelihoodEngine
-  (evidence [this cl-params x]
+  (evidence [this cl-data x]
     (let [n (ncols x)
           acc-size (* Double/BYTES (count-work-groups WGS n))
-          params-len (wrap-int (count-entries (data-accessor cl-params) (buffer cl-params)))]
+          data-len (wrap-int (count-entries (data-accessor cl-data) (buffer cl-data)))]
       (with-release [evidence-kernel (kernel prog "evidence_reduce")
                      sum-reduction-kernel (kernel prog "sum_reduction")
                      cl-acc (cl-buffer ctx acc-size :read-write)]
-        (set-args! evidence-kernel 0 cl-acc params-len (buffer cl-params)
+        (set-args! evidence-kernel 0 cl-acc data-len (buffer cl-data)
                    (wrap-int (mrows x)) (buffer x))
         (set-arg! sum-reduction-kernel 0 cl-acc)
         (enq-reduce! cqueue evidence-kernel sum-reduction-kernel n WGS)
@@ -329,35 +333,35 @@
       (aset move-counter 0 0)
       (enq-fill! cqueue cl-accept (int-array 1))
       (initialize claccessor cl-means-acc)
-      (set-args! stretch-move-odd-kernel 8 cl-means-acc a)
-      (set-args! stretch-move-even-kernel 8 cl-means-acc a))
+      (set-args! stretch-move-odd-kernel 9 cl-means-acc a)
+      (set-args! stretch-move-even-kernel 9 cl-means-acc a))
     this)
   (move! [this]
-    (set-arg! stretch-move-odd-kernel 10 move-counter)
+    (set-arg! stretch-move-odd-kernel 11 move-counter)
     (enq-nd! cqueue stretch-move-odd-kernel wsize)
-    (set-arg! stretch-move-even-kernel 10 move-counter)
+    (set-arg! stretch-move-even-kernel 11 move-counter)
     (enq-nd! cqueue stretch-move-even-kernel wsize)
     (inc! move-counter)
     this)
   (move-bare! [this]
-    (set-arg! stretch-move-odd-bare-kernel 9 move-bare-counter)
+    (set-arg! stretch-move-odd-bare-kernel 10 move-bare-counter)
     (enq-nd! cqueue stretch-move-odd-bare-kernel wsize)
-    (set-arg! stretch-move-even-bare-kernel 9 move-bare-counter)
+    (set-arg! stretch-move-even-bare-kernel 10 move-bare-counter)
     (enq-nd! cqueue stretch-move-even-bare-kernel wsize)
     (inc! move-bare-counter)
     this)
   (set-temperature! [this t]
     (let [beta (wrap-prim claccessor (/ 1.0 ^double t))]
-      (set-arg! stretch-move-odd-bare-kernel 8 beta)
-      (set-arg! stretch-move-even-bare-kernel 8 beta))
+      (set-arg! stretch-move-odd-bare-kernel 9 beta)
+      (set-arg! stretch-move-even-bare-kernel 9 beta))
     this)
   RandomSampler
   (init! [this seed]
     (let [a (wrap-prim claccessor 2.0)]
       (set-arg! stretch-move-odd-bare-kernel 0 (wrap-int seed))
       (set-arg! stretch-move-even-bare-kernel 0 (wrap-int (inc (int seed))))
-      (set-arg! stretch-move-odd-bare-kernel 7 a)
-      (set-arg! stretch-move-even-bare-kernel 7 a)
+      (set-arg! stretch-move-odd-bare-kernel 8 a)
+      (set-arg! stretch-move-even-bare-kernel 8 a)
       (set-temperature! this 1.0)
       (aset move-bare-counter 0 0)
       (aset move-seed 0 (int seed))
@@ -404,8 +408,8 @@
         this)))
   (burn-in! [this n a]
     (let [a (wrap-prim claccessor a)]
-      (set-arg! stretch-move-odd-bare-kernel 7 a)
-      (set-arg! stretch-move-even-bare-kernel 7 a)
+      (set-arg! stretch-move-odd-bare-kernel 8 a)
+      (set-arg! stretch-move-even-bare-kernel 8 a)
       (set-temperature! this 1.0)
       (dotimes [i n]
         (move-bare! this))
@@ -413,8 +417,8 @@
       this))
   (anneal! [this schedule n a]
     (let [a (wrap-prim claccessor a)]
-      (set-arg! stretch-move-odd-bare-kernel 7 a)
-      (set-arg! stretch-move-even-bare-kernel 7 a)
+      (set-arg! stretch-move-odd-bare-kernel 8 a)
+      (set-arg! stretch-move-even-bare-kernel 8 a)
       (dotimes [i n]
         (set-temperature! this (schedule i))
         (move-bare! this))
@@ -521,7 +525,8 @@
               claccessor (data-accessor neanderthal-factory)
               sub-bytesize (* DIM (long (/ walker-count 2)) (entry-width claccessor))
               cl-params (buffer params)
-              params-len (wrap-int (count-entries claccessor cl-params))]
+              params-len (wrap-int (params-size model))
+              data-len (wrap-int (- (count-entries claccessor cl-params) ^long (params-size model)))]
           (let-release [cl-xs (create-data-source claccessor (* DIM walker-count))
                         cl-s0 (cl-sub-buffer cl-xs 0 sub-bytesize :read-write)
                         cl-s1 (cl-sub-buffer cl-xs sub-bytesize sub-bytesize :read-write)
@@ -537,16 +542,16 @@
              (int-array 1) (int-array 1) (volatile! 0) (int-array 1)
              cl-params cl-xs cl-s0 cl-s1 cl-logfn-xs cl-logfn-s0 cl-logfn-s1
              cl-accept cl-accept-acc cl-acc
-             (set-args! (kernel prog "stretch_move_accu")
-                        1 (wrap-int 1111) params-len cl-params cl-s1 cl-s0 cl-logfn-s0 cl-accept)
-             (set-args! (kernel prog "stretch_move_accu")
-                        1 (wrap-int 2222) params-len cl-params cl-s0 cl-s1 cl-logfn-s1 cl-accept)
-             (set-args! (kernel prog "stretch_move_bare")
-                        1 (wrap-int 3333) params-len cl-params cl-s1 cl-s0 cl-logfn-s0)
-             (set-args! (kernel prog "stretch_move_bare")
-                        1 (wrap-int 4444) params-len cl-params cl-s0 cl-s1 cl-logfn-s1)
+             (set-args! (kernel prog "stretch_move_accu") 1 (wrap-int 1111)
+                        data-len params-len cl-params cl-s1 cl-s0 cl-logfn-s0 cl-accept)
+             (set-args! (kernel prog "stretch_move_accu") 1 (wrap-int 2222)
+                        data-len params-len cl-params cl-s0 cl-s1 cl-logfn-s1 cl-accept)
+             (set-args! (kernel prog "stretch_move_bare") 1 (wrap-int 3333)
+                        data-len params-len cl-params cl-s1 cl-s0 cl-logfn-s0)
+             (set-args! (kernel prog "stretch_move_bare") 1 (wrap-int 4444)
+                        data-len params-len cl-params cl-s0 cl-s1 cl-logfn-s1)
              (set-arg! (kernel prog "init_walkers") 2 cl-xs)
-             (set-args! (kernel prog "logfn") 0 params-len cl-params cl-xs cl-logfn-xs)
+             (set-args! (kernel prog "logfn") 0 data-len params-len cl-params cl-xs cl-logfn-xs)
              (set-arg! (kernel prog "sum_accept_reduction") 0 cl-accept-acc)
              (set-args! (kernel prog "sum_accept_reduce") 0 cl-accept-acc cl-accept)
              (kernel prog "sum_means_vertical")

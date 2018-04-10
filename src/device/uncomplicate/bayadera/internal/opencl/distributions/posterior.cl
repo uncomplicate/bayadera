@@ -1,5 +1,6 @@
-inline REAL %s(const uint params_len, const REAL* params, const uint dim, const REAL* x) {
-    const uint lik_params_len = %d;
-    return %s(lik_params_len, params, params_len - lik_params_len, x) +
-        %s(params_len - lik_params_len, &params[lik_params_len], dim, x);
+inline REAL %s(const uint data_len, const uint hyperparams_len, const REAL* params,
+               const uint dim, const REAL* x) {
+
+    return %s(data_len, params, dim, x) +
+        %s(data_len, hyperparams_len, &params[data_len], dim, x);
 }

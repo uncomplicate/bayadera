@@ -22,11 +22,13 @@ extern "C" {
 
 // ============= With params ========================================
 
-    REAL student_t_mcmc_logpdf(const uint32_t params_len, const REAL* params, const uint32_t dim, const REAL* x) {
+    REAL student_t_mcmc_logpdf(const uint32_t data_len, const uint32_t params_len, const REAL* params,
+                               const uint32_t dim, const REAL* x) {
         return student_t_log_unscaled(params[0], params[1], params[2], x[0]);
     }
 
-    REAL student_t_logpdf(const uint32_t params_len, const REAL* params, const uint32_t dim, const REAL* x) {
+    REAL student_t_logpdf(const uint32_t data_len, const uint32_t params_len, const REAL* params,
+                          const uint32_t dim, const REAL* x) {
         return student_t_log_unscaled(params[0], params[1], params[2], x[0]) + params[3];
     }
 

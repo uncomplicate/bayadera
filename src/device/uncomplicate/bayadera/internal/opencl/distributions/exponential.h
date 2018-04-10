@@ -8,11 +8,13 @@ inline REAL exponential_log(const REAL lambda, const REAL x) {
 
 // ============= With params ========================================
 
-REAL exponential_mcmc_logpdf(const uint params_len, const REAL* params, const uint dim, const REAL* x) {
+REAL exponential_mcmc_logpdf(const uint data_len, const uint params_len, const REAL* params,
+                             const uint dim, const REAL* x) {
     return (0.0f < x[0]) ? exponential_log_unscaled(params[0], x[0]) : NAN;
 }
 
 
-REAL exponential_logpdf(const uint params_len, const REAL* params, const uint dim, const REAL* x) {
-    return (0.0f < x[0]) ? exponential_log_unscaled(params[0], x[0]) + params[1] :NAN;
+REAL exponential_logpdf(const uint data_len, const uint params_len, const REAL* params,
+                        const uint dim, const REAL* x) {
+    return (0.0f < x[0]) ? exponential_log_unscaled(params[0], x[0]) + params[1] : NAN;
 }

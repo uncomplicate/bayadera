@@ -30,6 +30,7 @@ uint work_group_reduction_sum_uint (const uint value) {
 }
 
 bool stretch_move(const uint seed,
+                  const uint data_len,
                   const uint params_len,
                   const REAL* params,
                   const REAL* Scompl,
@@ -64,7 +65,7 @@ bool stretch_move(const uint seed,
         Y[i] = Xji + z * (X[k0 + i] - Xji);
     }
 
-    const REAL logfn_y = LOGFN(params_len, params, DIM, Y);
+    const REAL logfn_y = LOGFN(data_len, params_len, params, DIM, Y);
     const REAL q = (isfinite(logfn_y)) ?
         pown(z, DIM - 1) * native_exp(beta * (logfn_y - logfn_X[k])) : 0.0f;
 
@@ -83,6 +84,7 @@ bool stretch_move(const uint seed,
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
 __kernel void stretch_move_accu(const uint seed,
                                 const uint odd_or_even,
+                                const uint data_len,
                                 const uint params_len,
                                 __global const REAL* params,
                                 __global const REAL* Scompl,
@@ -93,7 +95,7 @@ __kernel void stretch_move_accu(const uint seed,
                                 const REAL a,
                                 const uint step_counter) {
 
-    const bool accepted = stretch_move(seed, params_len, params, Scompl, X, logfn_X, a,
+    const bool accepted = stretch_move(seed, data_len, params_len, params, Scompl, X, logfn_X, a,
                                        1.0f, step_counter, odd_or_even);
 
     const uint accepted_sum = work_group_reduction_sum_uint(accepted ? 1 : 0);
@@ -115,6 +117,7 @@ __kernel void stretch_move_accu(const uint seed,
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
 __kernel void stretch_move_bare(const uint seed,
                                 const uint odd_or_even,
+                                const uint data_len,
                                 const uint params_len,
                                 __global const REAL* params,
                                 __global const REAL* Scompl,
@@ -124,7 +127,8 @@ __kernel void stretch_move_bare(const uint seed,
                                 const REAL beta,
                                 const uint step_counter) {
 
-    stretch_move(seed, params_len, params, Scompl, X, logfn_X, a, beta, step_counter, odd_or_even);
+    stretch_move(seed, data_len, params_len, params, Scompl, X, logfn_X, a, beta,
+                 step_counter, odd_or_even);
 
 }
 
@@ -154,11 +158,11 @@ __kernel void init_walkers(const uint seed,
 }
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
-__kernel void logfn(const uint params_len, __global const REAL* params,
+__kernel void logfn(const uint data_len, const uint params_len, __global const REAL* params,
                     __global const REAL* x, __global REAL* res) {
 
     const uint start = DIM * get_global_id(0);
-    res[get_global_id(0)] = LOGFN(params_len, params, DIM, x + start);
+    res[get_global_id(0)] = LOGFN(data_len, params_len, params, DIM, x + start);
 }
 
 // ======================== Acceptance =========================================

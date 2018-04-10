@@ -1,3 +1,4 @@
-REAL %s(const uint params_len, const REAL* params, const uint dim, const REAL* x) {
+inline REAL %s(const uint data_len, const uint hyperparams_len, const REAL* params,
+               const uint dim, const REAL* x) {
     %s;
 }

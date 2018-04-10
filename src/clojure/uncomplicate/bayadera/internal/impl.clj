@@ -360,10 +360,7 @@
     (release lik-eng))
   IFn
   (invoke [_ params]
-    (if (= (params-size lik-model) (dim params))
-      (->LikelihoodImpl factory lik-eng (transfer factory params) lik-model)
-      (throw (IllegalArgumentException.
-              (format INVALID_PARAMS_MESSAGE (params-size lik-model) (dim params))))))
+    (->LikelihoodImpl factory lik-eng (transfer factory params) lik-model))
   ModelProvider
   (model [_]
     lik-model))
@@ -431,7 +428,7 @@
   IFn
   (invoke [_ params-data]
     (let [params (op params-data hyperparams)]
-      (if (= (params-size dist-model) (dim params))
+      (if (= (params-size dist-model) (dim hyperparams))
         (->DistributionImpl factory dist-eng sampler-factory (transfer factory params) dist-model)
         (throw (IllegalArgumentException.
                 (format INVALID_PARAMS_MESSAGE (params-size dist-model) (dim params)))))))

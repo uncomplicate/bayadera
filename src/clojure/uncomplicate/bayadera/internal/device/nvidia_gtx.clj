@@ -76,19 +76,21 @@
   (log-density [this cu-params x]
     (in-context
      ctx
-     (let [params-len (count-entries (data-accessor cu-params) (buffer cu-params))]
+     (let [params-len (long (params-size dist-model))
+           data-len (- ^long (count-entries (data-accessor cu-params) (buffer cu-params)) params-len)]
        (let-release [res (vctr cu-params (ncols x))]
          (launch! logpdf-kernel (grid-1d (ncols x) WGS) hstream
-                  (cuda/parameters (ncols x) params-len (buffer cu-params)
+                  (cuda/parameters (ncols x) data-len params-len (buffer cu-params)
                                    (mrows x) (buffer x) (buffer res)))
          res))))
   (density [this cu-params x]
     (in-context
      ctx
-     (let [params-len (count-entries (data-accessor cu-params) (buffer cu-params))]
+     (let [params-len (long (params-size dist-model))
+           data-len (- ^long (count-entries (data-accessor cu-params) (buffer cu-params)) params-len)]
        (let-release [res (vctr cu-params (ncols x))]
          (launch! pdf-kernel (grid-1d (ncols x) WGS) hstream
-                  (cuda/parameters (ncols x) params-len (buffer cu-params)
+                  (cuda/parameters (ncols x) data-len params-len (buffer cu-params)
                                    (mrows x) (buffer x) (buffer res)))
          res)))))
 
@@ -107,34 +109,34 @@
   (model [_]
     dist-model)
   DensityEngine
-  (log-density [this cu-params x]
+  (log-density [this cu-data x]
     (in-context
      ctx
-     (let [params-len (count-entries (data-accessor cu-params) (buffer cu-params))]
-       (let-release [res (vctr cu-params (ncols x))]
+     (let [data-len (count-entries (data-accessor cu-data) (buffer cu-data))]
+       (let-release [res (vctr cu-data (ncols x))]
          (launch! loglik-kernel (grid-1d (ncols x) WGS) hstream
-                  (cuda/parameters (ncols x) params-len (buffer cu-params)
+                  (cuda/parameters (ncols x) data-len (buffer cu-data)
                                    (mrows x) (buffer x) (buffer res)))
          res))))
-  (density [this cu-params x]
+  (density [this cu-data x]
     (in-context
      ctx
-     (let [params-len (count-entries (data-accessor cu-params) (buffer cu-params))]
-       (let-release [res (vctr cu-params (ncols x))]
+     (let [data-len (count-entries (data-accessor cu-data) (buffer cu-data))]
+       (let-release [res (vctr cu-data (ncols x))]
          (launch! lik-kernel (grid-1d (ncols x) WGS) hstream
-                  (cuda/parameters (ncols x) params-len (buffer cu-params)
+                  (cuda/parameters (ncols x) data-len (buffer cu-data)
                                    (mrows x) (buffer x) (buffer res)))
          res))))
   LikelihoodEngine
-  (evidence [this cu-params x]
+  (evidence [this cu-data x]
     (in-context
      ctx
      (let [n (ncols x)
            acc-size (* Double/BYTES (blocks-count WGS n))
-           params-len (count-entries (data-accessor cu-params) (buffer cu-params))]
+           data-len (count-entries (data-accessor cu-data) (buffer cu-data))]
        (with-release [cu-acc (mem-alloc acc-size)]
          (launch-reduce! hstream evidence-kernel sum-reduction-kernel
-                         [cu-acc params-len (buffer cu-params) (mrows x) (buffer x)] [cu-acc] n WGS)
+                         [cu-acc data-len (buffer cu-data) (mrows x) (buffer x)] [cu-acc] n WGS)
          (/ (read-double hstream cu-acc) n))))))
 
 ;; ============================ Dataset engine =================================
@@ -342,35 +344,35 @@
       (aset move-counter 0 0)
       (memset! cu-accept 1 hstream)
       (initialize cuaccessor cu-means-acc)
-      (set-parameters! stretch-move-odd-params 9 cu-means-acc a)
-      (set-parameters! stretch-move-even-params 9 cu-means-acc a))
+      (set-parameters! stretch-move-odd-params 10 cu-means-acc a)
+      (set-parameters! stretch-move-even-params 10 cu-means-acc a))
     this)
   (move! [this]
-    (set-parameter! stretch-move-odd-params 11 (aget move-counter 0))
+    (set-parameter! stretch-move-odd-params 12 (aget move-counter 0))
     (launch! stretch-move-kernel wsize hstream stretch-move-odd-params)
-    (set-parameter! stretch-move-even-params 11 (aget move-counter 0))
+    (set-parameter! stretch-move-even-params 12 (aget move-counter 0))
     (launch! stretch-move-kernel wsize hstream stretch-move-even-params)
     (inc! move-counter)
     this)
   (move-bare! [this]
-    (set-parameter! stretch-move-odd-bare-params 10 (aget move-bare-counter 0))
+    (set-parameter! stretch-move-odd-bare-params 11 (aget move-bare-counter 0))
     (launch! stretch-move-bare-kernel wsize hstream stretch-move-odd-bare-params)
-    (set-parameter! stretch-move-even-bare-params 10 (aget move-bare-counter 0))
+    (set-parameter! stretch-move-even-bare-params 11 (aget move-bare-counter 0))
     (launch! stretch-move-bare-kernel wsize hstream stretch-move-even-bare-params)
     (inc! move-bare-counter)
     this)
   (set-temperature! [this t]
     (let [beta (cast-prim cuaccessor (/ 1.0 ^double t))]
-      (set-parameter! stretch-move-odd-bare-params 9 beta)
-      (set-parameter! stretch-move-even-bare-params 9 beta))
+      (set-parameter! stretch-move-odd-bare-params 10 beta)
+      (set-parameter! stretch-move-even-bare-params 10 beta))
     this)
   RandomSampler
   (init! [this seed]
     (let [a (cast-prim cuaccessor 2.0)]
       (set-parameter! stretch-move-odd-bare-params 1 (int seed))
       (set-parameter! stretch-move-even-bare-params 1 (inc (int seed)))
-      (set-parameter! stretch-move-odd-bare-params 8 a)
-      (set-parameter! stretch-move-even-bare-params 8 a)
+      (set-parameter! stretch-move-odd-bare-params 9 a)
+      (set-parameter! stretch-move-even-bare-params 9 a)
       (set-temperature! this 1.0)
       (aset move-bare-counter 0 0)
       (aset move-seed 0 (int seed))
@@ -426,8 +428,8 @@
     (in-context
      ctx
      (let [a (cast-prim cuaccessor a)]
-       (set-parameter! stretch-move-odd-bare-params 8 a)
-       (set-parameter! stretch-move-even-bare-params 8 a)
+       (set-parameter! stretch-move-odd-bare-params 9 a)
+       (set-parameter! stretch-move-even-bare-params 9 a)
        (set-temperature! this 1.0)
        (dotimes [i n]
          (move-bare! this))
@@ -437,8 +439,8 @@
     (in-context
      ctx
      (let [a (cast-prim cuaccessor a)]
-       (set-parameter! stretch-move-odd-bare-params 8 a)
-       (set-parameter! stretch-move-even-bare-params 8 a)
+       (set-parameter! stretch-move-odd-bare-params 9 a)
+       (set-parameter! stretch-move-even-bare-params 9 a)
        (dotimes [i n]
          (set-temperature! this (schedule i))
          (move-bare! this))
@@ -562,7 +564,8 @@
                cuaccessor (data-accessor neanderthal-factory)
                sub-bytesize (* DIM (long (/ walker-count 2)) (entry-width cuaccessor))
                cu-params (buffer params)
-               params-len (count-entries cuaccessor cu-params)
+               params-len (long (params-size model))
+               data-len (max 0 (- (count-entries cuaccessor cu-params) params-len))
                half-walker-count (int (/ walker-count 2))]
            (let-release [cu-xs (create-data-source cuaccessor (* DIM walker-count))
                          cu-s0 (mem-sub-region cu-xs 0 sub-bytesize)
@@ -580,19 +583,19 @@
               cu-params cu-xs cu-s0 cu-s1 cu-logfn-xs cu-logfn-s0 cu-logfn-s1
               cu-accept cu-accept-acc cu-acc
               (function modl "stretch_move_accu")
-              (cuda/parameters half-walker-count 1
-                               (int 1111) params-len cu-params cu-s1 cu-s0 cu-logfn-s0 cu-accept 8 9 10)
-              (cuda/parameters half-walker-count 1
-                               (int 2222) params-len cu-params cu-s0 cu-s1 cu-logfn-s1 cu-accept 8 9 10)
+              (cuda/parameters half-walker-count 1 (int 1111) data-len params-len cu-params
+                               cu-s1 cu-s0 cu-logfn-s0 cu-accept 10 11 12)
+              (cuda/parameters half-walker-count 1 (int 2222) data-len params-len cu-params
+                               cu-s0 cu-s1 cu-logfn-s1 cu-accept 10 11 12)
               (function modl "stretch_move_bare")
-              (cuda/parameters half-walker-count 1
-                               (int 3333) params-len cu-params cu-s1 cu-s0 cu-logfn-s0 7 8 9)
-              (cuda/parameters half-walker-count 1
-                               (int 4444) params-len cu-params cu-s0 cu-s1 cu-logfn-s1 7 8 9)
+              (cuda/parameters half-walker-count 1 (int 3333) data-len params-len cu-params
+                               cu-s1 cu-s0 cu-logfn-s0 9 10 11)
+              (cuda/parameters half-walker-count 1 (int 4444) data-len params-len cu-params
+                               cu-s0 cu-s1 cu-logfn-s1 9 10 11)
               (function modl "init_walkers")
               (cuda/parameters (int (/ (* DIM walker-count) 4)) 1 2 cu-xs)
               (function modl "logfn")
-              (cuda/parameters walker-count params-len cu-params cu-xs cu-logfn-xs)
+              (cuda/parameters walker-count data-len params-len cu-params cu-xs cu-logfn-xs)
               (function modl "sum_accept_reduction")
               (cuda/parameters walker-count cu-accept-acc)
               (function modl "sum_accept_reduce")
