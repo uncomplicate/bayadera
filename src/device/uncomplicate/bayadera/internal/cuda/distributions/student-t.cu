@@ -4,7 +4,7 @@ extern "C" {
 #define M_LOG_SQRT_PI_F 0.5723649429247f
 #endif
 
-    #include <stdint.h>
+#include <stdint.h>
     
     inline REAL student_t_log_unscaled(const REAL nu, const REAL mu, const REAL sigma, const REAL x) {
         const REAL x_mu_sigma = (x - mu) / sigma;
@@ -13,7 +13,7 @@ extern "C" {
 
     inline REAL student_t_log_scale(const REAL nu, const REAL sigma) {
         return lgamma(0.5f * (nu + 1.0f)) - lgamma(0.5f * nu)
-         - M_LOG_SQRT_PI_F - 0.5f * log(nu) - log(sigma);
+            - M_LOG_SQRT_PI_F - 0.5f * log(nu) - log(sigma);
     }
 
     inline REAL student_t_log(const REAL nu, const REAL mu, const REAL sigma, const REAL x) {
@@ -22,17 +22,18 @@ extern "C" {
 
 // ============= With params ========================================
 
-    REAL student_t_mcmc_logpdf(const uint32_t data_len, const uint32_t params_len, const REAL* params,
-                               const uint32_t dim, const REAL* x) {
+    inline REAL student_t_mcmc_logpdf(const uint32_t data_len, const uint32_t params_len, const REAL* params,
+                                      const uint32_t dim, const REAL* x) {
         return student_t_log_unscaled(params[0], params[1], params[2], x[0]);
     }
 
-    REAL student_t_logpdf(const uint32_t data_len, const uint32_t params_len, const REAL* params,
-                          const uint32_t dim, const REAL* x) {
+    inline REAL student_t_logpdf(const uint32_t data_len, const uint32_t params_len, const REAL* params,
+                                 const uint32_t dim, const REAL* x) {
         return student_t_log_unscaled(params[0], params[1], params[2], x[0]) + params[3];
     }
 
-    REAL student_t_loglik(const uint32_t data_len, const REAL* data, const uint32_t dim, const REAL* nu_mu_sigma) {
+    inline REAL student_t_loglik(const uint32_t data_len, const REAL* data,
+                                 const uint32_t dim, const REAL* nu_mu_sigma) {
         const REAL nu = nu_mu_sigma[0];
         const REAL mu = nu_mu_sigma[1];
         const REAL sigma = nu_mu_sigma[2];

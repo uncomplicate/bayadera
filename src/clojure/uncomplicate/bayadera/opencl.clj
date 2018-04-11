@@ -70,5 +70,4 @@
 (let [function-source (slurp (io/resource "uncomplicate/bayadera/internal/opencl/distributions/distribution.cl"))]
 
   (defn fn-source [^String name ^String body]
-    (format function-source name body))
-)
+    (format function-source name body)))

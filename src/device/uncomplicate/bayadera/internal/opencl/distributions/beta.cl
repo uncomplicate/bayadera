@@ -16,12 +16,12 @@ inline REAL beta_log(const REAL a, const REAL b, const REAL x) {
 
 // ============= With params ========================================
 
-REAL beta_mcmc_logpdf(const uint data_len, const uint params_len, const REAL* params,
-                      const uint dim, const REAL* x) {
+inline REAL beta_mcmc_logpdf(const uint data_len, const uint params_len, const REAL* params,
+                             const uint dim, const REAL* x) {
     return beta_log_unscaled(params[0], params[1], x[0]);
 }
 
-REAL beta_logpdf(const uint data_len, const uint params_len, const REAL* params,
-                 const uint dim, const REAL* x) {
+inline REAL beta_logpdf(const uint data_len, const uint params_len, const REAL* params,
+                        const uint dim, const REAL* x) {
     return beta_log_unscaled(params[0], params[1], x[0]) + params[2];
 }

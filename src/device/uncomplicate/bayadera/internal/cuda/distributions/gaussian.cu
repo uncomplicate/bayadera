@@ -20,17 +20,18 @@ extern "C" {
 
 // ============= With params ========================================
 
-    REAL gaussian_mcmc_logpdf(const uint32_t data_len, const uint32_t params_len, const REAL* params,
-                              const uint32_t dim, const REAL* x) {
+    inline REAL gaussian_mcmc_logpdf(const uint32_t data_len, const uint32_t params_len, const REAL* params,
+                                     const uint32_t dim, const REAL* x) {
         return gaussian_log_unscaled(params[0], params[1], x[0]);
     }
 
-    REAL gaussian_logpdf(const uint32_t data_len, const uint32_t params_len, const REAL* params,
-                         const uint32_t dim, const REAL* x) {
+    inline REAL gaussian_logpdf(const uint32_t data_len, const uint32_t params_len, const REAL* params,
+                                const uint32_t dim, const REAL* x) {
         return gaussian_log(params[0], params[1], x[0]);
     }
 
-    REAL gaussian_loglik(const uint32_t data_len, const REAL* data, const uint32_t dim, const REAL* mu_sigma) {
+    inline REAL gaussian_loglik(const uint32_t data_len, const REAL* data,
+                                const uint32_t dim, const REAL* mu_sigma) {
         const REAL mu = mu_sigma[0];
         const REAL sigma = mu_sigma[1];
         if (0.0f < sigma) {

@@ -18,13 +18,13 @@ extern "C" {
 
     // ============= With params ========================================
 
-    REAL beta_mcmc_logpdf(const uint32_t data_len, const uint32_t params_len, const REAL* params,
-                          const uint32_t dim, const REAL* x) {
+    inline REAL beta_mcmc_logpdf(const uint32_t data_len, const uint32_t params_len, const REAL* params,
+                                 const uint32_t dim, const REAL* x) {
         return beta_log_unscaled(params[0], params[1], x[0]);
     }
 
-    REAL beta_logpdf(const uint32_t data_len, const uint32_t params_len, const REAL* params,
-                     const uint32_t dim, const REAL* x) {
+    inline REAL beta_logpdf(const uint32_t data_len, const uint32_t params_len, const REAL* params,
+                            const uint32_t dim, const REAL* x) {
         return beta_log_unscaled(params[0], params[1], x[0]) + params[2];
     }
 }
