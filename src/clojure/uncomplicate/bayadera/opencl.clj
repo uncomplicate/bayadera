@@ -15,14 +15,14 @@
              [models :as models]
              [amd-gcn :as amd-gcn]]))
 
-(def uniform-source (slurp (io/resource "uncomplicate/bayadera/internal/opencl/distributions/uniform.h")))
-(def gaussian-source (slurp (io/resource "uncomplicate/bayadera/internal/opencl/distributions/gaussian.h")))
-(def student-t-source (slurp (io/resource "uncomplicate/bayadera/internal/opencl/distributions/student-t.h")))
-(def beta-source (slurp (io/resource "uncomplicate/bayadera/internal/opencl/distributions/beta.h")))
-(def exponential-source (slurp (io/resource "uncomplicate/bayadera/internal/opencl/distributions/exponential.h")))
-(def erlang-source (slurp (io/resource "uncomplicate/bayadera/internal/opencl/distributions/erlang.h")))
-(def gamma-source (slurp (io/resource "uncomplicate/bayadera/internal/opencl/distributions/gamma.h")))
-(def binomial-source (slurp (io/resource "uncomplicate/bayadera/internal/opencl/distributions/binomial.h")))
+(def uniform-source (slurp (io/resource "uncomplicate/bayadera/internal/opencl/distributions/uniform.cl")))
+(def gaussian-source (slurp (io/resource "uncomplicate/bayadera/internal/opencl/distributions/gaussian.cl")))
+(def student-t-source (slurp (io/resource "uncomplicate/bayadera/internal/opencl/distributions/student-t.cl")))
+(def beta-source (slurp (io/resource "uncomplicate/bayadera/internal/opencl/distributions/beta.cl")))
+(def exponential-source (slurp (io/resource "uncomplicate/bayadera/internal/opencl/distributions/exponential.cl")))
+(def erlang-source (slurp (io/resource "uncomplicate/bayadera/internal/opencl/distributions/erlang.cl")))
+(def gamma-source (slurp (io/resource "uncomplicate/bayadera/internal/opencl/distributions/gamma.cl")))
+(def binomial-source (slurp (io/resource "uncomplicate/bayadera/internal/opencl/distributions/binomial.cl")))
 
 (let [post-template (slurp (io/resource "uncomplicate/bayadera/internal/opencl/distributions/posterior.cl"))
       uniform-sampler (slurp (io/resource "uncomplicate/bayadera/internal/opencl/rng/uniform-sampler.cl"))
@@ -70,4 +70,5 @@
 (let [function-source (slurp (io/resource "uncomplicate/bayadera/internal/opencl/distributions/distribution.cl"))]
 
   (defn fn-source [^String name ^String body]
-    (format function-source name body)))
+    (format function-source name body))
+)
