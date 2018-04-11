@@ -23,16 +23,13 @@
 
 ;; ==================== Likelihood model ====================================
 
-(deftype DeviceLikelihoodModel [model-dialect name loglik-name ^long lik-params-size model-source]
+(deftype DeviceLikelihoodModel [model-dialect name loglik-name model-source]
   Releaseable
   (release [_]
     true)
   na/MemoryContext
   (compatible? [_ o]
     (and (satisfies? DeviceModel o) (= model-dialect (dialect o))))
-  Model
-  (params-size [_];;TODO remove
-    lik-params-size)
   DeviceModel
   (dialect [_]
     model-dialect)
@@ -47,12 +44,11 @@
   (model [this]
     this))
 
-(defn likelihood-model [source & {:keys [dialect name loglik params-size]
+(defn likelihood-model [source & {:keys [dialect name loglik]
                                   :or {dialect :c99
                                        name (str (gensym "likelihood"))
-                                       loglik (format "%s_loglik" name)
-                                       params-size 1}}]
-  (->DeviceLikelihoodModel dialect name loglik params-size (if (sequential? source) source [source])))
+                                       loglik (format "%s_loglik" name)}}]
+  (->DeviceLikelihoodModel dialect name loglik (if (sequential? source) source [source])))
 
 ;; ==================== Distribution model ====================================
 
@@ -67,10 +63,9 @@
   na/MemoryContext
   (compatible? [_ o]
     (and (satisfies? DeviceModel o) (= model-dialect (dialect o))))
-  Model
+  DistributionModel
   (params-size [_]
     dist-params-size)
-  DistributionModel
   (logpdf [_]
     logpdf-name)
   (mcmc-logpdf [_]
@@ -100,8 +95,8 @@
                                 name (str (gensym "distribution"))
                                 logpdf (format "%s_logpdf" name)
                                 mcmc-logpdf logpdf dimension 1 params-size 1}}]
-  (->DeviceDistributionModel dialect post-template name logpdf mcmc-logpdf dimension params-size limits
-                             (if (sequential? source) source [source])
+  (->DeviceDistributionModel dialect post-template name logpdf mcmc-logpdf dimension params-size
+                             limits (if (sequential? source) source [source])
                              (if (sequential? sampler-source) sampler-source [sampler-source])))
 
 (defn device-posterior-model [post-template dialect prior name lik]
@@ -123,22 +118,19 @@
 
 (defn uniform-model [post-template source sampler]
   (distribution-model post-template source
-                      :name "uniform"
-                      :params-size 2
+                      :name "uniform" :params-size 2
                       :limits (fge 2 1 [(- Float/MAX_VALUE) Float/MAX_VALUE])
                       :sampler-source sampler))
 
 (defn gaussian-model [post-template source sampler]
   (distribution-model post-template source
-                      :name "gaussian" :mcmc-logpdf "gaussian_mcmc_logpdf"
-                      :params-size 2
+                      :name "gaussian" :mcmc-logpdf "gaussian_mcmc_logpdf" :params-size 2
                       :limits (fge 2 1 [(- Float/MAX_VALUE) Float/MAX_VALUE])
                       :sampler-source sampler))
 
 (defn student-t-model [post-template source]
   (distribution-model post-template source
-                      :name "student_t" :mcmc-logpdf "student_t_mcmc_logpdf"
-                      :params-size 4
+                      :name "student_t" :mcmc-logpdf "student_t_mcmc_logpdf" :params-size 4
                       :limits (fge 2 1 [(- Float/MAX_VALUE) Float/MAX_VALUE])))
 
 (defn beta-model [post-template source]
@@ -148,22 +140,19 @@
 
 (defn exponential-model [post-template source sampler]
   (distribution-model post-template source
-                      :name "exponential" :mcmc-logpdf "exponential_mcmc_logpdf"
-                      :params-size 2
+                      :name "exponential" :mcmc-logpdf "exponential_mcmc_logpdf" :params-size 2
                       :limits (fge 2 1 [Float/MIN_VALUE Float/MAX_VALUE])
                       :sampler-source sampler))
 
 (defn erlang-model [post-template source sampler]
   (distribution-model post-template source
-                      :name "erlang" :mcmc-logpdf "erlang_mcmc_logpdf"
-                      :params-size 3
+                      :name "erlang" :mcmc-logpdf "erlang_mcmc_logpdf" :params-size 3
                       :limits (fge 2 1 [0 Float/MAX_VALUE])
                       :sampler-source sampler))
 
 (defn gamma-model [post-template source]
   (distribution-model post-template source
-                      :name "gamma" :mcmc-logpdf "gamma_mcmc_logpdf"
-                      :params-size 2
+                      :name "gamma" :mcmc-logpdf "gamma_mcmc_logpdf" :params-size 2
                       :limits (fge 2 1 [0.0 Float/MAX_VALUE])))
 
 (defn binomial-model [post-template source]
@@ -172,10 +161,10 @@
                       :limits (fge 2 1 [0.0 Float/MAX_VALUE])))
 
 (defn gaussian-lik-model [source]
-  (fn [n] (likelihood-model source :name "gaussian" :params-size n)))
+  (likelihood-model source :name "gaussian"))
 
 (defn student-t-lik-model [source]
-  (fn [n] (likelihood-model source :name "student_t" :params-size n)))
+  (likelihood-model source :name "student_t"))
 
 (defn binomial-lik-model [source]
-  (likelihood-model source :name "binomial" :params-size 2))
+  (likelihood-model source :name "binomial"))

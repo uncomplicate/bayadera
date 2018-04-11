@@ -36,10 +36,8 @@
 
 ;; ==================== Models ======================================
 
-(defprotocol Model
-  (params-size [this]))
-
 (defprotocol DistributionModel
+  (params-size [this])
   (mcmc-logpdf [this])
   (logpdf [this])
   (dimension [this])
