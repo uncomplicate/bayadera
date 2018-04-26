@@ -12,7 +12,7 @@
              [core :refer [release with-release let-release info double-fn]]
              [utils :refer [dragan-says-ex cond-into]]]
             [uncomplicate.neanderthal
-             [core :refer [transfer vctr native! matrix-type compatible?]]
+             [core :refer [vctr native! matrix-type compatible?]]
              [block :refer [column? gapless?]]]
             [uncomplicate.bayadera
              [distributions :refer [uniform-params gaussian-params student-t-params beta-params
@@ -39,7 +39,8 @@
    (if (and (compatible? factory data-matrix)
             (column? data-matrix) (= :ge (matrix-type data-matrix)))
      (->DatasetImpl (p/dataset-engine factory) data-matrix)
-     (dragan-says-ex {:matrix-type (matrix-type data-matrix) :data (info data-matrix)
+     (dragan-says-ex "The engine can not support this data."
+                     {:matrix-type (matrix-type data-matrix) :data (info data-matrix)
                       :factory (info factory) :errors
                       (cond-into []
                                  (not (= :ge (matrix-type data-matrix))) "matrix type is not :ge"
@@ -148,23 +149,25 @@
    (posterior-model (str (gensym "posterior")) likelihood prior)))
 
 (defn likelihood
-  ([model]
-   (likelihood *bayadera-factory* model))
-  ([factory model]
-   (if (compatible? factory model)
-     (->LikelihoodCreator factory (p/likelihood-engine factory model) model)
+  ([model-provider]
+   (likelihood *bayadera-factory* model-provider))
+  ([factory model-provider]
+   (if (compatible? factory model-provider)
+     (let [model (p/model model-provider)]
+       (->LikelihoodImpl factory (p/likelihood-engine factory model) model))
      (dragan-says-ex (format "Model dialect is incompatible with factory."
-                             {:type (type model) :factory (type factory)})))))
+                             {:type (type model-provider) :factory (type factory)})))))
 
 (defn distribution
-  ([model]
-   (distribution *bayadera-factory* model))
-  ([factory model]
-   (if (compatible? factory model)
-     (->DistributionCreator factory (p/distribution-engine factory model)
-                            (p/mcmc-factory factory model) model)
+  ([model-provider]
+   (distribution *bayadera-factory* model-provider))
+  ([factory model-provider]
+   (if (compatible? factory model-provider)
+     (let [model (p/model model-provider)]
+       (->DistributionCreator factory (p/distribution-engine factory model)
+                              (p/mcmc-factory factory model) model))
      (dragan-says-ex (format "Model dialect is incompatible with factory."
-                             {:type (type model) :factory (type factory)}))))
+                             {:type (type model-provider) :factory (type factory)}))))
   ([factory-or-name likelihood prior]
    (if (string? factory-or-name)
      (distribution *bayadera-factory* factory-or-name likelihood prior)
@@ -172,8 +175,7 @@
   ([factory ^String name likelihood prior]
    (let [model (posterior-model name likelihood prior)]
      (if (satisfies? p/ParameterProvider prior)
-       (->PosteriorCreator factory (p/distribution-engine factory model)
-                           (p/mcmc-factory factory model) model (transfer (p/parameters prior)))
+       (posterior-creator factory model (p/parameters prior))
        (distribution factory model)))))
 
 ;; ====================== Measures =============================================
@@ -197,19 +199,19 @@
   (if (compatible? d (p/data xs))
     (p/density (p/engine d) (p/parameters d) (p/data xs))
     (dragan-says-ex (format "Data type is incompatible with the engine."
-                            {:type (type d) :factory (info (p/data xs))}))))
+                            {:type (type d) :xs (info (p/data xs))}))))
 
 (defn log-density [d xs]
   (if (compatible? d (p/data xs))
     (p/log-density (p/engine d) (p/parameters d) (p/data xs))
     (dragan-says-ex (format  "Data type is incompatible with the engine."
-                            {:type (type d) :factory (info (p/data xs))}))))
+                            {:type (type d) :xs (info (p/data xs))}))))
 
-(defn evidence ^double [lik xs]
-  (if (compatible? lik (p/data xs))
-    (p/evidence (p/engine lik) (p/parameters lik) (p/data xs))
+(defn evidence ^double [lik data prior-sample]
+  (if (and (compatible? lik data) (compatible? lik (p/data prior-sample)) )
+    (p/evidence (p/engine lik) data (p/data prior-sample))
     (dragan-says-ex (format "Data type is incompatible with likelihood engine"
-                            {:type (type lik) :factory (info (p/data xs))}))))
+                            {:type (type lik) :prior-sample (info (p/data prior-sample))}))))
 
 ;; ================= Estimation ===============================================
 

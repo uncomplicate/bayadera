@@ -8,13 +8,14 @@
 
 (ns ^{:author "Dragan Djuric"}
     uncomplicate.bayadera.internal.impl
-  (:require [uncomplicate.commons.core
-             :refer [Releaseable release with-release let-release]]
+  (:require [uncomplicate.commons
+             [core :refer [Releaseable release with-release let-release]]
+             [utils :refer [dragan-says-ex]]]
             [uncomplicate.fluokitten.core :refer [op]]
             [uncomplicate.neanderthal
              [math :refer [sqrt]]
              [vect-math :refer [sqrt!]]
-             [core :refer [transfer ge dim]]
+             [core :refer [transfer ge dim vspace?]]
              [block :refer [column?]]]
             [uncomplicate.neanderthal.internal.api :as na]
             [uncomplicate.bayadera
@@ -24,16 +25,15 @@
             [uncomplicate.bayadera.internal.protocols :refer :all])
   (:import [clojure.lang IFn]))
 
-(def ^:private INVALID_PARAMS_MESSAGE
-  "Invalid params dimension. Must be %s, but is %s.")
-
-(def ^:private USE_SAMPLE_MSG
-  "This distribution's %s is a random variable. Please draw a sample to estimate it.")
-
 (defrecord DatasetImpl [dataset-eng data-matrix]
   Releaseable
   (release [_]
     (release data-matrix))
+  na/FactoryProvider
+  (factory [_]
+    (na/factory data-matrix))
+  (native-factory [_]
+    (na/native-factory data-matrix))
   Dataset
   (data [_]
     data-matrix)
@@ -337,30 +337,16 @@
   (sd [_]
     (sqrt (erlang-variance lambda k))))
 
-(deftype LikelihoodImpl [factory lik-eng params lik-model]
-  Releaseable
-  (release [_]
-    (release params))
-  na/MemoryContext
-  (compatible? [_ o]
-    (na/compatible? factory o))
-  ParameterProvider
-  (parameters [_]
-    params)
-  EngineProvider
-  (engine [_]
-    lik-eng)
-  ModelProvider
-  (model [_]
-    lik-model))
-
-(deftype LikelihoodCreator [factory lik-eng lik-model]
+(deftype LikelihoodImpl [factory lik-eng lik-model]
   Releaseable
   (release [_]
     (release lik-eng))
-  IFn
-  (invoke [_ params]
-    (->LikelihoodImpl factory lik-eng (transfer factory params) lik-model))
+  na/MemoryContext
+  (compatible? [_ o]
+    (na/compatible? factory o))
+  EngineProvider
+  (engine [_]
+    lik-eng)
   ModelProvider
   (model [_]
     lik-model))
@@ -395,12 +381,18 @@
     dist-model)
   Location
   (mean [_]
-    (throw (UnsupportedOperationException. (format USE_SAMPLE_MSG "mean"))))
+    (dragan-says-ex "Please estimate mean from a sample."))
   Spread
   (variance [_]
-    (throw (UnsupportedOperationException. (format USE_SAMPLE_MSG "variance"))))
+    (dragan-says-ex "Please estimate variance from a sample."))
   (sd [_]
-    (throw (UnsupportedOperationException. (format USE_SAMPLE_MSG "standard deviation")))))
+    (dragan-says-ex "Please estimate standard deviation from a sample.")))
+
+(defmacro ^:private with-params-check [model params & body]
+  `(if (= (params-size ~model) (if (vspace? ~params) (dim ~params) (count ~params)))
+     ~@body
+     (dragan-says-ex "Dimension of params must match the distribution."
+                     {:required (params-size ~model) :supplied (dim ~params)})))
 
 (deftype DistributionCreator [factory dist-eng sampler-factory dist-model]
   Releaseable
@@ -409,12 +401,12 @@
     (release sampler-factory))
   IFn
   (invoke [_ params]
-    (if (= (params-size dist-model) (dim params))
-      (->DistributionImpl factory dist-eng sampler-factory (transfer factory params) dist-model)
-      (throw (IllegalArgumentException.
-              (format INVALID_PARAMS_MESSAGE (params-size dist-model) (dim params))))))
+    (with-params-check dist-model params
+      (->DistributionImpl factory dist-eng sampler-factory (transfer factory params) dist-model)))
   (invoke [this data hyperparams]
-    (.invoke this (op data hyperparams)))
+    (with-release [params (op data hyperparams)]
+      (with-params-check dist-model hyperparams
+        (->DistributionImpl factory dist-eng sampler-factory (transfer factory params) dist-model))))
   ModelProvider
   (model [_]
     dist-model))
@@ -427,11 +419,16 @@
     (release sampler-factory))
   IFn
   (invoke [_ params-data]
-    (let [params (op params-data hyperparams)]
-      (if (= (params-size dist-model) (dim hyperparams))
-        (->DistributionImpl factory dist-eng sampler-factory (transfer factory params) dist-model)
-        (throw (IllegalArgumentException.
-                (format INVALID_PARAMS_MESSAGE (params-size dist-model) (dim params)))))))
+    (let-release [params (if (na/compatible? hyperparams params-data)
+                           (op params-data hyperparams)
+                           (op (transfer factory params-data) hyperparams))]
+      (with-params-check dist-model hyperparams
+        (->DistributionImpl factory dist-eng sampler-factory params dist-model))))
   ModelProvider
   (model [_]
     dist-model))
+
+(defn posterior-creator [factory model hyperparams]
+  (with-params-check model hyperparams
+    (->PosteriorCreator factory (distribution-engine factory model)
+                        (mcmc-factory factory model) model (transfer factory hyperparams))))

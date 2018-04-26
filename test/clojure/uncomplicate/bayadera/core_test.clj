@@ -5,9 +5,8 @@
             [uncomplicate.fluokitten.core :refer [fmap!]]
             [uncomplicate.neanderthal
              [math :refer [log exp sqrt]]
-             [core :refer [dim nrm2 copy dot scal! transfer row ge col axpy! mrows ncols]]
-             [real :refer [sum entry]]
-             [native :refer [fv]]]
+             [core :refer [dim nrm2 copy dot scal! transfer row ge col axpy! mrows ncols vctr]]
+             [real :refer [sum entry]]]
             [uncomplicate.bayadera
              [core :refer :all]
              [distributions :refer [beta-pdf binomial-lik-params]]
@@ -128,10 +127,10 @@
     (with-release [prior-dist (beta factory a b)
                    prior-sampler (sampler prior-dist)
                    prior-sample (dataset factory (sample prior-sampler))
-                   binomial-lik (likelihood factory binomial-lik-model);;TODO prettify
-                   binomial-lik-nz (binomial-lik (fv (binomial-lik-params N z)))
-                   post (distribution factory binomial-lik-model prior-dist)
-                   post-dist (post (fv (binomial-lik-params N z)))
+                   binomial-lik (likelihood factory binomial-lik-model)
+                   coin-data (vctr factory (binomial-lik-params N z))
+                   post (distribution factory binomial-lik prior-dist)
+                   post-dist (post coin-data)
                    post-sampler (doto (sampler post-dist) (mix!))
                    post-sample (dataset factory (sample post-sampler))
                    post-pdf (density post-dist post-sample)
@@ -140,7 +139,7 @@
                    real-sample (dataset factory (sample real-sampler))
                    real-pdf (density real-post real-sample)]
 
-      (let [prior-evidence (evidence binomial-lik-nz prior-sample)]
+      (let [prior-evidence (evidence binomial-lik coin-data prior-sample)]
         (facts
          "Core functions for beta-bernoulli distribution."
          (entry (mean prior-sample) 0) => (roughly (mean prior-dist))
