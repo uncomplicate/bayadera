@@ -55,6 +55,17 @@
 (defprotocol ParameterProvider
   (parameters [_]))
 
+;; ==================== Device Model ===============================
+
+(defprotocol DeviceModel
+  (dialect [this])
+  (source [this])
+  (sampler-source [this]))
+
+(defprotocol ModelFactory
+  (likelihood-model [this src args])
+  (distribution-model [this src args]))
+
 ;; ==================== Engines ====================
 
 (defprotocol DatasetEngine
@@ -113,17 +124,24 @@
 (defprotocol EngineProvider
   (engine [_]))
 
-(defprotocol DistributionEngineFactory
-  (distribution-engine [this model])
-  (posterior-engine [this model]))
+(defprotocol FactoryProvider
+  (factory [_]))
 
-(defprotocol LikelihoodEngineFactory
-  (likelihood-engine [this model]))
+(defprotocol EngineFactory;;TODO fuse with samplerfactory?
+  (distribution-engine [this model])
+  (likelihood-engine [this model])
+  (dataset-engine [this]))
 
 (defprotocol SamplerFactory
-  (direct-sampler [this id])
+  (direct-sampler [this model])
   (mcmc-factory [this model])
   (processing-elements [this]))
 
-(defprotocol DatasetFactory
-  (dataset-engine [this]))
+(defprotocol Library
+  (get-source [this id])
+  (get-distribution-model [this id])
+  (get-likelihood-model [this id])
+  (get-distribution-engine [this id])
+  (get-likelihood-engine [this id])
+  (get-direct-sampler [this id])
+  (get-mcmc-factory [this id]))

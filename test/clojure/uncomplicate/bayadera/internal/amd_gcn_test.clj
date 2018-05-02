@@ -16,12 +16,14 @@
              [block :refer :all]]
             [uncomplicate.bayadera
              [distributions :refer [gaussian-pdf gaussian-log-pdf binomial-lik-params beta-params]]
-             [opencl :refer :all :as ocl :exclude [gcn-bayadera-factory]]]
+             [opencl :refer :all]]
             [uncomplicate.bayadera.internal.protocols :refer :all]
             [uncomplicate.bayadera.internal.device
+             [models :as models]
              [util :refer [create-tmp-dir with-philox]]
              [amd-gcn :refer :all]]
-            [uncomplicate.bayadera.core-test :refer [test-all]])
+            [uncomplicate.bayadera.core-test :refer [test-dataset]]
+            [uncomplicate.bayadera.library-test :refer [test-all]])
   (:import uncomplicate.bayadera.internal.device.amd_gcn.GCNStretch))
 
 (with-default
@@ -29,12 +31,15 @@
         wgs 256
         tmp-dir-name (create-tmp-dir)]
     (with-philox tmp-dir-name
-      (with-release [neanderthal-factory (opencl-float *context* *command-queue*)]
+      (with-release [neanderthal-factory (opencl-float *context* *command-queue*)
+                     distributions (models/distribution-models source-library)
+                     likelihoods (models/likelihood-models source-library)]
 
         (facts
          "OpenCL GCN direct sampler for Uniform distribution"
-         (with-release [uniform-sampler (gcn-direct-sampler *context* *command-queue* tmp-dir-name
-                                                           uniform-model wgs)
+         (with-release [uniform-model (deref (distributions :uniform))
+                        uniform-sampler (gcn-direct-sampler *context* *command-queue* tmp-dir-name
+                                                            uniform-model wgs)
                         params (vctr neanderthal-factory [-99.9 200.1])
                         smpl (sample uniform-sampler 123 params 10000)
                         native-sample (native smpl)]
@@ -49,7 +54,8 @@
 
         (facts
          "OpenCL GCN direct sampler for Gaussian distribution"
-         (with-release [gaussian-sampler (gcn-direct-sampler *context* *command-queue* tmp-dir-name
+         (with-release [gaussian-model (deref (distributions :gaussian))
+                        gaussian-sampler (gcn-direct-sampler *context* *command-queue* tmp-dir-name
                                                              gaussian-model wgs)
                         params (vctr neanderthal-factory [100 200.1])
                         smpl (sample gaussian-sampler 123 params 10000)
@@ -65,7 +71,8 @@
 
         (facts
          "OpenCL GCN direct sampler for Erlang distribution"
-         (with-release [erlang-sampler (gcn-direct-sampler *context* *command-queue* tmp-dir-name
+         (with-release [erlang-model (deref (distributions :erlang))
+                        erlang-sampler (gcn-direct-sampler *context* *command-queue* tmp-dir-name
                                                            erlang-model wgs)
                         params (vctr neanderthal-factory [2 3])
                         smpl (sample erlang-sampler 123 params 10000)
@@ -81,8 +88,9 @@
 
         (facts
          "OpenCL GCN direct sampler for Exponential distribution"
-         (with-release [exponential-sampler (gcn-direct-sampler *context* *command-queue* tmp-dir-name
-                                                           exponential-model wgs)
+         (with-release [exponential-model (deref (distributions :exponential))
+                        exponential-sampler (gcn-direct-sampler *context* *command-queue* tmp-dir-name
+                                                                exponential-model wgs)
                         params (vctr neanderthal-factory [4])
                         smpl (sample exponential-sampler 123 params 10000)
                         native-sample (native smpl)]
@@ -99,10 +107,14 @@
   (let [dev (queue-device *command-queue*)
         wgs 256
         tmp-dir-name (create-tmp-dir)]
-    (with-release [neanderthal-factory (opencl-float *context* *command-queue*)]
+    (with-release [neanderthal-factory (opencl-float *context* *command-queue*)
+                   distributions (models/distribution-models source-library)
+                   likelihoods (models/likelihood-models source-library)]
       (facts
        "OpenCL GCN distribution engine with Gaussian distribution"
-       (with-release [gaussian-engine (gcn-distribution-engine *context* *command-queue* gaussian-model wgs)
+       (with-release [gaussian-model (deref (distributions :gaussian))
+                      gaussian-engine (gcn-distribution-engine *context* *command-queue*
+                                                               gaussian-model wgs)
                       params (vctr neanderthal-factory [0.0 1.0])
                       x (ge neanderthal-factory 1 200 (range -10 10 0.1))
                       native-x-pdf (native! (density gaussian-engine params x))
@@ -122,7 +134,9 @@
              z 15
              a 3
              b 2]
-         (with-release [post-engine (gcn-distribution-engine
+         (with-release [beta-model (deref (distributions :beta))
+                        binomial-lik-model (deref (likelihoods :binomial))
+                        post-engine (gcn-distribution-engine
                                      *context* *command-queue*
                                      (posterior-model beta-model "beta_binomial" binomial-lik-model)
                                      wgs)
@@ -152,15 +166,18 @@
         seed 123
         a 2.0]
     (with-philox tmp-dir-name
-      (with-release [neanderthal-factory (opencl-float *context* *command-queue*)]
+      (with-release [neanderthal-factory (opencl-float *context* *command-queue*)
+                     distributions (models/distribution-models source-library)]
         (facts
          "OpenCL GCN stretch with Uniform model."
-         (with-release [params (vctr neanderthal-factory [-1 2])
+         (with-release [uniform-model (deref (distributions :uniform))
+                        params (vctr neanderthal-factory [-1 2])
                         limits (ge neanderthal-factory 2 1 [-1 2])
-                        uniform-sampler (mcmc-sampler (gcn-stretch-factory
-                                                       *context* *command-queue* tmp-dir-name
-                                                       neanderthal-factory nil uniform-model wgs)
-                                                      walker-count params)]
+                        uniform-sampler (mcmc-sampler
+                                         (gcn-stretch-factory
+                                          *context* *command-queue* tmp-dir-name
+                                          neanderthal-factory nil uniform-model wgs)
+                                         walker-count params)]
            (let [stretch-move-bare-kernel (.stretch-move-odd-bare-kernel ^GCNStretch uniform-sampler)
                  stretch-move-kernel (.stretch-move-odd-kernel ^GCNStretch uniform-sampler)
                  sum-means-kernel (.sum-means-kernel ^GCNStretch uniform-sampler)
@@ -234,7 +251,8 @@
 
         (facts
          "OpenCL GCN stretch with Gaussian model."
-         (with-release [params (vctr neanderthal-factory [3 1.0])
+         (with-release [gaussian-model (deref (distributions :gaussian))
+                        params (vctr neanderthal-factory [3 1.0])
                         limits (ge neanderthal-factory 2 1 [-7 7])
                         gaussian-sampler (mcmc-sampler (gcn-stretch-factory
                                                         *context* *command-queue* tmp-dir-name
@@ -254,7 +272,8 @@
         (with-release [neanderthal-factory (opencl-float *context* *command-queue*)]
           (facts
            "OpenCL GCN stretch burn-in with Gaussian model."
-           (with-release [params (vctr neanderthal-factory [3 1.0])
+           (with-release [gaussian-model (deref (distributions :gaussian))
+                          params (vctr neanderthal-factory [3 1.0])
                           limits (ge neanderthal-factory 2 1 [-7 7])
                           gaussian-sampler (mcmc-sampler (gcn-stretch-factory
                                                           *context* *command-queue* tmp-dir-name
@@ -277,7 +296,9 @@
         seed 123
         a 8.0]
     (with-philox tmp-dir-name
-      (with-release [bayadera-factory (ocl/gcn-bayadera-factory *context* *command-queue* 44 wgs)]
+      (with-release [distributions (models/distribution-models source-library)
+                     gaussian-model (deref (distributions :gaussian))
+                     bayadera-factory (gcn-bayadera-factory *context* *command-queue* 44 wgs)]
         (let [mcmc-engine-factory (mcmc-factory bayadera-factory gaussian-model)]
           (with-release [params (vctr bayadera-factory [200 1])
                          limits (ge bayadera-factory 2 1 [180.0 220.0])
@@ -324,5 +345,6 @@
          (first (:sigma autocorrelation)) => 0.008917074650526047)))))
 
 (with-default
-  (with-release [factory (ocl/gcn-bayadera-factory *context* *command-queue*)]
-    (test-all factory binomial-lik-model)))
+  (with-release [factory (gcn-bayadera-factory *context* *command-queue*)
+                 library (device-library factory)]
+    (test-all library)))

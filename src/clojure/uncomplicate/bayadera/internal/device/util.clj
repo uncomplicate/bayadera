@@ -8,6 +8,9 @@
 
 (ns ^{:author "Dragan Djuric"}
     uncomplicate.bayadera.internal.device.util
+  (:require [uncomplicate.commons
+             [core :refer [release]]
+             [utils :refer [dragan-says-ex]]])
   (:import [java.nio.file Files Path CopyOption FileVisitOption]
            java.nio.file.attribute.FileAttribute))
 
@@ -42,3 +45,9 @@
      (do ~@body)
      (finally
        (delete ~path))))
+
+(defn release-deref [ds]
+  (if (sequential? ds)
+    (doseq [d ds]
+      (when (realized? d) (release @d)))
+    (when (realized? ds) (release ds))))

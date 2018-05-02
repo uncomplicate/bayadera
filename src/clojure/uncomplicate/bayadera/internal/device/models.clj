@@ -9,17 +9,16 @@
 (ns ^{:author "Dragan Djuric"}
     uncomplicate.bayadera.internal.device.models
   (:require [clojure.java.io :as io]
-            [uncomplicate.commons.core :refer [Releaseable release]]
+            [uncomplicate.commons
+             [core :refer [Releaseable release]]
+             [utils :refer [dragan-says-ex]]]
+            [uncomplicate.fluokitten.core :refer [fmap op]]
             [uncomplicate.neanderthal.internal.api :as na]
             [uncomplicate.neanderthal
              [core :refer [copy]]
              [native :refer [fge]]]
-            [uncomplicate.bayadera.internal.protocols :refer :all]))
-
-(defprotocol DeviceModel
-  (dialect [this])
-  (source [this])
-  (sampler-source [this]))
+            [uncomplicate.bayadera.internal.protocols :refer :all]
+            [uncomplicate.bayadera.internal.device.util :refer [release-deref]]))
 
 ;; ==================== Likelihood model ====================================
 
@@ -44,10 +43,10 @@
   (model [this]
     this))
 
-(defn likelihood-model [source & {:keys [dialect name loglik]
-                                  :or {dialect :c99
-                                       name (str (gensym "likelihood"))
-                                       loglik (format "%s_loglik" name)}}]
+(defn device-likelihood-model [source & {:keys [dialect name loglik]
+                                         :or {dialect :c99
+                                              name (str (gensym "likelihood"))
+                                              loglik (format "%s_loglik" name)}}]
   (->DeviceLikelihoodModel dialect name loglik (if (sequential? source) source [source])))
 
 ;; ==================== Distribution model ====================================
@@ -88,7 +87,7 @@
   (model [this]
     this))
 
-(defn distribution-model
+(defn device-distribution-model
   [post-template source & {:keys [dialect name logpdf mcmc-logpdf dimension params-size
                                   limits sampler-source]
                            :or {dialect :c99
@@ -114,57 +113,147 @@
                                                      (loglik lik) (logpdf prior))))
                                nil)))
 
+
 ;; ==================== Distribution Models ====================================
 
-(defn uniform-model [post-template source sampler]
-  (distribution-model post-template source
-                      :name "uniform" :params-size 2
-                      :limits (fge 2 1 [(- Float/MAX_VALUE) Float/MAX_VALUE])
-                      :sampler-source sampler))
+(defn uniform-model [post-template src sampler-src]
+  (device-distribution-model post-template src
+                             :name "uniform" :params-size 2
+                             :limits (fge 2 1 [(- Float/MAX_VALUE) Float/MAX_VALUE])
+                             :sampler-source sampler-src))
 
-(defn gaussian-model [post-template source sampler]
-  (distribution-model post-template source
-                      :name "gaussian" :mcmc-logpdf "gaussian_mcmc_logpdf" :params-size 2
-                      :limits (fge 2 1 [(- Float/MAX_VALUE) Float/MAX_VALUE])
-                      :sampler-source sampler))
+(defn gaussian-model [post-template src sampler-src]
+  (device-distribution-model post-template src
+                             :name "gaussian" :mcmc-logpdf "gaussian_mcmc_logpdf" :params-size 2
+                             :limits (fge 2 1 [(- Float/MAX_VALUE) Float/MAX_VALUE])
+                             :sampler-source sampler-src))
 
-(defn student-t-model [post-template source]
-  (distribution-model post-template source
-                      :name "student_t" :mcmc-logpdf "student_t_mcmc_logpdf" :params-size 4
-                      :limits (fge 2 1 [(- Float/MAX_VALUE) Float/MAX_VALUE])))
+(defn student-t-model [post-template src]
+  (device-distribution-model post-template src
+                             :name "student_t" :mcmc-logpdf "student_t_mcmc_logpdf" :params-size 4
+                             :limits (fge 2 1 [(- Float/MAX_VALUE) Float/MAX_VALUE])))
 
-(defn beta-model [post-template source]
-  (distribution-model post-template source
-                      :name "beta" :mcmc-logpdf "beta_mcmc_logpdf" :params-size 3
-                      :limits (fge 2 1 [0.0 1.0])))
+(defn beta-model [post-template src]
+  (device-distribution-model post-template src
+                             :name "beta" :mcmc-logpdf "beta_mcmc_logpdf" :params-size 3
+                             :limits (fge 2 1 [0.0 1.0])))
 
-(defn exponential-model [post-template source sampler]
-  (distribution-model post-template source
-                      :name "exponential" :mcmc-logpdf "exponential_mcmc_logpdf" :params-size 2
-                      :limits (fge 2 1 [Float/MIN_VALUE Float/MAX_VALUE])
-                      :sampler-source sampler))
+(defn exponential-model [post-template src sampler-src]
+  (device-distribution-model post-template src
+                             :name "exponential" :mcmc-logpdf "exponential_mcmc_logpdf" :params-size 2
+                             :limits (fge 2 1 [Float/MIN_VALUE Float/MAX_VALUE])
+                             :sampler-source sampler-src))
 
-(defn erlang-model [post-template source sampler]
-  (distribution-model post-template source
-                      :name "erlang" :mcmc-logpdf "erlang_mcmc_logpdf" :params-size 3
-                      :limits (fge 2 1 [0 Float/MAX_VALUE])
-                      :sampler-source sampler))
+(defn erlang-model [post-template src sampler-src]
+  (device-distribution-model post-template src
+                             :name "erlang" :mcmc-logpdf "erlang_mcmc_logpdf" :params-size 3
+                             :limits (fge 2 1 [0 Float/MAX_VALUE])
+                             :sampler-source sampler-src))
 
-(defn gamma-model [post-template source]
-  (distribution-model post-template source
-                      :name "gamma" :mcmc-logpdf "gamma_mcmc_logpdf" :params-size 2
-                      :limits (fge 2 1 [0.0 Float/MAX_VALUE])))
+(defn gamma-model [post-template src]
+  (device-distribution-model post-template src
+                             :name "gamma" :mcmc-logpdf "gamma_mcmc_logpdf" :params-size 2
+                             :limits (fge 2 1 [0.0 Float/MAX_VALUE])))
 
-(defn binomial-model [post-template source]
-  (distribution-model post-template source
-                      :name "binomial" :mcmc-logpdf "binomial_mcmc_logpdf" :params-size 3
-                      :limits (fge 2 1 [0.0 Float/MAX_VALUE])))
+(defn binomial-model [post-template src]
+  (device-distribution-model post-template src
+                             :name "binomial" :mcmc-logpdf "binomial_mcmc_logpdf" :params-size 3
+                             :limits (fge 2 1 [0.0 Float/MAX_VALUE])))
 
-(defn gaussian-lik-model [source]
-  (likelihood-model source :name "gaussian"))
+(defn distribution-models [source-lib]
+  (let [post-template (deref (source-lib :posterior))]
+    {:uniform (delay (uniform-model post-template (deref (source-lib :uniform))
+                                    (deref (source-lib :uniform-sampler))))
+     :gaussian (delay (gaussian-model post-template (deref (source-lib :gaussian))
+                                      (deref (source-lib :gaussian-sampler))))
+     :student-t (delay (student-t-model post-template (deref (source-lib :student-t))))
+     :beta (delay (beta-model post-template (deref (source-lib :beta))))
+     :exponential (delay (exponential-model post-template (deref (source-lib :exponential))
+                                            (deref (source-lib :exponential-sampler))))
+     :erlang (delay (erlang-model post-template (deref (source-lib :erlang))
+                                  (deref (source-lib :erlang-sampler))))
+     :gamma (delay (gamma-model post-template (deref (source-lib :gamma))))
+     :binomial (delay (binomial-model post-template (deref (source-lib :binomial))))}))
 
-(defn student-t-lik-model [source]
-  (likelihood-model source :name "student_t"))
+(defn likelihood-models [source-lib]
+  {:gaussian (delay (device-likelihood-model (deref (source-lib :gaussian)) :name "gaussian"))
+   :student-t (delay (device-likelihood-model (deref (source-lib :student-t)) :name "student_t"))
+   :binomial (delay (device-likelihood-model (deref (source-lib :binomial)) :name "binomial"))})
 
-(defn binomial-lik-model [source]
-  (likelihood-model source :name "binomial"))
+(deftype DeviceLibrary [fact sources dist-models lik-models dist-engines lik-engines samplers mcmc]
+  Releaseable
+  (release [this]
+    (release-deref (vals dist-models))
+    (release-deref (vals lik-models))
+    (release-deref (vals dist-engines))
+    (release-deref (vals lik-engines))
+    (release-deref (vals samplers)))
+  FactoryProvider
+  (factory [_]
+    fact)
+  ModelFactory
+  (distribution-model [this src args]
+    (apply device-distribution-model (deref (get-source this :posterior))
+           (fmap deref (fmap sources src)) args))
+  (likelihood-model [_ src args]
+    (apply device-likelihood-model src args))
+  Library
+  (get-source [_ id]
+    (if-let [source (sources id)]
+      @source
+      (if (string? id)
+        id
+        (dragan-says-ex "There is no such source code." {:id id :available (keys sources)}))))
+  (get-distribution-model [_ id]
+    (if-let [model (dist-models id)]
+      @model
+      (dragan-says-ex "There is no such distribution model." {:id id :available (keys dist-models)})))
+  (get-likelihood-model [_ id]
+    (if-let [model (lik-models id)]
+      @model
+      (dragan-says-ex "There is no such likelihood model." {:id id :available (keys lik-models)})))
+  (get-distribution-engine [_ id]
+    (if-let [eng (dist-engines id)]
+      eng
+      (dragan-says-ex "There is no such distribution engine." {:id id :available (keys dist-engines)})))
+  (get-likelihood-engine [_ id]
+    (if-let [eng (lik-engines id)]
+      eng
+      (dragan-says-ex "There is no such likelihood engine." {:id id :available (keys lik-engines)})))
+  (get-direct-sampler [_ id]
+    (if-let [sampler (samplers id)]
+      sampler
+      (dragan-says-ex "There is no such direct sampler." {:id id :available (keys samplers)})))
+  (get-mcmc-factory [_ id]
+    (if-let [mc (mcmc id)]
+      mc
+      (dragan-says-ex "There is no such mcmc sampler." {:id id :available (keys mcmc)}))))
+
+(defn ^:private slurp-source [format-template id]
+  (if-let [resource (io/resource (format format-template (name id)))]
+    (slurp resource)
+    (dragan-says-ex "Resource does not exist!"
+                    {:id id :name (name id) :path (format format-template (name id))})))
+
+(defn source-library
+  ([source-template]
+   (op (source-library (format source-template "distributions/%s")
+                       [:posterior :distribution :uniform :gaussian :student-t
+                        :beta :exponential :erlang :gamma :binomial])
+       (source-library (format source-template "rng/%s")
+                       [:uniform-sampler :gaussian-sampler :exponential-sampler
+                        :erlang-sampler])))
+  ([format-template names]
+   (reduce #(assoc %1 %2 (delay (slurp-source format-template %2))) {} names)))
+
+(defn device-library
+  ([source-lib factory dist-models lik-models]
+   (let [dist-models (op (distribution-models source-lib) dist-models)
+         lik-models (op (likelihood-models source-lib) lik-models)]
+     (->DeviceLibrary factory source-lib dist-models lik-models
+                      (fmap #(delay (distribution-engine factory (deref %))) dist-models)
+                      (fmap #(delay (likelihood-engine factory (deref %))) lik-models)
+                      (fmap #(delay (direct-sampler factory (deref %))) dist-models)
+                      (fmap #(delay (mcmc-factory factory (deref %))) dist-models))))
+  ([source-lib factory]
+   (device-library source-lib factory nil nil)))

@@ -10,8 +10,8 @@
     uncomplicate.bayadera.internal.device.nvidia-gtx
   (:require [clojure.java.io :as io]
             [uncomplicate.commons.core
-             :refer [Releaseable release with-release let-release Info info wrap-int double-fn long-fn]]
-            [uncomplicate.fluokitten.core :refer [fmap op]]
+             :refer [Releaseable release with-release let-release Info info wrap-int]]
+            [uncomplicate.fluokitten.core :refer [op]]
             [uncomplicate.clojurecuda
              [core :refer :all :as cuda :exclude [parameters]]
              [nvrtc :refer [compile! program]]
@@ -26,8 +26,7 @@
                             data-accessor cast-prim count-entries]]
              [cuda :refer [cuda-float]]]
             [uncomplicate.bayadera.util :refer [srand-int]]
-            [uncomplicate.bayadera.internal.protocols :refer :all]
-            [uncomplicate.bayadera.internal.device.models :refer [source sampler-source DeviceModel]]))
+            [uncomplicate.bayadera.internal.protocols :refer :all]))
 
 ;; ============================ Private utillities =============================
 
@@ -764,15 +763,8 @@
 
 ;; =========================== Bayadera factory  ===========================
 
-(defn ^:private release-deref [ds]
-  (if (sequential? ds)
-    (doseq [d ds]
-      (when (realized? d) (release @d)))
-    (when (realized? ds) (release ds))))
-
 (defrecord GTXBayaderaFactory [ctx hstream ^long compute-units ^long WGS cudart-version
-                               neanderthal-factory dataset-eng acor-eng distribution-engines
-                               direct-samplers mcmc-factories]
+                               neanderthal-factory dataset-eng acor-eng]
   Releaseable
   (release [_]
     (in-context
@@ -780,57 +772,42 @@
      (release dataset-eng)
      (release acor-eng)
      (release neanderthal-factory)
-     (release-deref (vals distribution-engines))
-     (release-deref (vals direct-samplers))
-     (release-deref (vals mcmc-factories))
      true))
   na/MemoryContext
   (compatible? [_ o]
     (or (satisfies? DeviceModel o) (na/compatible? neanderthal-factory o)))
-  LikelihoodEngineFactory
-  (likelihood-engine [_ model]
-    (gtx-likelihood-engine ctx hstream model WGS))
-  DistributionEngineFactory
-  (distribution-engine [_ model]
-    (if-let [eng (distribution-engines model)]
-      @eng
-      (gtx-distribution-engine ctx hstream model WGS)))
-  SamplerFactory
-  (direct-sampler [_ id]
-    (deref (direct-samplers id)))
-  (mcmc-factory [_ model]
-    (if-let [factory (mcmc-factories model)]
-      @factory
-      (gtx-stretch-factory ctx hstream neanderthal-factory acor-eng model WGS cudart-version)))
-  (processing-elements [_]
-    (* compute-units WGS))
-  DatasetFactory
-  (dataset-engine [_]
-    dataset-eng)
   na/FactoryProvider
   (factory [_]
     neanderthal-factory)
   (native-factory [_]
-    (na/native-factory neanderthal-factory)))
+    (na/native-factory neanderthal-factory))
+  EngineFactory
+  (likelihood-engine [_ model]
+    (gtx-likelihood-engine ctx hstream model WGS))
+  (distribution-engine [_ model]
+    (gtx-distribution-engine ctx hstream model WGS))
+  (dataset-engine [_]
+    dataset-eng)
+  SamplerFactory
+  (direct-sampler [_ model]
+    (gtx-direct-sampler ctx hstream model WGS cudart-version))
+  (mcmc-factory [_ model]
+    (gtx-stretch-factory ctx hstream neanderthal-factory acor-eng model WGS cudart-version))
+  (processing-elements [_]
+    (* compute-units WGS)))
 
 (defn gtx-bayadera-factory
-  ([distributions samplers ctx hstream compute-units WGS]
+  ([ctx hstream compute-units WGS]
    (in-context
     ctx
     (let [cudart-version (driver-version)]
       (let-release [neanderthal-factory (cuda-float ctx hstream)
                     dataset-eng (gtx-dataset-engine ctx hstream WGS)
                     acor-eng (gtx-acor-engine ctx hstream WGS)]
-        (->GTXBayaderaFactory
-         ctx hstream compute-units WGS cudart-version neanderthal-factory dataset-eng acor-eng
-         (fmap #(delay (gtx-distribution-engine ctx hstream % WGS)) distributions)
-         (fmap #(delay (gtx-direct-sampler ctx hstream % WGS cudart-version))
-               (select-keys distributions (keys samplers)))
-         (fmap #(delay (gtx-stretch-factory ctx hstream neanderthal-factory dataset-eng % WGS cudart-version))
-               distributions))))))
-  ([distributions samplers ctx hstream]
+        (->GTXBayaderaFactory ctx hstream compute-units WGS cudart-version
+                              neanderthal-factory dataset-eng acor-eng)))))
+  ([ctx hstream]
    (in-context
     ctx
     (let [dev (ctx-device)]
-      (gtx-bayadera-factory distributions samplers ctx hstream
-                            (multiprocessor-count dev) (max-block-dim-x dev))))))
+      (gtx-bayadera-factory ctx hstream (multiprocessor-count dev) (max-block-dim-x dev))))))

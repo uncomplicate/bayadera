@@ -10,8 +10,8 @@
     uncomplicate.bayadera.internal.device.amd-gcn
   (:require [clojure.java.io :as io]
             [uncomplicate.commons.core
-             :refer [Releaseable release with-release let-release Info info wrap-int double-fn long-fn]]
-            [uncomplicate.fluokitten.core :refer [fmap op]]
+             :refer [Releaseable release with-release let-release Info info wrap-int]]
+            [uncomplicate.fluokitten.core :refer [op]]
             [uncomplicate.clojurecl
              [core :refer :all]
              [info :refer [max-compute-units max-work-group-size queue-device]]
@@ -26,9 +26,7 @@
              [opencl :refer [opencl-float]]]
             [uncomplicate.bayadera.util :refer [srand-int]]
             [uncomplicate.bayadera.internal.protocols :refer :all]
-            [uncomplicate.bayadera.internal.device
-             [util :refer [create-tmp-dir copy-philox delete]]
-             [models :refer [source sampler-source DeviceModel]]]))
+            [uncomplicate.bayadera.internal.device.util :refer [create-tmp-dir copy-philox delete]]))
 
 ;; ============================ Private utillities =============================
 
@@ -67,7 +65,7 @@
   (release [_]
     (release prog))
   ModelProvider
-  (model [_]
+  (model [_];;TODO too complicated. models are everywhere. possibly move out?
     dist-model)
   DensityEngine
   (log-density [this cl-params x]
@@ -633,58 +631,41 @@
 
 ;; =========================== Bayadera factory  ===========================
 
-(defn ^:private release-deref [ds]
-  (if (sequential? ds)
-    (doseq [d ds]
-      (when (realized? d) (release @d)))
-    (when (realized? ds) (release ds))))
-
-(defrecord GCNBayaderaFactory [ctx cqueue dev-queue tmp-dir-name
-                               ^long compute-units ^long WGS
-                               neanderthal-factory dataset-eng acor-eng
-                               distribution-engines direct-samplers mcmc-factories]
+(defrecord GCNBayaderaFactory [ctx cqueue dev-queue tmp-dir-name ^long compute-units ^long WGS
+                               neanderthal-factory dataset-eng acor-eng]
   Releaseable
   (release [_]
     (release dataset-eng)
     (release acor-eng)
     (release neanderthal-factory)
-    (release-deref (vals distribution-engines))
-    (release-deref (vals direct-samplers))
-    (release-deref (vals mcmc-factories))
     (release dev-queue)
     (delete tmp-dir-name)
     true)
   na/MemoryContext
   (compatible? [_ o]
     (or (satisfies? DeviceModel o) (na/compatible? neanderthal-factory o)))
-  LikelihoodEngineFactory
-  (likelihood-engine [_ model]
-    (gcn-likelihood-engine ctx cqueue model WGS))
-  DistributionEngineFactory
-  (distribution-engine [_ model]
-    (if-let [eng (distribution-engines model)]
-      @eng
-      (gcn-distribution-engine ctx cqueue model WGS)))
-  SamplerFactory
-  (direct-sampler [_ id]
-    (deref (direct-samplers id)))
-  (mcmc-factory [_ model]
-    (if-let [factory (mcmc-factories model)]
-      @factory
-      (gcn-stretch-factory ctx cqueue tmp-dir-name neanderthal-factory acor-eng model WGS)))
-  (processing-elements [_]
-    (* compute-units WGS))
-  DatasetFactory
-  (dataset-engine [_]
-    dataset-eng)
   na/FactoryProvider
   (factory [_]
     neanderthal-factory)
   (native-factory [_]
-    (na/native-factory neanderthal-factory)))
+    (na/native-factory neanderthal-factory))
+  EngineFactory
+  (likelihood-engine [_ model]
+    (gcn-likelihood-engine ctx cqueue model WGS))
+  (distribution-engine [_ model]
+    (gcn-distribution-engine ctx cqueue model WGS))
+  (dataset-engine [_]
+    dataset-eng)
+  SamplerFactory
+  (direct-sampler [_ model]
+    (gcn-direct-sampler ctx cqueue tmp-dir-name model WGS))
+  (mcmc-factory [_ model]
+    (gcn-stretch-factory ctx cqueue tmp-dir-name neanderthal-factory acor-eng model WGS))
+  (processing-elements [_]
+    (* compute-units WGS)))
 
 (defn gcn-bayadera-factory
-  ([distributions samplers ctx cqueue compute-units WGS]
+  ([ctx cqueue compute-units WGS]
    (let-release [neanderthal-factory (opencl-float ctx cqueue)
                  dataset-eng (gcn-dataset-engine ctx cqueue WGS)
                  acor-eng (gcn-acor-engine ctx cqueue WGS)
@@ -693,14 +674,8 @@
                                           :out-of-order-exec-mode)]
      (let [tmp-dir-name (create-tmp-dir)]
        (copy-philox tmp-dir-name)
-       (->GCNBayaderaFactory
-        ctx cqueue dev-queue tmp-dir-name compute-units WGS neanderthal-factory dataset-eng acor-eng
-        (fmap #(delay (gcn-distribution-engine ctx cqueue % WGS)) distributions)
-        (fmap #(delay (gcn-direct-sampler ctx cqueue tmp-dir-name % WGS))
-              (select-keys distributions (keys samplers)))
-        (fmap #(delay (gcn-stretch-factory ctx cqueue tmp-dir-name neanderthal-factory dataset-eng % WGS))
-              distributions)))))
-  ([distributions samplers ctx cqueue]
+       (->GCNBayaderaFactory ctx cqueue dev-queue tmp-dir-name compute-units WGS
+                             neanderthal-factory dataset-eng acor-eng))))
+  ([ctx cqueue]
    (let [dev (queue-device cqueue)]
-     (gcn-bayadera-factory distributions samplers ctx cqueue
-                           (max-compute-units dev) (max-work-group-size dev)))))
+     (gcn-bayadera-factory ctx cqueue (max-compute-units dev) (max-work-group-size dev)))))
