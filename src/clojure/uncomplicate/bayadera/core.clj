@@ -47,22 +47,6 @@
 
 ;; ====================== Distribution =========================================
 
-(defn distribution-model
-  ([src]
-   (distribution-model *bayadera-factory* src nil))
-  ([src args]
-   (distribution-model *bayadera-factory* src args))
-  ([factory src args]
-   (p/distribution-model factory src args)))
-
-(defn likelihood-model
-  ([src]
-   (likelihood-model *bayadera-factory* src nil))
-  ([src args]
-   (likelihood-model *bayadera-factory* src args))
-  ([factory src args]
-   (p/likelihood-model factory src args)))
-
 (defn posterior-model
   ([name likelihood prior]
    (if (compatible? (p/model likelihood) (p/model prior))

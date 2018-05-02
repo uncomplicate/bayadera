@@ -41,17 +41,38 @@
 (defn ^:private likelihood-engine [library id]
   (deref (p/get-likelihood-engine library id)))
 
-(defn distribution-model [library id]
-  (p/get-distribution-model library id))
+(defn distribution-model
+  ([id]
+   (p/get-distribution-model *library* id))
+  ([library-or-src src-or-args]
+   (if (keyword? src-or-args)
+     (p/get-distribution-model library-or-src src-or-args)
+     (p/distribution-model *library* library-or-src src-or-args)))
+  ([library src args]
+   (p/distribution-model library src args)))
 
-(defn likelihood-model [library id]
-  (p/get-likelihood-model library id))
+(defn likelihood-model
+  ([id]
+   (p/get-likelihood-model *library* id))
+  ([library-or-src src-or-args]
+   (cond
+     (keyword? src-or-args) (p/get-likelihood-model library-or-src src-or-args)
+     (string? src-or-args) (p/likelihood-model library-or-src src-or-args nil)
+     :default (p/likelihood-model *library* library-or-src src-or-args)))
+  ([library src args]
+   (p/likelihood-model library src args)))
 
-(defn source [library id]
-  (p/get-source library id))
+(defn source
+  ([id]
+   (p/get-source *library* id))
+  ([library id]
+   (p/get-source library id)))
 
-(defn likelihood [library id]
-  (->LibraryLikelihood (p/factory library) (likelihood-engine library id) (likelihood-model library id)))
+(defn likelihood
+  ([id]
+   (likelihood *library* id))
+  ([library id]
+   (->LibraryLikelihood (p/factory library) (likelihood-engine library id) (likelihood-model library id))))
 
 ;; =================== Distributions ===========================================
 

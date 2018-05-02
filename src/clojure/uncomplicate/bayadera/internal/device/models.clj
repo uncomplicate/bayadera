@@ -193,7 +193,7 @@
     fact)
   ModelFactory
   (distribution-model [this src args]
-    (apply device-distribution-model (deref (get-source this :posterior))
+    (apply device-distribution-model (get-source this :posterior)
            (fmap deref (fmap sources src)) args))
   (likelihood-model [_ src args]
     (apply device-likelihood-model src args))
