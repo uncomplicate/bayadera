@@ -475,7 +475,8 @@
         (enq-reduce! cqueue min-max-kernel min-max-reduction-kernel DIM walker-count wgsm wgsn)
         (enq-copy! cqueue cl-min-max (buffer limits))
         (enq-fill! cqueue uint-res (int-array 1))
-        (set-args! histogram-kernel (buffer limits) cl-xs uint-res)
+        (set-args! histogram-kernel (buffer limits) cl-xs)
+        (set-arg! histogram-kernel 4 uint-res)
         (enq-nd! cqueue histogram-kernel histogram-worksize)
         (set-temperature! this 1.0)
         (dotimes [i (dec cycles)]
@@ -524,7 +525,9 @@
               sub-bytesize (* DIM (long (/ walker-count 2)) (entry-width claccessor))
               cl-params (buffer params)
               params-len (wrap-int (params-size model))
-              data-len (wrap-int (- (count-entries claccessor cl-params) ^long (params-size model)))]
+              data-len (wrap-int (- (count-entries claccessor cl-params) ^long (params-size model)))
+              arr-0 (wrap-int 0)
+              arr-DIM (wrap-int DIM)]
           (let-release [cl-xs (create-data-source claccessor (* DIM walker-count))
                         cl-s0 (cl-sub-buffer cl-xs 0 sub-bytesize :read-write)
                         cl-s1 (cl-sub-buffer cl-xs sub-bytesize sub-bytesize :read-write)
@@ -556,12 +559,12 @@
              (kernel prog "sum_reduction_horizontal")
              (kernel prog "sum_reduce_horizontal")
              (kernel prog "min_max_reduction")
-             (kernel prog "min_max_reduce")
-             (kernel prog "histogram")
+             (set-args! (kernel prog "min_max_reduce") 2 arr-0 arr-DIM)
+             (set-args! (kernel prog "histogram") 2 arr-0 arr-DIM)
              (kernel prog "uint_to_real")
              (kernel prog "bitonic_local")
-             (set-args! (kernel prog "mean_reduce") 0 cl-acc cl-xs (wrap-int 0) (wrap-int DIM))
-             (set-args! (kernel prog "variance_reduce") 0 cl-acc cl-xs (wrap-int 0) (wrap-int DIM)))))
+             (set-args! (kernel prog "mean_reduce") 0 cl-acc cl-xs arr-0 arr-DIM)
+             (set-args! (kernel prog "variance_reduce") 0 cl-acc cl-xs arr-0 arr-DIM))))
         (throw (IllegalArgumentException.
                 (format "Number of walkers (%d) must be a multiple of %d." walker-count (* 2 WGS))))))))
 

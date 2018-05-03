@@ -500,9 +500,9 @@
                       result (ge neanderthal-factory WGS DIM)
                       limits (ge neanderthal-factory 2 DIM)
                       bin-ranks (ge neanderthal-factory WGS DIM)]
-         (let [histogram-params (cuda/parameters DIM walker-count (buffer limits) cu-xs uint-res)]
+         (let [histogram-params (cuda/parameters DIM walker-count (buffer limits) cu-xs 0 DIM uint-res)]
            (launch-reduce! hstream min-max-kernel min-max-reduction-kernel
-                           [cu-min-max cu-xs] [cu-min-max] DIM walker-count wgsm wgsn)
+                           [cu-min-max cu-xs 0 DIM] [cu-min-max] DIM walker-count wgsm wgsn)
            (memcpy! cu-min-max (buffer limits) hstream)
            (memset! uint-res 1 hstream)
            (launch! histogram-kernel histogram-worksize hstream histogram-params)

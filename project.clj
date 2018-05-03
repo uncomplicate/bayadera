@@ -17,7 +17,7 @@
   :dependencies [[org.clojure/clojure "1.9.0"]
                  [uncomplicate/commons "0.5.0"]
                  [uncomplicate/fluokitten "0.6.1"]
-                 [uncomplicate/clojurecl "0.9.0"]
+                 [uncomplicate/clojurecl "0.10.0-SNAPSHOT"]
                  [uncomplicate/clojurecuda "0.4.0"]
                  [uncomplicate/neanderthal "0.19.0"]
                  [org.apache.commons/commons-math3 "3.6.1"]

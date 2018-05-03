@@ -73,7 +73,7 @@
    (if (compatible? factory model-provider)
      (let [model (p/model model-provider)]
        (->DistributionCreator factory (p/distribution-engine factory model)
-                              (p/mcmc-factory factory model) model))
+                              (p/mcmc-factory factory model)))
      (dragan-says-ex (format "Model dialect is incompatible with factory."
                              {:type (type model-provider) :factory (type factory)}))))
   ([factory-or-name likelihood prior]
@@ -115,8 +115,8 @@
     (dragan-says-ex (format  "Data type is incompatible with the engine."
                             {:type (type d) :xs (info (p/data xs))}))))
 
-(defn evidence ^double [lik data prior-sample]
-  (if (and (compatible? lik data) (compatible? lik (p/data prior-sample)) )
+(defn evidence ^double [lik data prior-sample];;TODO this demands data to be in the gpu... hmmm....
+  (if (and (compatible? lik data) (compatible? lik (p/data prior-sample)))
     (p/evidence (p/engine lik) data (p/data prior-sample))
     (dragan-says-ex (format "Data type is incompatible with likelihood engine"
                             {:type (type lik) :prior-sample (info (p/data prior-sample))}))))
