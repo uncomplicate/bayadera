@@ -196,8 +196,8 @@
   ModelFactory
   (distribution-model [this src args]
     (device-distribution-model (get-source this :posterior) (fmap #(get-source this %) src) args))
-  (likelihood-model [_ src args]
-    (device-likelihood-model src args))
+  (likelihood-model [this src args]
+    (device-likelihood-model (fmap #(get-source this %) src) args))
   Library
   (get-source [_ id]
     (if-let [source (sources id)]
