@@ -14,7 +14,7 @@
             [uncomplicate.fluokitten.core :refer [op]]
             [uncomplicate.neanderthal
              [vect-math :refer [sqrt!]]
-             [core :refer [transfer dim vspace?]]]
+             [core :refer [transfer transfer! dim vspace? subvector vctr]]]
             [uncomplicate.neanderthal.internal.api :as na]
             [uncomplicate.bayadera.util :refer [srand-int]]
             [uncomplicate.bayadera.internal.protocols :refer :all])
@@ -117,7 +117,7 @@
 
 (defmacro ^:private with-params-check [model params & body]
   `(if (= (params-size ~model) (if (vspace? ~params) (dim ~params) (count ~params)))
-     ~@body
+     (do ~@body)
      (dragan-says-ex "Dimension of params must match the distribution."
                      {:required (params-size ~model) :supplied (dim ~params)})))
 
@@ -131,9 +131,11 @@
     (with-params-check (model dist-eng) params
       (->DistributionImpl factory dist-eng sampler-factory (transfer factory params))))
   (invoke [this data hyperparams]
-    (with-release [params (op data hyperparams)]
+    (let-release [params (vctr factory (+ (dim data) (dim hyperparams)))]
       (with-params-check (model dist-eng) hyperparams
-        (->DistributionImpl factory dist-eng sampler-factory (transfer factory params)))))
+        (transfer! data (subvector params 0 (dim data)))
+        (transfer! hyperparams (subvector params (dim data) (dim hyperparams)))
+        (->DistributionImpl factory dist-eng sampler-factory params))))
   ModelProvider
   (model [_]
     (model dist-eng)))
