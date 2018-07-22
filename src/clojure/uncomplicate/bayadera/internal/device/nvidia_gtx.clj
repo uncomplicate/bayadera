@@ -14,7 +14,6 @@
             [uncomplicate.fluokitten.core :refer [op]]
             [uncomplicate.clojurecuda
              [core :refer :all :as cuda :exclude [parameters]]
-             [nvrtc :refer [compile! program]]
              [info :refer [multiprocessor-count max-block-dim-x ctx-device driver-version]]
              [toolbox :refer [launch-reduce! read-long read-double]]]
             [uncomplicate.neanderthal.internal.api :as na]
@@ -693,7 +692,7 @@
                      linked-prog (link [[:library (io/file (or (System/getProperty "uncomplicate.cudadevrt")
                                                                "/usr/local/cuda/lib64/libcudadevrt.a"))]
                                         [:ptx prog]])]
-        (let-release [modl (module linked-prog)
+        (let-release [modl (module (link-complete linked-prog))
                       sum-reduction-kernel (function modl "sum_reduction_horizontal")
                       sum-reduce-kernel (function modl "sum_reduce_horizontal")
                       subtract-mean-kernel (function modl "subtract_mean")

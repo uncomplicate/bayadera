@@ -9,8 +9,7 @@
 (ns uncomplicate.bayadera.internal.extensions-opencl-test
   (:require [midje.sweet :refer :all]
             [uncomplicate.clojurecl
-             [core :refer [*command-queue*]]
-             [legacy :refer [with-default-1]]]
+             [core :refer [*command-queue* with-default-1]]]
             [uncomplicate.neanderthal.opencl :refer [with-engine opencl-float opencl-double *opencl-factory*]]
             [uncomplicate.bayadera.internal.extensions-test :refer [vector-test ge-matrix-test]]))
 

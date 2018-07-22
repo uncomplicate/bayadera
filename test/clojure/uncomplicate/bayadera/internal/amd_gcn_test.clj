@@ -50,7 +50,7 @@
              => (list 17.436363220214844 151.42117309570312 42.782630920410156 107.8758316040039)
              (entry sample-1d (imax sample-1d)) => 200.07574462890625
              (entry sample-1d (imin sample-1d)) => -99.86572265625
-             (mean sample-1d) => 51.33118125)))
+             (mean sample-1d) => 51.331179296875)))
 
         (facts
          "OpenCL GCN direct sampler for Gaussian distribution"
@@ -67,7 +67,7 @@
              => (list 175.25137329101562 7.7207489013671875 126.18175506591797 -69.49845886230469)
              (entry sample-1d (imax sample-1d)) => 868.6443481445312
              (entry sample-1d (imin sample-1d)) => -610.0803833007812
-             (mean sample-1d) => 95.134725)))
+             (mean sample-1d) => 95.13473203125)))
 
         (facts
          "OpenCL GCN direct sampler for Erlang distribution"
@@ -84,7 +84,7 @@
              => (list 0.7548800706863403 2.28580379486084 1.1975524425506592 1.3439302444458008)
              (entry sample-1d (imax sample-1d)) => 7.159594535827637
              (entry sample-1d (imin sample-1d)) => 0.0482538677752018
-             (mean sample-1d) => 1.50084453125)))
+             (mean sample-1d) => 1.50084443359375)))
 
         (facts
          "OpenCL GCN direct sampler for Exponential distribution"
@@ -101,7 +101,7 @@
              => (list 0.12403401732444763 0.4546346068382263 0.16137930750846863 0.29489007592201233)
              (entry sample-1d (imax sample-1d)) => 2.3556253910064697
              (entry sample-1d (imin sample-1d)) => 2.8567157642100938E-5
-             (mean sample-1d) => 0.252631103515625)))))))
+             (mean sample-1d) => 0.2526310943603516)))))))
 
 (with-default
   (let [dev (queue-device *command-queue*)
@@ -211,19 +211,19 @@
 
              (set-args! stretch-move-bare-kernel 0 (wrap-int seed) (wrap-int 3333) (wrap-int 0) (wrap-int 2)
                         cl-params cl-s1 cl-s0 cl-logfn-s0 (wrap-float a) (wrap-float 1.0) (wrap-int 0))
-             (enq-nd! cqueue stretch-move-bare-kernel (work-size-1d (/ walker-count 2)))
+             (enq-kernel! cqueue stretch-move-bare-kernel (work-size-1d (/ walker-count 2)))
              (set-args! stretch-move-bare-kernel 0 (wrap-int (inc seed)) (wrap-int 4444) (wrap-int 0) (wrap-int 2)
                         cl-params cl-s0 cl-s1 cl-logfn-s1 (wrap-float a) (wrap-float 1.0) (wrap-int 0))
-             (enq-nd! cqueue stretch-move-bare-kernel (work-size-1d (/ walker-count 2)))
+             (enq-kernel! cqueue stretch-move-bare-kernel (work-size-1d (/ walker-count 2)))
              (take 4 (native (row (sample uniform-sampler) 0)))
              => [0.7279692888259888 1.8140764236450195 0.04031801223754883 0.4697103500366211]
 
              (set-args! stretch-move-bare-kernel 0 (wrap-int seed) (wrap-int 3333) (wrap-int 0) (wrap-int 2)
                         cl-params cl-s1 cl-s0 cl-logfn-s0 (wrap-float a) (wrap-float 1.0) (wrap-int 1))
-             (enq-nd! cqueue stretch-move-bare-kernel (work-size-1d (/ walker-count 2)))
+             (enq-kernel! cqueue stretch-move-bare-kernel (work-size-1d (/ walker-count 2)))
              (set-args! stretch-move-bare-kernel 0 (wrap-int (inc seed)) (wrap-int 4444) (wrap-int 0) (wrap-int 2)
                         cl-params cl-s0 cl-s1 cl-logfn-s1 (wrap-float a) (wrap-float 1.0) (wrap-int 1))
-             (enq-nd! cqueue stretch-move-bare-kernel (work-size-1d (/ walker-count 2)))
+             (enq-kernel! cqueue stretch-move-bare-kernel (work-size-1d (/ walker-count 2)))
              (take 4 (native (row (sample uniform-sampler) 0)))
              => [1.0403573513031006 1.4457943439483643 0.37618488073349 1.5768483877182007]
 
@@ -232,11 +232,11 @@
              (set-args! stretch-move-kernel 0 (wrap-int seed) (wrap-int 1111) (wrap-int 0) (wrap-int 2)
                         cl-params cl-s1 cl-s0 cl-logfn-s0 cl-accept cl-means-acc (wrap-float a)
                         (wrap-int 0))
-             (enq-nd! cqueue stretch-move-kernel (work-size-1d (/ walker-count 2)))
+             (enq-kernel! cqueue stretch-move-kernel (work-size-1d (/ walker-count 2)))
              (set-args! stretch-move-kernel 0 (wrap-int (inc seed)) (wrap-int 2222) (wrap-int 0) (wrap-int 2)
                         cl-params cl-s0 cl-s1 cl-logfn-s1 cl-accept cl-means-acc (wrap-float a)
                         (wrap-int 0))
-             (enq-nd! cqueue stretch-move-kernel (work-size-1d (/ walker-count 2)))
+             (enq-kernel! cqueue stretch-move-kernel (work-size-1d (/ walker-count 2)))
              (take 4 (native (row (sample uniform-sampler) 0)))
              => [1.0110803842544556 1.615005373954773 0.3426262140274048 1.4122662544250488]
              (enq-read! cqueue cl-means-acc means-acc-array)
@@ -246,7 +246,7 @@
              (seq accept-array) => [423 422 424 428 414 439 428 409 429 409]
 
              (set-args! sum-means-kernel 0 (buffer acc) cl-means-acc)
-             (enq-nd! cqueue sum-means-kernel (work-size-2d 1 means-count))
+             (enq-kernel! cqueue sum-means-kernel (work-size-2d 1 means-count))
              (sum acc) => (float 5822.9175))))
 
         (facts

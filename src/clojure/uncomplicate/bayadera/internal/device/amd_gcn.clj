@@ -55,7 +55,7 @@
     (let-release [res (ge cl-params DIM n)]
       (with-release [sample-kernel (kernel prog "sample")]
         (set-args! sample-kernel 0 (buffer cl-params) (wrap-int seed) (buffer res))
-        (enq-nd! cqueue sample-kernel (work-size-1d n))
+        (enq-kernel! cqueue sample-kernel (work-size-1d n))
         res))))
 
 ;; ============================ Distribution engine ============================
@@ -76,7 +76,7 @@
         (with-release [logpdf-kernel (kernel prog "logpdf")]
           (set-args! logpdf-kernel 0 (wrap-int data-len) (wrap-int params-len) (buffer cl-params)
                      (wrap-int (mrows x)) (buffer x) (buffer res))
-          (enq-nd! cqueue logpdf-kernel (work-size-1d (ncols x)))
+          (enq-kernel! cqueue logpdf-kernel (work-size-1d (ncols x)))
           res))))
   (density [this cl-params x]
     (let [params-len (long (params-size dist-model))
@@ -86,7 +86,7 @@
         (with-release [pdf-kernel (kernel prog "pdf")]
           (set-args! pdf-kernel 0 (wrap-int data-len) (wrap-int params-len) (buffer cl-params)
                      (wrap-int (mrows x)) (buffer x) (buffer res))
-          (enq-nd! cqueue pdf-kernel (work-size-1d (ncols x)))
+          (enq-kernel! cqueue pdf-kernel (work-size-1d (ncols x)))
           res)))))
 
 ;; ============================ Likelihood engine ============================
@@ -105,7 +105,7 @@
         (with-release [loglik-kernel (kernel prog "loglik")]
           (set-args! loglik-kernel 0 data-len (buffer cl-data)
                      (wrap-int (mrows x)) (buffer x) (buffer res))
-          (enq-nd! cqueue loglik-kernel (work-size-1d (ncols x)))
+          (enq-kernel! cqueue loglik-kernel (work-size-1d (ncols x)))
           res))))
   (density [this cl-data x]
     (let [data-len (wrap-int (count-entries (data-accessor cl-data) (buffer cl-data)))]
@@ -113,7 +113,7 @@
         (with-release [lik-kernel (kernel prog "lik")]
           (set-args! lik-kernel 0 data-len (buffer cl-data)
                      (wrap-int (mrows x)) (buffer x) (buffer res))
-          (enq-nd! cqueue lik-kernel (work-size-1d (ncols x)))
+          (enq-kernel! cqueue lik-kernel (work-size-1d (ncols x)))
           res))))
   LikelihoodEngine
   (evidence [this cl-data x]
@@ -202,12 +202,12 @@
         (set-args! histogram-kernel (buffer limits)
                    (buffer data-matrix) (wrap-int (offset data-matrix)) (wrap-int (stride data-matrix))
                    uint-res)
-        (enq-nd! cqueue histogram-kernel (work-size-2d m n 1 WGS))
+        (enq-kernel! cqueue histogram-kernel (work-size-2d m n 1 WGS))
         (set-args! uint-to-real-kernel (wrap-prim claccessor (/ WGS n)) (buffer limits)
                    uint-res (buffer result))
-        (enq-nd! cqueue uint-to-real-kernel (work-size-2d WGS m WGS 1))
+        (enq-kernel! cqueue uint-to-real-kernel (work-size-2d WGS m WGS 1))
         (set-args! local-sort-kernel (buffer result) (buffer bin-ranks))
-        (enq-nd! cqueue local-sort-kernel (work-size-1d (* m WGS)))
+        (enq-kernel! cqueue local-sort-kernel (work-size-1d (* m WGS)))
         (->Histogram (transfer limits) (transfer result) (transfer bin-ranks))))))
 
 (deftype GCNAcorEngine [ctx cqueue prog ^long WGS]
@@ -245,16 +245,16 @@
             (enq-copy! cqueue cl-acc (buffer cl-vec))
             (scal! (/ 1.0 n) cl-vec)
             (set-args! subtract-mean-kernel 0 (buffer data-matrix) (buffer cl-vec))
-            (enq-nd! cqueue subtract-mean-kernel (work-size-2d dim n))
+            (enq-kernel! cqueue subtract-mean-kernel (work-size-2d dim n))
             (transfer! cl-vec mean)
             (enq-fill! cqueue cl-acc (int-array 1))
             (enq-fill! cqueue d-acc (int-array 1))
             (set-args! acor-2d-kernel 0 (wrap-int lag) cl-acc d-acc (buffer data-matrix))
-            (enq-nd! cqueue acor-2d-kernel (work-size-2d n dim))
+            (enq-kernel! cqueue acor-2d-kernel (work-size-2d n dim))
             (set-args! acor-kernel (wrap-int n)
                        (wrap-int lag) (wrap-int min-lag) (wrap-int win-mult)
                        cl-acc d-acc (buffer data-matrix))
-            (enq-nd! cqueue acor-kernel (work-size-1d dim (min dim WGS)))
+            (enq-kernel! cqueue acor-kernel (work-size-1d dim (min dim WGS)))
             (enq-read! cqueue cl-acc (buffer tau))
             (enq-read! cqueue d-acc (buffer sigma))
             (->Autocorrelation tau mean sigma n lag)))
@@ -336,16 +336,16 @@
     this)
   (move! [this]
     (set-arg! stretch-move-odd-kernel 11 move-counter)
-    (enq-nd! cqueue stretch-move-odd-kernel wsize)
+    (enq-kernel! cqueue stretch-move-odd-kernel wsize)
     (set-arg! stretch-move-even-kernel 11 move-counter)
-    (enq-nd! cqueue stretch-move-even-kernel wsize)
+    (enq-kernel! cqueue stretch-move-even-kernel wsize)
     (inc! move-counter)
     this)
   (move-bare! [this]
     (set-arg! stretch-move-odd-bare-kernel 10 move-bare-counter)
-    (enq-nd! cqueue stretch-move-odd-bare-kernel wsize)
+    (enq-kernel! cqueue stretch-move-odd-bare-kernel wsize)
     (set-arg! stretch-move-even-bare-kernel 10 move-bare-counter)
-    (enq-nd! cqueue stretch-move-even-bare-kernel wsize)
+    (enq-kernel! cqueue stretch-move-even-bare-kernel wsize)
     (inc! move-bare-counter)
     this)
   (set-temperature! [this t]
@@ -392,16 +392,16 @@
   (init-position! [this position]
     (let [cl-position (.cl-xs ^GCNStretch position)]
       (enq-copy! cqueue cl-position cl-xs)
-      (enq-nd! cqueue logfn-kernel (work-size-1d walker-count))
+      (enq-kernel! cqueue logfn-kernel (work-size-1d walker-count))
       (vreset! iteration-counter 0)
       this))
   (init-position! [this seed limits]
     (let [seed (wrap-int seed)]
       (with-release [cl-limits (transfer neanderthal-factory limits)]
         (set-args! init-walkers-kernel 0 seed (buffer cl-limits))
-        (enq-nd! cqueue init-walkers-kernel
+        (enq-kernel! cqueue init-walkers-kernel
                  (work-size-1d (* DIM (long (/ walker-count 4)))))
-        (enq-nd! cqueue logfn-kernel (work-size-1d walker-count))
+        (enq-kernel! cqueue logfn-kernel (work-size-1d walker-count))
         (vreset! iteration-counter 0)
         this)))
   (burn-in! [this n a]
@@ -477,17 +477,17 @@
         (enq-fill! cqueue uint-res (int-array 1))
         (set-args! histogram-kernel (buffer limits) cl-xs)
         (set-arg! histogram-kernel 4 uint-res)
-        (enq-nd! cqueue histogram-kernel histogram-worksize)
+        (enq-kernel! cqueue histogram-kernel histogram-worksize)
         (set-temperature! this 1.0)
         (dotimes [i (dec cycles)]
           (move-bare! this)
-          (enq-nd! cqueue histogram-kernel histogram-worksize))
+          (enq-kernel! cqueue histogram-kernel histogram-worksize))
         (vswap! iteration-counter add-long (dec cycles))
         (set-args! uint-to-real-kernel (wrap-prim claccessor (/ WGS n)) (buffer limits)
                    uint-res (buffer result))
-        (enq-nd! cqueue uint-to-real-kernel (work-size-2d WGS DIM))
+        (enq-kernel! cqueue uint-to-real-kernel (work-size-2d WGS DIM))
         (set-args! local-sort-kernel (buffer result) (buffer bin-ranks))
-        (enq-nd! cqueue local-sort-kernel (work-size-1d (* DIM WGS)))
+        (enq-kernel! cqueue local-sort-kernel (work-size-1d (* DIM WGS)))
         (->Histogram (transfer limits) (transfer result) (transfer bin-ranks)))))
   Location
   (mean [_]

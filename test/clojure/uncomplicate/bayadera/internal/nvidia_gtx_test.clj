@@ -47,7 +47,7 @@
            => (list 17.43636131286621 151.42117309570312 42.78262710571289 107.87583923339844)
            (entry sample-1d (imax sample-1d)) => 200.0757293701172
            (entry sample-1d (imin sample-1d)) => -99.86572265625
-           (mean sample-1d) => 51.33118125)))
+           (mean sample-1d) => 51.331178125)))
 
       (facts
        "Nvidia GTX direct sampler for Gaussian distribution"
@@ -81,7 +81,7 @@
            => (list 0.7548800110816956 2.2858035564422607 1.19755220413208 1.3439300060272217)
            (entry sample-1d (imax sample-1d)) => 7.1595940589904785
            (entry sample-1d (imin sample-1d)) => 0.04825383424758911
-           (mean sample-1d) => 1.5008443359375)))
+           (mean sample-1d) => 1.5008442260742187)))
 
       (facts
          "OpenCL GCN direct sampler for Exponential distribution"
@@ -98,7 +98,7 @@
              => (list 0.12403398752212524 0.45463457703590393 0.16137929260730743 0.29489004611968994)
              (entry sample-1d (imax sample-1d)) => 2.3556251525878906
              (entry sample-1d (imin sample-1d)) => 2.8555818062159233E-5
-             (mean sample-1d) => 0.2526310546875))))))
+             (mean sample-1d) => 0.25263106842041017))))))
 
 (with-default
   (let [dev (ctx-device)
