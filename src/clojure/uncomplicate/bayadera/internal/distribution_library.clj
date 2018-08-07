@@ -20,7 +20,7 @@
              [util :refer [srand-int]]]
             [uncomplicate.bayadera.internal
              [protocols :refer :all]
-             [impl :refer [->DirectSampler]]]))
+             [impl :refer [create-direct-sampler]]]))
 
 ;; ==================== Distributions ====================
 
@@ -33,10 +33,7 @@
     (na/compatible? factory o))
   SamplerProvider
   (sampler [_ options]
-    (->DirectSampler @samp params (processing-elements factory)
-                     (volatile! (or (:seed options) (srand-int)))))
-  (sampler [this]
-    (sampler this nil))
+    (create-direct-sampler @samp params (processing-elements factory) (or (:seed options) (srand-int))))
   ParameterProvider
   (parameters [_]
     params)
@@ -68,10 +65,7 @@
     (na/compatible? factory o))
   SamplerProvider
   (sampler [_ options]
-    (->DirectSampler @samp params (processing-elements factory)
-                     (volatile! (or (:seed options) (srand-int)))))
-  (sampler [this]
-    (sampler this nil))
+    (create-direct-sampler @samp params (processing-elements factory) (or (:seed options) (srand-int))))
   ParameterProvider
   (parameters [_]
     params)
@@ -108,13 +102,10 @@
           m (student-t-mean nu mu)
           seed (int (or (:seed options) (srand-int)))]
       (with-release [limits (ge (na/native-factory factory) 2 1 [(- m (* 10 std)) (+ m (* 10 std))])]
-        (let-release [samp (mcmc-sampler @mcmc walkers params)]
-          (init-position! samp seed limits)
-          (init! samp (inc seed))
+        (let-release [samp (create-sampler @mcmc seed walkers params)]
+          (init-position! samp (inc seed) limits)
           (burn-in! samp (max 0 (long (or (:warm-up options) 128))) 8.0)
           samp))))
-  (sampler [this]
-    (sampler this nil))
   ParameterProvider
   (parameters [_]
     params)
@@ -149,13 +140,10 @@
     (let [walkers (or (:walkers options) (* ^long (processing-elements factory) 256))
           seed (int (or (:seed options) (srand-int)))]
       (with-release [limits (ge (na/native-factory factory) 2 1 [0 1])]
-        (let-release [samp (mcmc-sampler @mcmc walkers params)]
-          (init-position! samp seed limits)
-          (init! samp (inc seed))
+        (let-release [samp (create-sampler @mcmc seed walkers params)]
+          (init-position! samp (inc seed) limits)
           (burn-in! samp (max 0 (long (or (:warm-up options) 128))) 8.0)
           samp))))
-  (sampler [this]
-    (sampler this nil))
   ParameterProvider
   (parameters [_]
     params)
@@ -191,13 +179,10 @@
           seed (int (or (:seed options) (srand-int)))]
       (with-release [limits (ge (na/native-factory factory) 2 1 [0 (+ (gamma-mean theta k)
                                                                       (* 2 (sqrt (gamma-variance theta k))))])]
-        (let-release [samp (mcmc-sampler @mcmc walkers params)]
-          (init-position! samp seed limits)
-          (init! samp (inc seed))
+        (let-release [samp (create-sampler @mcmc seed walkers params)]
+          (init-position! samp (inc seed) limits)
           (burn-in! samp (max 0 (long (or (:warm-up options) 128))) 8.0)
           samp))))
-  (sampler [this]
-    (sampler this nil))
   ParameterProvider
   (parameters [_]
     params)
@@ -229,10 +214,7 @@
     (na/compatible? factory o))
   SamplerProvider
   (sampler [_ options]
-    (->DirectSampler @samp params (processing-elements factory)
-                     (volatile! (or (:seed options) (srand-int)))))
-  (sampler [this]
-    (sampler this nil))
+    (create-direct-sampler @samp params (processing-elements factory) (or (:seed options) (srand-int))))
   ParameterProvider
   (parameters [_]
     params)
@@ -264,10 +246,7 @@
     (na/compatible? factory o))
   SamplerProvider
   (sampler [_ options]
-    (->DirectSampler @samp params (processing-elements factory)
-                     (volatile! (or (:seed options) (srand-int)))))
-  (sampler [this]
-    (sampler this nil))
+    (create-direct-sampler @samp params (processing-elements factory) (or (:seed options) (srand-int))))
   ParameterProvider
   (parameters [_]
     params)

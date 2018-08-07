@@ -22,16 +22,6 @@
                                            ->GammaDistribution ->ExponentialDistribution
                                            ->ErlangDistribution ->LibraryLikelihood]]]))
 
-(def ^:dynamic *library*)
-
-(defmacro with-library [library & body]
-  `(binding [*library* ~library]
-     (try ~@body
-          (finally (release *library*)))))
-
-(defn ^:private direct-sampler [library id]
-  (deref (p/get-direct-sampler library id)))
-
 (defn ^:private mcmc-factory [library id]
   (deref (p/get-mcmc-factory library id)))
 
@@ -40,6 +30,13 @@
 
 (defn ^:private likelihood-engine [library id]
   (deref (p/get-likelihood-engine library id)))
+
+(def ^:dynamic *library*)
+
+(defmacro with-library [library & body]
+  `(binding [*library* ~library]
+     (try ~@body
+          (finally (release *library*)))))
 
 (defn distribution-model
   ([id]
@@ -82,7 +79,7 @@
   ([library ^double a ^double b]
    (if-let [params (uniform-params a b)]
      (->UniformDistribution (p/factory library)
-                            (p/get-direct-sampler library :uniform)
+                            (p/get-direct-sampler-engine library :uniform)
                             (distribution-engine library :uniform)
                             (vctr (p/factory library) params) a b)
      (dragan-says-ex "Uniform distribution parameters are illegal."
@@ -95,7 +92,7 @@
   ([library ^double mu ^double sigma]
    (if-let [params (gaussian-params mu sigma)]
      (->GaussianDistribution (p/factory library)
-                             (p/get-direct-sampler library :gaussian)
+                             (p/get-direct-sampler-engine library :gaussian)
                              (distribution-engine library :gaussian)
                              (vctr (p/factory library) params) mu sigma)
      (dragan-says-ex "Gaussian distribution parameters are illegal."
@@ -156,7 +153,7 @@
   ([library ^double lambda]
    (if-let [params (exponential-params lambda)]
      (->ExponentialDistribution (p/factory library)
-                                (p/get-direct-sampler library :exponential)
+                                (p/get-direct-sampler-engine library :exponential)
                                 (distribution-engine library :exponential)
                                 (vctr (p/factory library) params) lambda)
      (dragan-says-ex "Exponential distribution parameters are illegal."
@@ -168,7 +165,7 @@
   ([library ^double lambda ^long k]
    (if-let [params (erlang-params lambda k)]
      (->ErlangDistribution (p/factory library)
-                           (p/get-direct-sampler library :erlang)
+                           (p/get-direct-sampler-engine library :erlang)
                            (distribution-engine library :erlang)
                            (vctr (p/factory library) params) lambda k)
      (dragan-says-ex "Erlang distribution parameters are illegal."

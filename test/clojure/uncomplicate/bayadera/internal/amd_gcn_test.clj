@@ -38,10 +38,10 @@
         (facts
          "OpenCL GCN direct sampler for Uniform distribution"
          (with-release [uniform-model (deref (distributions :uniform))
-                        uniform-sampler (gcn-direct-sampler *context* *command-queue* tmp-dir-name
-                                                            uniform-model wgs)
+                        uniform-sampler (gcn-direct-sampler-engine *context* *command-queue*
+                                                                   tmp-dir-name uniform-model wgs)
                         params (vctr neanderthal-factory [-99.9 200.1])
-                        smpl (sample uniform-sampler 123 params 10000)
+                        smpl (sample uniform-sampler 123 params (ge neanderthal-factory 1 10000))
                         native-sample (native smpl)]
            (let [sample-1d (row native-sample 0)]
              (seq (subvector sample-1d 0 4))
@@ -55,10 +55,10 @@
         (facts
          "OpenCL GCN direct sampler for Gaussian distribution"
          (with-release [gaussian-model (deref (distributions :gaussian))
-                        gaussian-sampler (gcn-direct-sampler *context* *command-queue* tmp-dir-name
-                                                             gaussian-model wgs)
+                        gaussian-sampler (gcn-direct-sampler-engine *context* *command-queue*
+                                                                    tmp-dir-name gaussian-model wgs)
                         params (vctr neanderthal-factory [100 200.1])
-                        smpl (sample gaussian-sampler 123 params 10000)
+                        smpl (sample gaussian-sampler 123 params (ge neanderthal-factory 1 10000))
                         native-sample (native smpl)]
            (let [sample-1d (row native-sample 0)]
              (seq (subvector sample-1d 0 4))
@@ -72,10 +72,10 @@
         (facts
          "OpenCL GCN direct sampler for Erlang distribution"
          (with-release [erlang-model (deref (distributions :erlang))
-                        erlang-sampler (gcn-direct-sampler *context* *command-queue* tmp-dir-name
-                                                           erlang-model wgs)
+                        erlang-sampler (gcn-direct-sampler-engine *context* *command-queue*
+                                                                  tmp-dir-name erlang-model wgs)
                         params (vctr neanderthal-factory [2 3])
-                        smpl (sample erlang-sampler 123 params 10000)
+                        smpl (sample erlang-sampler 123 params (ge neanderthal-factory 1 10000))
                         native-sample (native smpl)]
            (let [sample-1d (row native-sample 0)]
              (seq (subvector sample-1d 0 4))
@@ -89,10 +89,10 @@
         (facts
          "OpenCL GCN direct sampler for Exponential distribution"
          (with-release [exponential-model (deref (distributions :exponential))
-                        exponential-sampler (gcn-direct-sampler *context* *command-queue* tmp-dir-name
-                                                                exponential-model wgs)
+                        exponential-sampler (gcn-direct-sampler-engine *context* *command-queue*
+                                                                       tmp-dir-name exponential-model wgs)
                         params (vctr neanderthal-factory [4])
-                        smpl (sample exponential-sampler 123 params 10000)
+                        smpl (sample exponential-sampler 123 params (ge neanderthal-factory 1 10000))
                         native-sample (native smpl)]
            (let [sample-1d (row native-sample 0)]
              (seq (subvector sample-1d 0 4))
@@ -172,12 +172,13 @@
          "OpenCL GCN stretch with Uniform model."
          (with-release [uniform-model (deref (distributions :uniform))
                         params (vctr neanderthal-factory [-1 2])
+                        res (ge neanderthal-factory 1 walker-count {:raw true})
                         limits (ge neanderthal-factory 2 1 [-1 2])
-                        uniform-sampler (mcmc-sampler
+                        uniform-sampler (create-sampler
                                          (gcn-stretch-factory
                                           *context* *command-queue* tmp-dir-name
                                           neanderthal-factory nil uniform-model wgs)
-                                         walker-count params)]
+                                         seed walker-count params)]
            (let [stretch-move-bare-kernel (.stretch-move-odd-bare-kernel ^GCNStretch uniform-sampler)
                  stretch-move-kernel (.stretch-move-odd-kernel ^GCNStretch uniform-sampler)
                  sum-means-kernel (.sum-means-kernel ^GCNStretch uniform-sampler)
@@ -194,20 +195,22 @@
                  acc (ge neanderthal-factory 1 acc-count)
                  cqueue (.cqueue ^GCNStretch uniform-sampler)]
 
-             (init-position! uniform-sampler seed limits)
-             (take 4 (native (row (sample uniform-sampler) 0)))
-             => [1.0883402824401855 1.3920516967773438 -0.8245221972465515 0.47322529554367065]
              (init! uniform-sampler seed) => uniform-sampler
-             (move-bare! uniform-sampler) => uniform-sampler
-             (take 4 (native (row (sample uniform-sampler) 0)))
+             (init-position! uniform-sampler seed limits)
+             (take 4 (native (row (sample! uniform-sampler) 0)))
              => [0.7279692888259888 1.8140764236450195 0.04031801223754883 0.4697103500366211]
-             (move-bare! uniform-sampler)
-             (take 4 (native (row (sample uniform-sampler) 0)))
+
+             (take 4 (native (row (sample! uniform-sampler) 0)))
              => [1.0403573513031006 1.4457943439483643 0.37618488073349 1.5768483877182007]
 
+             (take 4 (native (row (sample! uniform-sampler) 0)))
+             => [1.0472352504730225 1.1567966938018799 0.6802867650985718 1.6528077125549316]
+
+             (take 4 (native (row (sample! uniform-sampler) 0)))
+             => [0.9332536458969116 1.9495458602905273 0.5958947539329529 1.6429907083511353]
+
+             (init! uniform-sampler seed) => uniform-sampler
              (init-position! uniform-sampler seed limits)
-             (take 4 (native (row (sample uniform-sampler) 0)))
-             => [1.0883402824401855 1.3920516967773438 -0.8245221972465515 0.47322529554367065]
 
              (set-args! stretch-move-bare-kernel 0 (wrap-int seed) (wrap-int 3333) (wrap-int 0) (wrap-int 2)
                         cl-params cl-s1 cl-s0 cl-logfn-s0 (wrap-float a) (wrap-float 1.0) (wrap-int 0))
@@ -215,7 +218,8 @@
              (set-args! stretch-move-bare-kernel 0 (wrap-int (inc seed)) (wrap-int 4444) (wrap-int 0) (wrap-int 2)
                         cl-params cl-s0 cl-s1 cl-logfn-s1 (wrap-float a) (wrap-float 1.0) (wrap-int 0))
              (enq-kernel! cqueue stretch-move-bare-kernel (work-size-1d (/ walker-count 2)))
-             (take 4 (native (row (sample uniform-sampler) 0)))
+             (enq-copy! cqueue cl-xs (buffer res))
+             (take 4 (native (row res 0)))
              => [0.7279692888259888 1.8140764236450195 0.04031801223754883 0.4697103500366211]
 
              (set-args! stretch-move-bare-kernel 0 (wrap-int seed) (wrap-int 3333) (wrap-int 0) (wrap-int 2)
@@ -224,7 +228,8 @@
              (set-args! stretch-move-bare-kernel 0 (wrap-int (inc seed)) (wrap-int 4444) (wrap-int 0) (wrap-int 2)
                         cl-params cl-s0 cl-s1 cl-logfn-s1 (wrap-float a) (wrap-float 1.0) (wrap-int 1))
              (enq-kernel! cqueue stretch-move-bare-kernel (work-size-1d (/ walker-count 2)))
-             (take 4 (native (row (sample uniform-sampler) 0)))
+             (enq-copy! cqueue cl-xs (buffer res))
+             (take 4 (native (row res 0)))
              => [1.0403573513031006 1.4457943439483643 0.37618488073349 1.5768483877182007]
 
              (enq-fill! cqueue cl-accept (int-array 1))
@@ -237,7 +242,8 @@
                         cl-params cl-s0 cl-s1 cl-logfn-s1 cl-accept cl-means-acc (wrap-float a)
                         (wrap-int 0))
              (enq-kernel! cqueue stretch-move-kernel (work-size-1d (/ walker-count 2)))
-             (take 4 (native (row (sample uniform-sampler) 0)))
+             (enq-copy! cqueue cl-xs (buffer res))
+             (take 4 (native (row res 0)))
              => [1.0110803842544556 1.615005373954773 0.3426262140274048 1.4122662544250488]
              (enq-read! cqueue cl-means-acc means-acc-array)
              (seq means-acc-array) => (map float [269.26575 286.35892 288.0937 240.0009 265.76953
@@ -254,20 +260,18 @@
          (with-release [gaussian-model (deref (distributions :gaussian))
                         params (vctr neanderthal-factory [3 1.0])
                         limits (ge neanderthal-factory 2 1 [-7 7])
-                        gaussian-sampler (mcmc-sampler (gcn-stretch-factory
-                                                        *context* *command-queue* tmp-dir-name
-                                                        neanderthal-factory nil gaussian-model wgs)
-                                                       walker-count params)]
-           (init-position! gaussian-sampler seed limits)
-           (take 4 (native (row (sample gaussian-sampler) 0)))
-           => [2.7455875873565674 4.162908554077148 -6.181103706359863 -0.12494850158691406]
+                        gaussian-sampler (create-sampler (gcn-stretch-factory
+                                                          *context* *command-queue* tmp-dir-name
+                                                          neanderthal-factory nil gaussian-model wgs)
+                                                         seed walker-count params)]
            (init! gaussian-sampler seed) => gaussian-sampler
-           (move-bare! gaussian-sampler) => gaussian-sampler
-           (take 4 (native (row (sample gaussian-sampler) 0)))
+           (init-position! gaussian-sampler seed limits)
+           (take 4 (native (row (sample! gaussian-sampler) 0)))
            => [2.7455875873565674 4.162908554077148 -2.1451826095581055 -0.14135169982910156]
-           (move-bare! gaussian-sampler)
-           (take 4 (native (row (sample gaussian-sampler) 0)))
-           => [3.962130546569824 2.9586503505706787 -0.5778036117553711 5.02529239654541]))
+           (take 4 (native (row (sample! gaussian-sampler) 0)))
+           => [3.962130546569824 2.9586503505706787 -0.5778036117553711 5.02529239654541]
+           (take 4 (native (row (sample! gaussian-sampler) 0)))
+           => [3.815159797668457 2.415064811706543 0.7977099418640137 5.292686462402344]))
 
         (with-release [neanderthal-factory (opencl-float *context* *command-queue*)]
           (facts
@@ -275,18 +279,18 @@
            (with-release [gaussian-model (deref (distributions :gaussian))
                           params (vctr neanderthal-factory [3 1.0])
                           limits (ge neanderthal-factory 2 1 [-7 7])
-                          gaussian-sampler (mcmc-sampler (gcn-stretch-factory
-                                                          *context* *command-queue* tmp-dir-name
-                                                          neanderthal-factory nil gaussian-model wgs)
-                                                         walker-count params)]
-             (init-position! gaussian-sampler seed limits)
+                          gaussian-sampler (create-sampler (gcn-stretch-factory
+                                                            *context* *command-queue* tmp-dir-name
+                                                            neanderthal-factory nil gaussian-model wgs)
+                                                           seed walker-count params)]
              (init! gaussian-sampler (inc seed))
+             (init-position! gaussian-sampler seed limits)
              (burn-in! gaussian-sampler 100 1.5)
-             (first (native! (mean (sample gaussian-sampler)))) => 2.9559195041656494
-             (take-nth 1500 (native! (row (sample gaussian-sampler) 0)))
-             => [3.222665309906006 2.4721696376800537 3.094174385070801 3.0374388694763184
-                 5.753951072692871 2.7033936977386475 2.5397140979766846 3.4444146156311035]
-             (first (native! (sd (sample gaussian-sampler)))) => 0.9953131079673767)))))))
+             (first (native! (mean (sample! gaussian-sampler)))) => 2.954922914505005
+             (take-nth 1500 (native! (row (sample! gaussian-sampler) 0)))
+             => [3.330127716064453 2.312180995941162 3.583043098449707 3.342344045639038
+                 4.829925060272217 2.7044899463653564 2.064384937286377 3.4432942867279053]
+             (first (native! (sd (sample! gaussian-sampler)))) => 0.9963167309761047)))))))
 
 (with-default
   (let [dev (queue-device *command-queue*)
@@ -303,11 +307,11 @@
           (with-release [params (vctr bayadera-factory [200 1])
                          limits (ge bayadera-factory 2 1 [180.0 220.0])
                          dummy-sample-matrix (ge bayadera-factory 1 (* 100 walker-count) (cycle [201 199 138]))]
-            (let [engine (mcmc-sampler mcmc-engine-factory walker-count params)]
+            (let [engine (create-sampler mcmc-engine-factory seed walker-count params)]
               (facts
                "Test MCMC stretch engine."
-               (init-position! engine 123 limits)
                (init! engine 1243)
+               (init-position! engine 123 limits)
                (burn-in! engine 5120 a)
                (acc-rate! engine a) => 0.4808682528409091
                (entry (:tau (:autocorrelation (run-sampler! engine 670 a))) 0) => 8.159395217895508))))))))

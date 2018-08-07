@@ -35,10 +35,11 @@
       (facts
        "Nvidia GTX direct sampler for Uniform distribution"
        (with-release [uniform-model (deref (distributions :uniform))
-                      normal-sampler (gtx-direct-sampler (current-context) default-stream
-                                                         uniform-model wgs cudart-version)
+                      normal-sampler (gtx-direct-sampler-engine
+                                      (current-context) default-stream uniform-model
+                                      wgs cudart-version)
                       params (vctr neanderthal-factory [-99.9 200.1])
-                      smpl (sample normal-sampler 123 params 10000)
+                      smpl (sample normal-sampler 123 params (ge neanderthal-factory 1 10000))
                       native-sample (native smpl)]
          (let [sample-1d (row native-sample 0)]
            (seq (subvector sample-1d 0 4))
@@ -52,10 +53,11 @@
       (facts
        "Nvidia GTX direct sampler for Gaussian distribution"
        (with-release [gaussian-model (deref (distributions :gaussian))
-                      gaussian-sampler (gtx-direct-sampler (current-context) default-stream
-                                                           gaussian-model wgs cudart-version)
+                      gaussian-sampler (gtx-direct-sampler-engine
+                                        (current-context) default-stream gaussian-model
+                                        wgs cudart-version)
                       params (vctr neanderthal-factory [100 200.1])
-                      smpl (sample gaussian-sampler 123 params 10000)
+                      smpl (sample gaussian-sampler 123 params (ge neanderthal-factory 1 10000))
                       native-sample (native smpl)]
          (let [sample-1d (row native-sample 0)]
            (seq (subvector sample-1d 0 4))
@@ -69,10 +71,10 @@
       (facts
        "Nvidia GTX direct sampler for Erlang distribution"
        (with-release [erlang-model (deref (distributions :erlang))
-                      erlang-sampler (gtx-direct-sampler (current-context) default-stream
+                      erlang-sampler (gtx-direct-sampler-engine (current-context) default-stream
                                                          erlang-model wgs cudart-version)
                       params (vctr neanderthal-factory [2 3])
-                      smpl (sample erlang-sampler 123 params 10000)
+                      smpl (sample erlang-sampler 123 params (ge neanderthal-factory 1 10000))
                       native-sample (native smpl)]
          (let [sample-1d (row native-sample 0)]
            (seq (subvector sample-1d 0 4))
@@ -86,10 +88,11 @@
       (facts
          "OpenCL GCN direct sampler for Exponential distribution"
          (with-release [exponential-model (deref (distributions :exponential))
-                        exponential-sampler (gtx-direct-sampler (current-context) default-stream
-                                                                exponential-model wgs cudart-version)
+                        exponential-sampler (gtx-direct-sampler-engine
+                                             (current-context) default-stream exponential-model
+                                             wgs cudart-version)
                         params (vctr neanderthal-factory [4])
-                        smpl (sample exponential-sampler 123 params 10000)
+                        smpl (sample exponential-sampler 123 params (ge neanderthal-factory 1 10000))
                         native-sample (native smpl)]
            (let [sample-1d (row native-sample 0)]
              (seq (subvector sample-1d 0 4))
@@ -169,11 +172,12 @@
          (with-release [uniform-model (deref (distributions :uniform))
                         params (vctr neanderthal-factory [-1 2])
                         limits (ge neanderthal-factory 2 1 [-1 2])
-                        uniform-sampler (mcmc-sampler (gtx-stretch-factory
-                                                       (current-context) default-stream
-                                                       neanderthal-factory nil uniform-model
-                                                       wgs cudart-version)
-                                                      walker-count params)]
+                        res (ge neanderthal-factory 1 walker-count {:raw true})
+                        uniform-sampler (create-sampler (gtx-stretch-factory
+                                                         (current-context) default-stream
+                                                         neanderthal-factory nil uniform-model
+                                                         wgs cudart-version)
+                                                        seed walker-count params)]
            (let [stretch-move-bare-kernel (.stretch-move-bare-kernel ^GTXStretch uniform-sampler)
                  stretch-move-kernel (.stretch-move-kernel ^GTXStretch uniform-sampler)
                  sum-means-kernel (.sum-means-kernel ^GTXStretch uniform-sampler)
@@ -190,20 +194,22 @@
                  acc (ge neanderthal-factory 1 acc-count)
                  hstream (.hstream ^GTXStretch uniform-sampler)]
 
-             (init-position! uniform-sampler seed limits)
-             (take 4 (native (row (sample uniform-sampler) 0)))
-             => [1.0883402824401855 1.3920516967773438 -0.8245221972465515 0.47322529554367065]
              (init! uniform-sampler seed) => uniform-sampler
-             (move-bare! uniform-sampler) => uniform-sampler
-             (take 4 (native (row (sample uniform-sampler) 0)))
+             (init-position! uniform-sampler seed limits)
+             (take 4 (native (row (sample! uniform-sampler) 0)))
              => [0.7279692888259888 1.81407630443573 0.040318019688129425 0.4697103202342987]
-             (move-bare! uniform-sampler)
-             (take 4 (native (row (sample uniform-sampler) 0)))
+
+             (take 4 (native (row (sample! uniform-sampler) 0)))
              => [1.040357232093811 1.4457943439483643 0.3761849105358124 1.5768483877182007]
 
+             (take 4 (native (row (sample! uniform-sampler) 0)))
+             => [1.047235131263733 1.1567966938018799 0.6802869439125061 1.6528078317642212]
+
+             (take 4 (native (row (sample! uniform-sampler) 0)))
+             => [0.9332534670829773 1.9495460987091064 0.5958949327468872 1.6429908275604248]
+
+             (init! uniform-sampler seed) => uniform-sampler
              (init-position! uniform-sampler seed limits)
-             (take 4 (native (row (sample uniform-sampler) 0)))
-             => [1.0883402824401855 1.3920516967773438 -0.8245221972465515 0.47322529554367065]
 
              (launch! stretch-move-bare-kernel (grid-1d (/ walker-count 2) wgs) hstream
                       (clojurecuda/parameters (/ walker-count 2) (int seed) (int 3333) 0 2
@@ -211,7 +217,8 @@
              (launch! stretch-move-bare-kernel (grid-1d (/ walker-count 2) wgs) hstream
                       (clojurecuda/parameters (/ walker-count 2) (inc (int seed)) (int 4444) 0 2
                                               cu-params cu-s0 cu-s1 cu-logfn-s1 (float a) (float 1.0) (int 0)))
-             (take 4 (native (row (sample uniform-sampler) 0)))
+             (memcpy! cu-xs (buffer res) hstream)
+             (take 4 (native (row res 0)))
              => [0.7279692888259888 1.81407630443573 0.040318019688129425 0.4697103202342987]
 
              (launch! stretch-move-bare-kernel (grid-1d (/ walker-count 2) wgs) hstream
@@ -220,7 +227,8 @@
              (launch! stretch-move-bare-kernel (grid-1d (/ walker-count 2) wgs) hstream
                       (clojurecuda/parameters (/ walker-count 2) (inc (int seed)) (int 4444) 0 2 cu-params
                                               cu-s0 cu-s1 cu-logfn-s1 (float a) (float 1.0) (int 1)))
-             (take 4 (native (row (sample uniform-sampler) 0)))
+             (memcpy! cu-xs (buffer res) hstream)
+             (take 4 (native (row res 0)))
              => [1.040357232093811 1.4457943439483643 0.3761849105358124 1.5768483877182007]
 
              (memset! cu-accept (int 0) hstream)
@@ -233,7 +241,8 @@
                       (clojurecuda/parameters (/ walker-count 2) (inc (int seed)) (int 2222) 0 2
                                               cu-params cu-s0 cu-s1 cu-logfn-s1 cu-accept cu-means-acc
                                               (float a) (int 0)))
-             (take 4 (native (row (sample uniform-sampler) 0)))
+             (memcpy! cu-xs (buffer res) hstream)
+             (take 4 (native (row res 0)))
              => [1.011080265045166 1.615005373954773 0.3426262140274048 1.4122663736343384]
              (memcpy-host! cu-means-acc means-acc-array)
              (seq means-acc-array) => (map float [269.26575 286.3589 288.09372 240.0009 265.76953
@@ -250,40 +259,38 @@
        (with-release [gaussian-model (deref (distributions :gaussian))
                       params (vctr neanderthal-factory [3 1.0])
                       limits (ge neanderthal-factory 2 1 [-7 7])
-                      gaussian-sampler (mcmc-sampler (gtx-stretch-factory
-                                                      (current-context) default-stream
-                                                      neanderthal-factory nil gaussian-model
-                                                      wgs cudart-version)
-                                                     walker-count params)]
-         (init-position! gaussian-sampler seed limits)
-         (take 4 (native (row (sample gaussian-sampler) 0)))
-         => [2.7455878257751465 4.16290807723999 -6.181103706359863 -0.12494856119155884]
+                      gaussian-sampler (create-sampler (gtx-stretch-factory
+                                                        (current-context) default-stream
+                                                        neanderthal-factory nil gaussian-model
+                                                        wgs cudart-version)
+                                                       seed walker-count params)]
          (init! gaussian-sampler seed) => gaussian-sampler
-         (move-bare! gaussian-sampler) => gaussian-sampler
-         (take 4 (native (row (sample gaussian-sampler) 0)))
+         (init-position! gaussian-sampler seed limits)
+         (take 4 (native (row (sample! gaussian-sampler) 0)))
          => [2.7455878257751465 4.16290807723999 -2.1451826095581055 -0.14135171473026276]
-         (move-bare! gaussian-sampler)
-         (take 4 (native (row (sample gaussian-sampler) 0)))
-         => [3.9621310234069824 2.9586496353149414 -0.5778038501739502 5.025292873382568]))
+         (take 4 (native (row (sample! gaussian-sampler) 0)))
+         => [3.9621310234069824 2.9586496353149414 -0.5778038501739502 5.025292873382568]
+         (take 4 (native (row (sample! gaussian-sampler) 0)))
+         => [3.8151602745056152 2.415064573287964 0.7977100610733032 5.292686939239502]))
 
       (facts
        "Nvidia GTX stretch burn-in with Gaussian model."
        (with-release [gaussian-model (deref (distributions :gaussian))
                       params (vctr neanderthal-factory [3 1.0])
                       limits (ge neanderthal-factory 2 1 [-7 7])
-                      gaussian-sampler (mcmc-sampler (gtx-stretch-factory
-                                                      (current-context) default-stream
-                                                      neanderthal-factory nil gaussian-model
-                                                      wgs cudart-version)
-                                                     walker-count params)]
+                      gaussian-sampler (create-sampler (gtx-stretch-factory
+                                                        (current-context) default-stream
+                                                        neanderthal-factory nil gaussian-model
+                                                        wgs cudart-version)
+                                                       seed walker-count params)]
          (init-position! gaussian-sampler seed limits)
          (init! gaussian-sampler (inc seed))
          (burn-in! gaussian-sampler 100 1.5)
-         (first (native! (mean (sample gaussian-sampler)))) => 2.955857992172241
-         (take-nth 1500 (native! (row (sample gaussian-sampler) 0)))
-         => [3.222633123397827 2.4723587036132812 3.094208240509033 3.0372467041015625
-             5.75404167175293 2.7033119201660156 2.5398690700531006 3.4444446563720703]
-         (first (native! (sd (sample gaussian-sampler)))) => 0.9953223466873169)))))
+         (first (native! (mean (sample! gaussian-sampler)))) => 2.9549717903137207
+         (take-nth 1500 (native! (row (sample! gaussian-sampler) 0)))
+         => [3.3301031589508057 2.3123116493225098 3.5831196308135986 3.3420889377593994
+             4.830397605895996 2.7044715881347656 2.064502716064453 3.4433465003967285]
+         (first (native! (sd (sample! gaussian-sampler)))) => 0.9961313605308533)))))
 
 (with-default
   (let [dev (ctx-device)
@@ -299,7 +306,7 @@
         (with-release [params (vctr bayadera-factory [200 1])
                        limits (ge bayadera-factory 2 1 [180.0 220.0])
                        dummy-sample-matrix (ge bayadera-factory 1 (* 100 walker-count) (cycle [201 199 138]))]
-          (let [engine (mcmc-sampler mcmc-engine-factory walker-count params)]
+          (let [engine (create-sampler mcmc-engine-factory 1243 walker-count params)]
             (facts
              "Test MCMC stretch engine."
              (init-position! engine 123 limits)

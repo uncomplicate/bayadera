@@ -9,12 +9,12 @@
 (ns ^{:author "Dragan Djuric"}
     uncomplicate.bayadera.internal.impl
   (:require [uncomplicate.commons
-             [core :refer [Releaseable release with-release let-release]]
+             [core :refer [Releaseable release let-release]]
              [utils :refer [dragan-says-ex]]]
             [uncomplicate.fluokitten.core :refer [op]]
             [uncomplicate.neanderthal
              [vect-math :refer [sqrt!]]
-             [core :refer [transfer transfer! dim vspace? subvector vctr]]]
+             [core :refer [transfer transfer! dim vspace? subvector vctr ge]]]
             [uncomplicate.neanderthal.internal.api :as na]
             [uncomplicate.bayadera.util :refer [srand-int]]
             [uncomplicate.bayadera.internal.protocols :refer :all])
@@ -52,17 +52,17 @@
   (release [_]
     true)
   RandomSampler
-  (init! [_ seed]
-    (vreset! seed-vol seed))
-  (sample [_ n]
-    (sample samp-engine @seed-vol params n))
-  (sample [this]
-    (sample this sample-count))
-  (sample! [this n]
-    (vswap! seed-vol inc-long)
-    (sample this n))
   (sample! [this]
-    (sample! this sample-count)))
+    (sample! this sample-count))
+  (sample! [this n-or-res]
+    (vswap! seed-vol inc-long)
+    (if (integer? n-or-res)
+      (let-release [res (ge params 1 n-or-res {:raw true})]
+        (sample samp-engine @seed-vol params res))
+      (sample samp-engine @seed-vol params n-or-res))))
+
+(defn create-direct-sampler [samp-engine params sample-count seed]
+  (->DirectSampler samp-engine params sample-count (volatile! seed)))
 
 (deftype LikelihoodImpl [factory lik-eng lik-model]
   Releaseable
@@ -88,15 +88,12 @@
   SamplerProvider
   (sampler [_ options]
     (let [walkers (or (:walkers options) (* ^long (processing-elements factory) 2))]
-      (let-release [samp (mcmc-sampler sampler-factory walkers params)]
-        (init! samp (or (:seed options) (srand-int)))
+      (let-release [samp (create-sampler sampler-factory (or (:seed options) (srand-int)) walkers params)]
         (when-let [limits (or (:limits options) (limits (model dist-eng)))]
           (init-position! samp (srand-int) limits))
         (when-let [positions (:positions options)]
           (init-position! samp positions))
         samp)))
-  (sampler [this]
-    (sampler this nil))
   ParameterProvider
   (parameters [_]
     params)

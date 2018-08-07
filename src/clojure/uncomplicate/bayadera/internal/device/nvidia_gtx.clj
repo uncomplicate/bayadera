@@ -45,19 +45,18 @@
 
 ;; ============================ Direct sampler =================================
 
-(deftype GTXDirectSampler [ctx modl hstream ^long DIM ^long WGS sample-kernel]
+(deftype GTXDirectSamplerEngine [ctx modl hstream ^long WGS sample-kernel]
   Releaseable
   (release [_]
     (release sample-kernel)
     (release modl))
-  RandomSampler
-  (sample [this seed cu-params n]
+  RandomSamplerEngine
+  (sample [this seed cu-params res]
     (in-context
      ctx
-     (let-release [res (ge cu-params DIM n)]
-       (launch! sample-kernel (grid-1d n WGS) hstream
-                (cuda/parameters (int n) (buffer cu-params) seed (buffer res)))
-       res))))
+     (do (launch! sample-kernel (grid-1d (dim res) WGS) hstream
+                  (cuda/parameters (dim res) (buffer cu-params) seed (buffer res)))
+         res))))
 
 ;; ============================ Distribution engine ============================
 
@@ -365,6 +364,26 @@
       (set-parameter! stretch-move-even-bare-params 10 beta))
     this)
   RandomSampler
+  (sample! [this]
+    (sample! this walker-count))
+  (sample! [this n-or-res]
+    (in-context
+     ctx
+     (let [available (* DIM (entry-width cuaccessor) walker-count)]
+       (let-release [res (if (integer? n-or-res)
+                           (ge neanderthal-factory DIM walker-count {:raw true})
+                           n-or-res)]
+         (set-temperature! this 1.0)
+         (loop [ofst 0 requested (* DIM (entry-width cuaccessor) (ncols res))]
+           (move-bare! this)
+           (vswap! iteration-counter inc-long)
+           (if (<= requested available)
+             (memcpy! cu-xs (buffer res) 0 ofst requested hstream)
+             (do
+               (memcpy! cu-xs (buffer res) 0 ofst available hstream)
+               (recur (+ ofst available) (- requested available)))))
+         res))))
+  MCMC
   (init! [this seed]
     (let [a (cast-prim cuaccessor 2.0)]
       (set-parameter! stretch-move-odd-bare-params 1 (int seed))
@@ -375,35 +394,6 @@
       (aset move-bare-counter 0 0)
       (aset move-seed 0 (int seed))
       this))
-  (sample [this]
-    (sample this walker-count))
-  (sample [this n]
-    (in-context
-     ctx
-     (if (<= (long n) walker-count)
-       (let-release [res (ge neanderthal-factory DIM n)]
-         (memcpy! cu-xs (buffer res) hstream)
-         res)
-       (throw (IllegalArgumentException.
-               (format "For number of samples greater than %d, use sample! method." walker-count)) ))))
-  (sample! [this]
-    (sample! this walker-count))
-  (sample! [this n]
-    (in-context
-     ctx
-     (let [available (* DIM (entry-width cuaccessor) walker-count)]
-       (set-temperature! this 1.0)
-       (let-release [res (ge neanderthal-factory DIM n)]
-         (loop [ofst 0 requested (* DIM (entry-width cuaccessor) (long n))]
-           (move-bare! this)
-           (vswap! iteration-counter inc-long)
-           (if (<= requested available)
-             (memcpy! cu-xs (buffer res) 0 ofst requested hstream)
-             (do
-               (memcpy! cu-xs (buffer res) 0 ofst available hstream)
-               (recur (+ ofst available) (- requested available)))))
-         res))))
-  MCMC
   (init-position! [this position]
     (in-context
      ctx
@@ -550,8 +540,8 @@
   Releaseable
   (release [_]
     (release modl))
-  MCMCFactory
-  (mcmc-sampler [_ walker-count params]
+  SamplerFactory
+  (create-sampler [_ seed walker-count params]
     (in-context
      ctx
      (let [walker-count (int walker-count)]
@@ -574,42 +564,44 @@
                          cu-accept (mem-alloc (* Integer/BYTES accept-count))
                          cu-accept-acc (mem-alloc (* Long/BYTES accept-acc-count))
                          cu-acc (create-data-source cuaccessor acc-count)]
-             (->GTXStretch
-              ctx hstream neanderthal-factory cuaccessor acor-eng walker-count
-              (grid-1d (/ walker-count 2) WGS) model DIM WGS
-              (int-array 1) (int-array 1) (volatile! 0) (int-array 1)
-              cu-params cu-xs cu-s0 cu-s1 cu-logfn-xs cu-logfn-s0 cu-logfn-s1
-              cu-accept cu-accept-acc cu-acc
-              (function modl "stretch_move_accu")
-              (cuda/parameters half-walker-count 1 (int 1111) data-len params-len cu-params
-                               cu-s1 cu-s0 cu-logfn-s0 cu-accept 10 11 12)
-              (cuda/parameters half-walker-count 1 (int 2222) data-len params-len cu-params
-                               cu-s0 cu-s1 cu-logfn-s1 cu-accept 10 11 12)
-              (function modl "stretch_move_bare")
-              (cuda/parameters half-walker-count 1 (int 3333) data-len params-len cu-params
-                               cu-s1 cu-s0 cu-logfn-s0 9 10 11)
-              (cuda/parameters half-walker-count 1 (int 4444) data-len params-len cu-params
-                               cu-s0 cu-s1 cu-logfn-s1 9 10 11)
-              (function modl "init_walkers")
-              (cuda/parameters (int (/ (* DIM walker-count) 4)) 1 2 cu-xs)
-              (function modl "logfn")
-              (cuda/parameters walker-count data-len params-len cu-params cu-xs cu-logfn-xs)
-              (function modl "sum_accept_reduction")
-              (cuda/parameters walker-count cu-accept-acc)
-              (function modl "sum_accept_reduce")
-              (cuda/parameters walker-count cu-accept-acc cu-accept)
-              (function modl "sum_means_vertical")
-              (function modl "sum_reduction_horizontal")
-              (function modl "sum_reduce_horizontal")
-              (function modl "min_max_reduction")
-              (function modl "min_max_reduce")
-              (function modl "histogram")
-              (function modl "uint_to_real")
-              (function modl "bitonic_local")
-              (function modl "mean_reduce")
-              (cuda/parameters DIM walker-count cu-acc cu-xs 0 DIM)
-              (function modl "variance_reduce")
-              (cuda/parameters DIM walker-count cu-acc cu-xs 0 DIM 6))))
+             (doto
+                 (->GTXStretch
+                  ctx hstream neanderthal-factory cuaccessor acor-eng walker-count
+                  (grid-1d (/ walker-count 2) WGS) model DIM WGS
+                  (int-array 1) (int-array 1) (volatile! 0) (int-array 1)
+                  cu-params cu-xs cu-s0 cu-s1 cu-logfn-xs cu-logfn-s0 cu-logfn-s1
+                  cu-accept cu-accept-acc cu-acc
+                  (function modl "stretch_move_accu")
+                  (cuda/parameters half-walker-count 1 (int 1111) data-len params-len cu-params
+                                   cu-s1 cu-s0 cu-logfn-s0 cu-accept 10 11 12)
+                  (cuda/parameters half-walker-count 1 (int 2222) data-len params-len cu-params
+                                   cu-s0 cu-s1 cu-logfn-s1 cu-accept 10 11 12)
+                  (function modl "stretch_move_bare")
+                  (cuda/parameters half-walker-count 1 (int 3333) data-len params-len cu-params
+                                   cu-s1 cu-s0 cu-logfn-s0 9 10 11)
+                  (cuda/parameters half-walker-count 1 (int 4444) data-len params-len cu-params
+                                   cu-s0 cu-s1 cu-logfn-s1 9 10 11)
+                  (function modl "init_walkers")
+                  (cuda/parameters (int (/ (* DIM walker-count) 4)) 1 2 cu-xs)
+                  (function modl "logfn")
+                  (cuda/parameters walker-count data-len params-len cu-params cu-xs cu-logfn-xs)
+                  (function modl "sum_accept_reduction")
+                  (cuda/parameters walker-count cu-accept-acc)
+                  (function modl "sum_accept_reduce")
+                  (cuda/parameters walker-count cu-accept-acc cu-accept)
+                  (function modl "sum_means_vertical")
+                  (function modl "sum_reduction_horizontal")
+                  (function modl "sum_reduce_horizontal")
+                  (function modl "min_max_reduction")
+                  (function modl "min_max_reduce")
+                  (function modl "histogram")
+                  (function modl "uint_to_real")
+                  (function modl "bitonic_local")
+                  (function modl "mean_reduce")
+                  (cuda/parameters DIM walker-count cu-acc cu-xs 0 DIM)
+                  (function modl "variance_reduce")
+                  (cuda/parameters DIM walker-count cu-acc cu-xs 0 DIM 6))
+               (init! seed))))
          (throw (IllegalArgumentException.
                  (format "Number of walkers (%d) must be a multiple of %d." walker-count (* 2 WGS)))))))))
 
@@ -735,7 +727,7 @@
           (->GTXLikelihoodEngine ctx modl hstream WGS model loglik-kernel lik-kernel
                                  evidence-kernel sum-reduction-kernel))))))
 
-  (defn gtx-direct-sampler
+  (defn gtx-direct-sampler-engine
     ([ctx hstream model WGS cudart-version]
      (in-context
       ctx
@@ -746,7 +738,7 @@
                                     (direct-sampler-options WGS cudart-version))]
         (let-release [modl (module prog)
                       sample-kernel (function modl "sample")]
-          (->GTXDirectSampler ctx modl hstream (dimension model) WGS sample-kernel))))))
+          (->GTXDirectSamplerEngine ctx modl hstream WGS sample-kernel))))))
 
   (defn gtx-stretch-factory [ctx hstream neanderthal-factory dataset-eng model WGS cudart-version]
     (in-context
@@ -785,11 +777,10 @@
     (gtx-likelihood-engine ctx hstream model WGS))
   (distribution-engine [_ model]
     (gtx-distribution-engine ctx hstream model WGS))
+  (direct-sampler-engine [_ model]
+    (gtx-direct-sampler-engine ctx hstream model WGS cudart-version))
   (dataset-engine [_]
     dataset-eng)
-  SamplerFactory
-  (direct-sampler [_ model]
-    (gtx-direct-sampler ctx hstream model WGS cudart-version))
   (mcmc-factory [_ model]
     (gtx-stretch-factory ctx hstream neanderthal-factory acor-eng model WGS cudart-version))
   (processing-elements [_]

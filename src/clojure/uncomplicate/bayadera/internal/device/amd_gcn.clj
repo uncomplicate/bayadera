@@ -46,17 +46,16 @@
 
 ;; ============================ Direct sampler =================================
 
-(deftype GCNDirectSampler [cqueue prog ^long DIM]
+(deftype GCNDirectSamplerEngine [cqueue prog]
   Releaseable
   (release [_]
     (release prog))
-  RandomSampler
-  (sample [this seed cl-params n]
-    (let-release [res (ge cl-params DIM n)]
-      (with-release [sample-kernel (kernel prog "sample")]
-        (set-args! sample-kernel 0 (buffer cl-params) (wrap-int seed) (buffer res))
-        (enq-kernel! cqueue sample-kernel (work-size-1d n))
-        res))))
+  RandomSamplerEngine
+  (sample [this seed cl-params res]
+    (with-release [sample-kernel (kernel prog "sample")]
+      (set-args! sample-kernel 0 (buffer cl-params) (wrap-int seed) (buffer res))
+      (enq-kernel! cqueue sample-kernel (work-size-1d (dim res)))
+      res)))
 
 ;; ============================ Distribution engine ============================
 
@@ -354,6 +353,24 @@
       (set-arg! stretch-move-even-bare-kernel 9 beta))
     this)
   RandomSampler
+  (sample! [this]
+    (sample! this walker-count))
+  (sample! [this n-or-res]
+   (let [available (* DIM (entry-width claccessor) walker-count)]
+      (let-release [res (if (integer? n-or-res)
+                          (ge neanderthal-factory DIM walker-count {:raw true})
+                          n-or-res)]
+        (set-temperature! this 1.0)
+        (loop [ofst 0 requested (* DIM (entry-width claccessor) (ncols res))]
+          (move-bare! this)
+          (vswap! iteration-counter inc-long)
+          (if (<= requested available)
+            (enq-copy! cqueue cl-xs (buffer res) 0 ofst requested nil nil)
+            (do
+              (enq-copy! cqueue cl-xs (buffer res) 0 ofst available nil nil)
+              (recur (+ ofst available) (- requested available)))))
+        res)))
+  MCMC
   (init! [this seed]
     (let [a (wrap-prim claccessor 2.0)]
       (set-arg! stretch-move-odd-bare-kernel 0 (wrap-int seed))
@@ -364,31 +381,6 @@
       (aset move-bare-counter 0 0)
       (aset move-seed 0 (int seed))
       this))
-  (sample [this]
-    (sample this walker-count))
-  (sample [this n]
-    (if (<= (long n) walker-count)
-      (let-release [res (ge neanderthal-factory DIM n)]
-        (enq-copy! cqueue cl-xs (buffer res))
-        res)
-      (throw (IllegalArgumentException.
-              (format "For number of samples greater than %d, use sample! method." walker-count)) )))
-  (sample! [this]
-    (sample! this walker-count))
-  (sample! [this n]
-    (let [available (* DIM (entry-width claccessor) walker-count)]
-      (set-temperature! this 1.0)
-      (let-release [res (ge neanderthal-factory DIM n)]
-        (loop [ofst 0 requested (* DIM (entry-width claccessor) (long n))]
-          (move-bare! this)
-          (vswap! iteration-counter inc-long)
-          (if (<= requested available)
-            (enq-copy! cqueue cl-xs (buffer res) 0 ofst requested nil nil)
-            (do
-              (enq-copy! cqueue cl-xs (buffer res) 0 ofst available nil nil)
-              (recur (+ ofst available) (- requested available)))))
-        res)))
-  MCMC
   (init-position! [this position]
     (let [cl-position (.cl-xs ^GCNStretch position)]
       (enq-copy! cqueue cl-position cl-xs)
@@ -400,7 +392,7 @@
       (with-release [cl-limits (transfer neanderthal-factory limits)]
         (set-args! init-walkers-kernel 0 seed (buffer cl-limits))
         (enq-kernel! cqueue init-walkers-kernel
-                 (work-size-1d (* DIM (long (/ walker-count 4)))))
+                     (work-size-1d (* DIM (long (/ walker-count 4)))))
         (enq-kernel! cqueue logfn-kernel (work-size-1d walker-count))
         (vreset! iteration-counter 0)
         this)))
@@ -453,7 +445,7 @@
         (move! this)
         (vswap! iteration-counter inc-long)
         (enq-reduce! cqueue sum-accept-kernel sum-accept-reduction-kernel
-                           (count-work-groups WGS (/ walker-count 2)) WGS)
+                     (count-work-groups WGS (/ walker-count 2)) WGS)
         (/ (double (enq-read-long cqueue cl-accept-acc)) walker-count))))
   EstimateEngine
   (histogram [this]
@@ -514,8 +506,8 @@
   Releaseable
   (release [_]
     (release prog))
-  MCMCFactory
-  (mcmc-sampler [_ walker-count params]
+  SamplerFactory
+  (create-sampler [_ seed walker-count params]
     (let [walker-count (long walker-count)]
       (if (and (<= (* 2 WGS) walker-count) (zero? (rem walker-count (* 2 WGS))))
         (let [acc-count (* DIM (count-work-groups WGS walker-count))
@@ -537,34 +529,36 @@
                         cl-accept (cl-buffer ctx (* Integer/BYTES accept-count) :read-write)
                         cl-accept-acc (cl-buffer ctx (* Long/BYTES accept-acc-count) :read-write)
                         cl-acc (create-data-source claccessor acc-count)]
-            (->GCNStretch
-             ctx queue neanderthal-factory claccessor acor-eng walker-count
-             (work-size-1d (/ walker-count 2)) model DIM WGS
-             (int-array 1) (int-array 1) (volatile! 0) (int-array 1)
-             cl-params cl-xs cl-s0 cl-s1 cl-logfn-xs cl-logfn-s0 cl-logfn-s1
-             cl-accept cl-accept-acc cl-acc
-             (set-args! (kernel prog "stretch_move_accu") 1 (wrap-int 1111)
-                        data-len params-len cl-params cl-s1 cl-s0 cl-logfn-s0 cl-accept)
-             (set-args! (kernel prog "stretch_move_accu") 1 (wrap-int 2222)
-                        data-len params-len cl-params cl-s0 cl-s1 cl-logfn-s1 cl-accept)
-             (set-args! (kernel prog "stretch_move_bare") 1 (wrap-int 3333)
-                        data-len params-len cl-params cl-s1 cl-s0 cl-logfn-s0)
-             (set-args! (kernel prog "stretch_move_bare") 1 (wrap-int 4444)
-                        data-len params-len cl-params cl-s0 cl-s1 cl-logfn-s1)
-             (set-arg! (kernel prog "init_walkers") 2 cl-xs)
-             (set-args! (kernel prog "logfn") 0 data-len params-len cl-params cl-xs cl-logfn-xs)
-             (set-arg! (kernel prog "sum_accept_reduction") 0 cl-accept-acc)
-             (set-args! (kernel prog "sum_accept_reduce") 0 cl-accept-acc cl-accept)
-             (kernel prog "sum_means_vertical")
-             (kernel prog "sum_reduction_horizontal")
-             (kernel prog "sum_reduce_horizontal")
-             (kernel prog "min_max_reduction")
-             (set-args! (kernel prog "min_max_reduce") 2 arr-0 arr-DIM)
-             (set-args! (kernel prog "histogram") 2 arr-0 arr-DIM)
-             (kernel prog "uint_to_real")
-             (kernel prog "bitonic_local")
-             (set-args! (kernel prog "mean_reduce") 0 cl-acc cl-xs arr-0 arr-DIM)
-             (set-args! (kernel prog "variance_reduce") 0 cl-acc cl-xs arr-0 arr-DIM))))
+            (doto
+                (->GCNStretch
+                 ctx queue neanderthal-factory claccessor acor-eng walker-count
+                 (work-size-1d (/ walker-count 2)) model DIM WGS
+                 (int-array 1) (int-array 1) (volatile! 0) (int-array 1)
+                 cl-params cl-xs cl-s0 cl-s1 cl-logfn-xs cl-logfn-s0 cl-logfn-s1
+                 cl-accept cl-accept-acc cl-acc
+                 (set-args! (kernel prog "stretch_move_accu") 1 (wrap-int 1111)
+                            data-len params-len cl-params cl-s1 cl-s0 cl-logfn-s0 cl-accept)
+                 (set-args! (kernel prog "stretch_move_accu") 1 (wrap-int 2222)
+                            data-len params-len cl-params cl-s0 cl-s1 cl-logfn-s1 cl-accept)
+                 (set-args! (kernel prog "stretch_move_bare") 1 (wrap-int 3333)
+                            data-len params-len cl-params cl-s1 cl-s0 cl-logfn-s0)
+                 (set-args! (kernel prog "stretch_move_bare") 1 (wrap-int 4444)
+                            data-len params-len cl-params cl-s0 cl-s1 cl-logfn-s1)
+                 (set-arg! (kernel prog "init_walkers") 2 cl-xs)
+                 (set-args! (kernel prog "logfn") 0 data-len params-len cl-params cl-xs cl-logfn-xs)
+                 (set-arg! (kernel prog "sum_accept_reduction") 0 cl-accept-acc)
+                 (set-args! (kernel prog "sum_accept_reduce") 0 cl-accept-acc cl-accept)
+                 (kernel prog "sum_means_vertical")
+                 (kernel prog "sum_reduction_horizontal")
+                 (kernel prog "sum_reduce_horizontal")
+                 (kernel prog "min_max_reduction")
+                 (set-args! (kernel prog "min_max_reduce") 2 arr-0 arr-DIM)
+                 (set-args! (kernel prog "histogram") 2 arr-0 arr-DIM)
+                 (kernel prog "uint_to_real")
+                 (kernel prog "bitonic_local")
+                 (set-args! (kernel prog "mean_reduce") 0 cl-acc cl-xs arr-0 arr-DIM)
+                 (set-args! (kernel prog "variance_reduce") 0 cl-acc cl-xs arr-0 arr-DIM))
+              (init! seed))))
         (throw (IllegalArgumentException.
                 (format "Number of walkers (%d) must be a multiple of %d." walker-count (* 2 WGS))))))))
 
@@ -614,13 +608,13 @@
                          nil)]
        (->GCNLikelihoodEngine ctx cqueue prog WGS model))))
 
-  (defn gcn-direct-sampler
+  (defn gcn-direct-sampler-engine
     ([ctx cqueue tmp-dir-name model WGS]
      (let-release [prog (build-program!
                          (program-with-source ctx (op (source model) (sampler-source model)))
                          (format "-cl-std=CL2.0 -DREAL=float -DWGS=%d -I%s/" WGS tmp-dir-name)
                          nil)]
-       (->GCNDirectSampler cqueue prog (dimension model)))))
+       (->GCNDirectSamplerEngine cqueue prog))))
 
   (defn gcn-stretch-factory
     [ctx cqueue tmp-dir-name neanderthal-factory dataset-eng model WGS]
@@ -659,9 +653,8 @@
     (gcn-distribution-engine ctx cqueue model WGS))
   (dataset-engine [_]
     dataset-eng)
-  SamplerFactory
-  (direct-sampler [_ model]
-    (gcn-direct-sampler ctx cqueue tmp-dir-name model WGS))
+  (direct-sampler-engine [_ model]
+    (gcn-direct-sampler-engine ctx cqueue tmp-dir-name model WGS))
   (mcmc-factory [_ model]
     (gcn-stretch-factory ctx cqueue tmp-dir-name neanderthal-factory acor-eng model WGS))
   (processing-elements [_]

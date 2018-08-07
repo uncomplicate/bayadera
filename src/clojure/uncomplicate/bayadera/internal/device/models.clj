@@ -90,8 +90,7 @@
 
 (defn device-distribution-model
   [post-template source args]
-  (let [{:keys [dialect name logpdf mcmc-logpdf dimension params-size
-                limits sampler-source]
+  (let [{:keys [dialect name logpdf mcmc-logpdf dimension params-size limits sampler-source]
          :or {dialect :c99
               name (str (gensym "distribution"))
               logpdf (format "%s_logpdf" name)
@@ -114,7 +113,6 @@
                                              (format post-template post-mcmc-logpdf
                                                      (loglik lik) (logpdf prior))))
                                nil)))
-
 
 ;; ==================== Distribution Models ====================================
 
@@ -182,14 +180,14 @@
    :student-t (delay (device-likelihood-model (deref (source-lib :student-t)) {:name "student_t"}))
    :binomial (delay (device-likelihood-model (deref (source-lib :binomial)) {:name "binomial"}))})
 
-(deftype DeviceLibrary [fact sources dist-models lik-models dist-engines lik-engines samplers mcmc]
+(deftype DeviceLibrary [fact sources dist-models lik-models dist-engines lik-engines dir-sampl-engines mcmc]
   Releaseable
   (release [this]
     (release-deref (vals dist-models))
     (release-deref (vals lik-models))
     (release-deref (vals dist-engines))
     (release-deref (vals lik-engines))
-    (release-deref (vals samplers)))
+    (release-deref (vals dir-sampl-engines)))
   FactoryProvider
   (factory [_]
     fact)
@@ -221,10 +219,10 @@
     (if-let [eng (lik-engines id)]
       eng
       (dragan-says-ex "There is no such likelihood engine." {:id id :available (keys lik-engines)})))
-  (get-direct-sampler [_ id]
-    (if-let [sampler (samplers id)]
+  (get-direct-sampler-engine [_ id]
+    (if-let [sampler (dir-sampl-engines id)]
       sampler
-      (dragan-says-ex "There is no such direct sampler." {:id id :available (keys samplers)})))
+      (dragan-says-ex "There is no such direct sampler." {:id id :available (keys dir-sampl-engines)})))
   (get-mcmc-factory [_ id]
     (if-let [mc (mcmc id)]
       mc
@@ -242,8 +240,7 @@
                        [:posterior :distribution :uniform :gaussian :student-t
                         :beta :exponential :erlang :gamma :binomial])
        (source-library (format source-template "rng/%s")
-                       [:uniform-sampler :gaussian-sampler :exponential-sampler
-                        :erlang-sampler])))
+                       [:uniform-sampler :gaussian-sampler :exponential-sampler :erlang-sampler])))
   ([format-template names]
    (reduce #(assoc %1 %2 (delay (slurp-source format-template %2))) {} names)))
 
@@ -254,7 +251,7 @@
      (->DeviceLibrary factory source-lib dist-models lik-models
                       (fmap #(delay (distribution-engine factory (deref %))) dist-models)
                       (fmap #(delay (likelihood-engine factory (deref %))) lik-models)
-                      (fmap #(delay (direct-sampler factory (deref %))) dist-models)
+                      (fmap #(delay (direct-sampler-engine factory (deref %))) dist-models)
                       (fmap #(delay (mcmc-factory factory (deref %))) dist-models))))
   ([source-lib factory]
    (device-library source-lib factory nil nil)))

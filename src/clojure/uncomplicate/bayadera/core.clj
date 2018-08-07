@@ -125,27 +125,19 @@
 
 (defn sampler
   ([dist]
-   (p/sampler dist))
+   (p/sampler dist nil))
   ([dist options]
    (p/sampler dist options)))
 
 (defn sample!
+  ([sampler data]
+   (p/sample! sampler data)))
+
+(defn sample
   ([sampler]
    (p/sample! sampler))
   ([sampler ^long n]
    (p/sample! sampler n)))
-
-(defn sample
-  ([sampler]
-   (p/sample sampler))
-  ([sampler ^long n]
-   (p/sample sampler n)))
-
-(defn init!
-  ([samp ^long seed]
-   (p/init! samp seed))
-  ([samp]
-   (p/init! samp (srand-int))))
 
 (defn histogram!
   ([estimator ^long n]

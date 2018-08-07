@@ -88,12 +88,14 @@
 
 ;; ==================== Samplers ====================
 
+(defprotocol RandomSamplerEngine
+  (sample [this] [this seed params res]))
+
 (defprotocol RandomSampler
-  (init! [this seed])
-  (sample [this] [this n] [this seed params n])
   (sample! [this] [this n]))
 
 (defprotocol MCMC
+  (init! [this seed])
   (init-position! [this position] [this seed limits])
   (burn-in! [this n a])
   (anneal! [this schedule n a])
@@ -113,13 +115,13 @@
     (release mean)
     (release sigma)))
 
-(defprotocol MCMCFactory
-  (mcmc-sampler [this walkers params]))
-
 ;; ==================== Factories and Providers  ====================
 
+(defprotocol SamplerFactory
+  (create-sampler [this seed walkers params]))
+
 (defprotocol SamplerProvider
-  (sampler [_] [_ options]))
+  (sampler [this options]))
 
 (defprotocol EngineProvider
   (engine [_]))
@@ -130,10 +132,8 @@
 (defprotocol EngineFactory;;TODO fuse with samplerfactory?
   (distribution-engine [this model])
   (likelihood-engine [this model])
-  (dataset-engine [this]))
-
-(defprotocol SamplerFactory
-  (direct-sampler [this model])
+  (dataset-engine [this])
+  (direct-sampler-engine [this model])
   (mcmc-factory [this model])
   (processing-elements [this]))
 
@@ -143,5 +143,5 @@
   (get-likelihood-model [this id])
   (get-distribution-engine [this id])
   (get-likelihood-engine [this id])
-  (get-direct-sampler [this id])
+  (get-direct-sampler-engine [this id])
   (get-mcmc-factory [this id]))
