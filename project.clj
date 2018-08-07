@@ -15,11 +15,11 @@
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
   :dependencies [[org.clojure/clojure "1.9.0"]
-                 [uncomplicate/commons "0.6.0-SNAPSHOT"]
-                 [uncomplicate/fluokitten "0.9.0-SNAPSHOT"]
-                 [uncomplicate/clojurecl "0.10.0-SNAPSHOT"]
-                 [uncomplicate/clojurecuda "0.5.0-SNAPSHOT"]
-                 [uncomplicate/neanderthal "0.20.0-SNAPSHOT"]
+                 [uncomplicate/commons "0.6.0"]
+                 [uncomplicate/fluokitten "0.9.0"]
+                 [uncomplicate/clojurecl "0.10.3"]
+                 [uncomplicate/clojurecuda "0.5.2"]
+                 [uncomplicate/neanderthal "0.20.4"]
                  [org.apache.commons/commons-math3 "3.6.1"]
                  [quil "2.7.1"]]
 
@@ -27,8 +27,7 @@
           :src-linenum-anchor-prefix "L"
           :output-dir "docs/codox"}
 
-  :profiles {:dev {:dependencies [[midje "1.9.1"]
-                                  [org.clojure/data.csv "0.1.4"]];;TODO maybe remove
+  :profiles {:dev {:dependencies [[midje "1.9.2"]]
                    :plugins [[lein-midje "3.2.1"]
                              [codox "0.10.3"]]
                    :global-vars {*warn-on-reflection* true
