@@ -19,8 +19,7 @@
                  [uncomplicate/fluokitten "0.9.0"]
                  [uncomplicate/clojurecl "0.10.3"]
                  [uncomplicate/clojurecuda "0.5.2"]
-                 [uncomplicate/neanderthal "0.20.4"]
-                 [uncomplicate/neanderthal-native "0.21.0-SNAPSHOT"]
+                 [uncomplicate/neanderthal "0.21.0-SNAPSHOT"]
                  [org.apache.commons/commons-math3 "3.6.1"]
                  [quil "2.7.1"]]
 
