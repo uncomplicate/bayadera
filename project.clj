@@ -14,20 +14,20 @@
         :url "https://github.com/uncomplicate/bayadera"}
   :license {:name "Eclipse Public License"
             :url "http://www.eclipse.org/legal/epl-v10.html"}
-  :dependencies [[org.clojure/clojure "1.9.0"]
-                 [uncomplicate/commons "0.6.0"]
-                 [uncomplicate/fluokitten "0.9.0"]
-                 [uncomplicate/clojurecl "0.10.3"]
-                 [uncomplicate/clojurecuda "0.5.2"]
-                 [uncomplicate/neanderthal "0.21.0-SNAPSHOT"]
+  :dependencies [[org.clojure/clojure "1.10.0"]
+                 [uncomplicate/commons "0.7.1"]
+                 [uncomplicate/fluokitten "0.9.1"]
+                 [uncomplicate/clojurecl "0.10.5"]
+                 [uncomplicate/clojurecuda "0.6.1"]
+                 [uncomplicate/neanderthal "0.21.0"]
                  [org.apache.commons/commons-math3 "3.6.1"]
-                 [quil "2.7.1"]]
+                 [quil "2.8.0"]]
 
   :codox {:src-dir-uri "http://github.com/uncomplicate/bayadera/blob/master"
           :src-linenum-anchor-prefix "L"
           :output-dir "docs/codox"}
 
-  :profiles {:dev {:dependencies [[midje "1.9.2"]]
+  :profiles {:dev {:dependencies [[midje "1.9.4"]]
                    :plugins [[lein-midje "3.2.1"]
                              [codox "0.10.3"]]
                    :global-vars {*warn-on-reflection* true
