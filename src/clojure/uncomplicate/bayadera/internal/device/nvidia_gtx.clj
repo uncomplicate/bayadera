@@ -371,7 +371,7 @@
      ctx
      (let [available (* DIM (entry-width cuaccessor) walker-count)]
        (let-release [res (if (integer? n-or-res)
-                           (ge neanderthal-factory DIM walker-count {:raw true})
+                           (ge neanderthal-factory DIM n-or-res {:raw true})
                            n-or-res)]
          (set-temperature! this 1.0)
          (loop [ofst 0 requested (* DIM (entry-width cuaccessor) (ncols res))]
