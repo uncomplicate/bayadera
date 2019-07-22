@@ -20,7 +20,8 @@ __kernel void evidence_reduce(__global ACCUMULATOR* x_acc,
                               const uint dim, __global const REAL* x) {
 
     const uint start = dim * get_global_id(0);
-    const ACCUMULATOR sum = work_group_reduction_sum(native_exp(LOGLIK(data_len, data, dim, x + start)));
+    __local ACCUMULATOR lacc[WGS];
+    const ACCUMULATOR sum = work_group_reduction_sum(lacc, native_exp(LOGLIK(data_len, data, dim, x + start)));
     if (get_local_id(0) == 0) {
         x_acc[get_group_id(0)] = sum;
     }

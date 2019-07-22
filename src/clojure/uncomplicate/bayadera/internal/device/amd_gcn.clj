@@ -9,14 +9,14 @@
 (ns ^{:author "Dragan Djuric"}
     uncomplicate.bayadera.internal.device.amd-gcn
   (:require [clojure.java.io :as io]
-            [uncomplicate.commons.core
-             :refer [Releaseable release with-release let-release Info info wrap-int]]
+            [uncomplicate.commons
+             [core :refer [Releaseable release with-release let-release Info info wrap-int]]
+             [utils :refer [count-groups]]]
             [uncomplicate.fluokitten.core :refer [op]]
             [uncomplicate.clojurecl
              [core :refer :all]
              [info :refer [max-compute-units max-work-group-size queue-device]]
-             [toolbox :refer [count-work-groups enq-reduce! enq-read-long enq-read-double]]]
-            [uncomplicate.neanderthal.internal.api :as na]
+             [toolbox :refer [enq-reduce! enq-read-long enq-read-double]]]
             [uncomplicate.neanderthal
              [core :refer [vctr ge ncols mrows scal! transfer transfer! raw submatrix dim]]
              [math :refer [sqrt]]
@@ -24,9 +24,10 @@
              [block :refer [buffer create-data-source wrap-prim initialize entry-width data-accessor
                             offset stride count-entries]]
              [opencl :refer [opencl-float]]]
+            [uncomplicate.neanderthal.internal.api :as na]
+            [uncomplicate.neanderthal.internal.device.random123 :refer [temp-dir]]
             [uncomplicate.bayadera.util :refer [srand-int]]
-            [uncomplicate.bayadera.internal.protocols :refer :all]
-            [uncomplicate.bayadera.internal.device.util :refer [create-tmp-dir copy-philox delete]]))
+            [uncomplicate.bayadera.internal.protocols :refer :all]))
 
 ;; ============================ Private utillities =============================
 
@@ -117,7 +118,7 @@
   LikelihoodEngine
   (evidence [this cl-data x]
     (let [n (ncols x)
-          acc-size (* Double/BYTES (count-work-groups WGS n))
+          acc-size (* Double/BYTES (count-groups WGS n))
           data-len (wrap-int (count-entries (data-accessor cl-data) (buffer cl-data)))]
       (with-release [evidence-kernel (kernel prog "evidence_reduce")
                      sum-reduction-kernel (kernel prog "sum_reduction")
@@ -140,7 +141,7 @@
           n (ncols data-matrix)
           wgsn (min n WGS)
           wgsm (/ WGS wgsn)
-          acc-size (max 1 (* m (count-work-groups wgsn n)))]
+          acc-size (max 1 (* m (count-groups wgsn n)))]
       (let-release [res-vec (vctr data-matrix m)]
         (with-release [cl-acc (create-data-source data-matrix acc-size)
                        sum-reduction-kernel (kernel prog "sum_reduction_horizontal")
@@ -156,7 +157,7 @@
           n (ncols data-matrix)
           wgsn (min n WGS)
           wgsm (/ WGS wgsn)
-          acc-size (max 1 (* m (count-work-groups wgsn n)))]
+          acc-size (max 1 (* m (count-groups wgsn n)))]
       (let-release [res (vctr data-matrix m)]
         (with-release [cl-acc (create-data-source data-matrix acc-size)
                        sum-reduction-kernel (kernel prog "sum_reduction_horizontal")
@@ -180,7 +181,7 @@
           n (ncols data-matrix)
           wgsn (min n WGS)
           wgsm (/ WGS wgsn)
-          acc-size (* 2 (max 1 (* m (count-work-groups wgsn n))))
+          acc-size (* 2 (max 1 (* m (count-groups wgsn n))))
           claccessor (data-accessor data-matrix)]
       (with-release [cl-min-max (create-data-source claccessor acc-size)
                      uint-res (cl-buffer ctx (* Integer/BYTES WGS m) :read-write)
@@ -224,7 +225,7 @@
           win-mult 4
           wgsm (min 16 dim WGS)
           wgsn (long (/ WGS wgsm))
-          wg-count (count-work-groups wgsn n)
+          wg-count (count-groups wgsn n)
           native-fact (na/native-factory data-matrix)]
       (if (<= (* lag min-fac) n)
         (let-release [tau (vctr native-fact dim)
@@ -358,7 +359,7 @@
   (sample! [this n-or-res]
    (let [available (* DIM (entry-width claccessor) walker-count)]
       (let-release [res (if (integer? n-or-res)
-                          (ge neanderthal-factory DIM walker-count {:raw true})
+                          (ge neanderthal-factory DIM n-or-res {:raw true})
                           n-or-res)]
         (set-temperature! this 1.0)
         (loop [ofst 0 requested (* DIM (entry-width claccessor) (ncols res))]
@@ -417,10 +418,10 @@
   (run-sampler! [this n a]
     (let [a (wrap-prim claccessor a)
           n (long n)
-          means-count (long (count-work-groups WGS (/ walker-count 2)))
+          means-count (long (count-groups WGS (/ walker-count 2)))
           local-m (min means-count WGS)
           local-n (long (/ WGS local-m))
-          acc-count (long (count-work-groups local-m means-count))]
+          acc-count (long (count-groups local-m means-count))]
       (with-release [cl-means-acc (create-data-source claccessor (* DIM means-count n))
                      acc (ge neanderthal-factory DIM (* acc-count n))
                      means (submatrix acc 0 0 DIM n)]
@@ -439,13 +440,13 @@
          :autocorrelation (acor acor-eng means)})))
   (acc-rate! [this a]
     (let [a (wrap-prim claccessor a)
-          means-count (long (count-work-groups WGS (/ walker-count 2)))]
+          means-count (long (count-groups WGS (/ walker-count 2)))]
       (with-release [cl-means-acc (create-data-source claccessor (* DIM means-count))]
         (init-move! this cl-means-acc a)
         (move! this)
         (vswap! iteration-counter inc-long)
         (enq-reduce! cqueue sum-accept-kernel sum-accept-reduction-kernel
-                     (count-work-groups WGS (/ walker-count 2)) WGS)
+                     (count-groups WGS (/ walker-count 2)) WGS)
         (/ (double (enq-read-long cqueue cl-accept-acc)) walker-count))))
   EstimateEngine
   (histogram [this]
@@ -456,7 +457,7 @@
           wgsm (min DIM (long (sqrt WGS)))
           wgsn (long (/ WGS wgsm))
           histogram-worksize (work-size-2d DIM walker-count 1 WGS)
-          acc-size (* 2 (max 1 (* DIM (count-work-groups WGS walker-count))))]
+          acc-size (* 2 (max 1 (* DIM (count-groups WGS walker-count))))]
       (with-release [cl-min-max (create-data-source claccessor acc-size)
                      uint-res (cl-buffer ctx (* Integer/BYTES WGS DIM) :read-write)
                      result (ge neanderthal-factory WGS DIM)
@@ -510,9 +511,9 @@
   (create-sampler [_ seed walker-count params]
     (let [walker-count (long walker-count)]
       (if (and (<= (* 2 WGS) walker-count) (zero? (rem walker-count (* 2 WGS))))
-        (let [acc-count (* DIM (count-work-groups WGS walker-count))
-              accept-count (count-work-groups WGS (/ walker-count 2))
-              accept-acc-count (count-work-groups WGS accept-count)
+        (let [acc-count (* DIM (count-groups WGS walker-count))
+              accept-count (count-groups WGS (/ walker-count 2))
+              accept-acc-count (count-groups WGS accept-count)
               claccessor (data-accessor neanderthal-factory)
               sub-bytesize (* DIM (long (/ walker-count 2)) (entry-width claccessor))
               cl-params (buffer params)
@@ -571,7 +572,7 @@
       likelihood-src (slurp (io/resource "uncomplicate/bayadera/internal/opencl/engines/amd-gcn-likelihood.cl"))
       uniform-sampler-src (slurp (io/resource "uncomplicate/bayadera/internal/opencl/rng/uniform-sampler.cl"))
       mcmc-stretch-src (slurp (io/resource "uncomplicate/bayadera/internal/opencl/engines/amd-gcn-mcmc-stretch.cl"))
-      dataset-options "-g -DCL_VERSION_2_0 -cl-std=CL2.0 -DREAL=float -DREAL2=float2 -DACCUMULATOR=float -DWGS=%d"
+      dataset-options "-g -DCL_VERSION_2_0=200 -cl-std=CL2.0 -DREAL=float -DREAL2=float2 -DACCUMULATOR=float -DACCUMULATOR=float -DWGS=%d"
       distribution-options "-cl-std=CL2.0 -DREAL=float -DACCUMULATOR=float -DLOGPDF=%s -DWGS=%d"
       likelihood-options "-cl-std=CL2.0 -DREAL=float -DACCUMULATOR=double -DLOGLIK=%s -DWGS=%d"
       stretch-options "-cl-std=CL2.0 -DREAL=float -DREAL2=float2 -DACCUMULATOR=float -DLOGFN=%s -DDIM=%d -DWGS=%d -I%s/"]
@@ -582,7 +583,7 @@
                                         (format dataset-options WGS) nil)]
        (->GCNDatasetEngine ctx cqueue prog WGS)))
     ([ctx queue]
-     (gcn-dataset-engine ctx queue 256)))
+     (gcn-dataset-engine ctx queue (max-work-group-size (queue-device queue)))))
 
   (defn gcn-acor-engine
     ([ctx cqueue ^long WGS]
@@ -590,7 +591,7 @@
                                         (format dataset-options WGS) nil)]
        (->GCNAcorEngine ctx cqueue prog WGS)))
     ([ctx queue]
-     (gcn-acor-engine ctx queue 256)))
+     (gcn-acor-engine ctx queue (max-work-group-size (queue-device queue)))))
 
   (defn gcn-distribution-engine
     ([ctx cqueue model WGS]
@@ -609,26 +610,26 @@
        (->GCNLikelihoodEngine ctx cqueue prog WGS model))))
 
   (defn gcn-direct-sampler-engine
-    ([ctx cqueue tmp-dir-name model WGS]
+    ([ctx cqueue include-dir model WGS]
      (let-release [prog (build-program!
                          (program-with-source ctx (op (source model) (sampler-source model)))
-                         (format "-cl-std=CL2.0 -DREAL=float -DWGS=%d -I%s/" WGS tmp-dir-name)
+                         (format "-cl-std=CL2.0 -DREAL=float -DWGS=%d -I%s/" WGS include-dir)
                          nil)]
        (->GCNDirectSamplerEngine cqueue prog))))
 
   (defn gcn-stretch-factory
-    [ctx cqueue tmp-dir-name neanderthal-factory dataset-eng model WGS]
+    [ctx cqueue include-dir neanderthal-factory dataset-eng model WGS]
     (let-release [prog (build-program!
                         (program-with-source
                          ctx (op [uniform-sampler-src reduction-src]
                                  (source model) [estimate-src mcmc-stretch-src]))
-                        (format stretch-options (mcmc-logpdf model) (dimension model) WGS tmp-dir-name)
+                        (format stretch-options (mcmc-logpdf model) (dimension model) WGS include-dir)
                         nil)]
       (->GCNStretchFactory ctx cqueue prog neanderthal-factory dataset-eng model (dimension model) WGS))))
 
 ;; =========================== Bayadera factory  ===========================
 
-(defrecord GCNBayaderaFactory [ctx cqueue dev-queue tmp-dir-name ^long compute-units ^long WGS
+(defrecord GCNBayaderaFactory [ctx cqueue dev-queue include-dir ^long compute-units ^long WGS
                                neanderthal-factory dataset-eng acor-eng]
   Releaseable
   (release [_]
@@ -636,7 +637,6 @@
     (release acor-eng)
     (release neanderthal-factory)
     (release dev-queue)
-    (delete tmp-dir-name)
     true)
   na/MemoryContext
   (compatible? [_ o]
@@ -654,9 +654,9 @@
   (dataset-engine [_]
     dataset-eng)
   (direct-sampler-engine [_ model]
-    (gcn-direct-sampler-engine ctx cqueue tmp-dir-name model WGS))
+    (gcn-direct-sampler-engine ctx cqueue include-dir model WGS))
   (mcmc-factory [_ model]
-    (gcn-stretch-factory ctx cqueue tmp-dir-name neanderthal-factory acor-eng model WGS))
+    (gcn-stretch-factory ctx cqueue include-dir neanderthal-factory acor-eng model WGS))
   (processing-elements [_]
     (* compute-units WGS)))
 
@@ -668,10 +668,8 @@
                  dev-queue (command-queue ctx (queue-device cqueue)
                                           :queue-on-device-default :queue-on-device
                                           :out-of-order-exec-mode)]
-     (let [tmp-dir-name (create-tmp-dir)]
-       (copy-philox tmp-dir-name)
-       (->GCNBayaderaFactory ctx cqueue dev-queue tmp-dir-name compute-units WGS
-                             neanderthal-factory dataset-eng acor-eng))))
+     (->GCNBayaderaFactory ctx cqueue dev-queue temp-dir compute-units WGS
+                           neanderthal-factory dataset-eng acor-eng)))
   ([ctx cqueue]
    (let [dev (queue-device cqueue)]
      (gcn-bayadera-factory ctx cqueue (max-compute-units dev) (max-work-group-size dev)))))

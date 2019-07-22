@@ -2,11 +2,10 @@
 
 // =========================== Stretch move ====================================
 
-uint work_group_reduction_sum_uint (const uint value) {
+uint work_group_reduction_sum_uint (uint* lacc, const uint value) {
 
     const uint local_id = get_local_id(0);
 
-    __local uint lacc[WGS];
     lacc[local_id] = value;
 
     work_group_barrier(CLK_LOCAL_MEM_FENCE);
@@ -98,15 +97,17 @@ __kernel void stretch_move_accu(const uint seed,
     const bool accepted = stretch_move(seed, data_len, params_len, params, Scompl, X, logfn_X, a,
                                        1.0f, step_counter, odd_or_even);
 
-    const uint accepted_sum = work_group_reduction_sum_uint(accepted ? 1 : 0);
+    __local uint uint_lacc[WGS];
+    const uint accepted_sum = work_group_reduction_sum_uint(uint_lacc, accepted ? 1 : 0);
     if (get_local_id(0) == 0) {
         accept[get_group_id(0)] += accepted_sum;
     }
 
     const uint k0 = get_global_id(0) * DIM;
     const uint offset = get_num_groups(0) * DIM * step_counter;
+    __local ACCUMULATOR lacc[WGS];
     for (uint i = 0; i < DIM; i++) {
-        const REAL mean_sum = work_group_reduction_sum(X[k0 + i]);
+        const REAL mean_sum = work_group_reduction_sum(lacc, X[k0 + i]);
         if (get_local_id(0) == 0) {
             means[offset + i * get_num_groups(0) + get_group_id(0)] += mean_sum;
         }
@@ -167,12 +168,11 @@ __kernel void logfn(const uint data_len, const uint params_len, __global const R
 
 // ======================== Acceptance =========================================
 
-void work_group_reduction_sum_ulong (__global ulong* acc, const ulong value) {
+void work_group_reduction_sum_ulong (__global ulong* acc, ulong* lacc, const ulong value) {
 
     const uint local_size = get_local_size(0);
     const uint local_id = get_local_id(0);
 
-    __local ulong lacc[WGS];
     lacc[local_id] = value;
 
     work_group_barrier(CLK_LOCAL_MEM_FENCE);
@@ -199,18 +199,21 @@ void work_group_reduction_sum_ulong (__global ulong* acc, const ulong value) {
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
 __kernel void sum_accept_reduction (__global ulong* acc) {
-    work_group_reduction_sum_ulong(acc, acc[get_global_id(0)]);
+    __local ulong lacc[WGS];
+    work_group_reduction_sum_ulong(acc, lacc, acc[get_global_id(0)]);
 }
 
 __attribute__((reqd_work_group_size(WGS, 1, 1)))
 __kernel void sum_accept_reduce (__global ulong* acc, __global const uint* data) {
-    work_group_reduction_sum_ulong(acc, (ulong)data[get_global_id(0)]);
+    __local ulong lacc[WGS];
+    work_group_reduction_sum_ulong(acc, lacc, (ulong)data[get_global_id(0)]);
 }
 
 __kernel void sum_means_vertical (__global REAL* acc, __global const REAL* data) {
     const uint i = get_global_size(1) * get_global_id(0) + get_global_id(1);
     const uint iacc = get_global_size(0) * get_group_id(1) + get_global_id(0);
-    const REAL sum = work_group_reduction_sum_2(data[i]);
+    __local ACCUMULATOR lacc[WGS];
+    const REAL sum = work_group_reduction_sum_2(lacc, data[i]);
     if (get_local_id(1) == 0) {
         acc[iacc] = sum;
     }

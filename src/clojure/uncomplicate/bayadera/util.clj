@@ -14,7 +14,7 @@
              [math :refer [sqrt]]
              [core :refer [transfer dim subvector col ge copy]]
              [real :refer [entry entry! asum]]
-             [aux :refer [sort+!]]
+             [auxil :refer [sort+!]]
              [block :refer [buffer]]]
             [uncomplicate.neanderthal.internal.api :as na]
             [uncomplicate.bayadera.internal.protocols :as pr])
@@ -29,7 +29,7 @@
     (let [b (ByteBuffer/allocate n)]
       (.nextBytes random (.array b))
       b)))
-
+;;TODO Remove. Use commons generate-seed.
 (defn srand-int []
   (.getInt ^ByteBuffer (srand-buffer 4) 0))
 
