@@ -249,8 +249,8 @@
            native-fact (na/native-factory data-matrix)]
        (if (<= (* lag min-fac) n)
          (let-release [tau (vctr native-fact dim)
-                       sigma (vctr native-fact dim)
-                       mean (vctr native-fact dim)]
+                       mean (vctr native-fact dim)
+                       sigma (vctr native-fact dim)]
            (with-release [cu-acc (create-data-source data-matrix (* dim wg-count))
                           cu-vec (vctr data-matrix dim)]
              (launch-reduce! hstream sum-reduce-kernel sum-reduction-kernel
@@ -371,7 +371,7 @@
      ctx
      (let [available (* DIM (entry-width cuaccessor) walker-count)]
        (let-release [res (if (integer? n-or-res)
-                           (ge neanderthal-factory DIM walker-count {:raw true})
+                           (ge neanderthal-factory DIM n-or-res {:raw true})
                            n-or-res)]
          (set-temperature! this 1.0)
          (loop [ofst 0 requested (* DIM (entry-width cuaccessor) (ncols res))]
@@ -644,12 +644,12 @@
       philox-headers
       (merge standard-headers
              {"Random123/philox.h"
-              (slurp (io/resource "uncomplicate/bayadera/internal/include/Random123/philox.h"))
+              (slurp (io/resource "uncomplicate/neanderthal/internal/device/include/Random123/philox.h"))
               "features/compilerfeatures.h"
-              (slurp (io/resource "uncomplicate/bayadera/internal/include/Random123/features/compilerfeatures.h"))
+              (slurp (io/resource "uncomplicate/neanderthal/internal/device/include/Random123/features/compilerfeatures.h"))
               "nvccfeatures.h"
-              (slurp (io/resource "uncomplicate/bayadera/internal/include/Random123/features/nvccfeatures.h"))
-              "array.h" (slurp (io/resource "uncomplicate/bayadera/internal/include/Random123/array.h"))})]
+              (slurp (io/resource "uncomplicate/neanderthal/internal/device/include/Random123/features/nvccfeatures.h"))
+              "array.h" (slurp (io/resource "uncomplicate/neanderthal/internal/device/include/Random123/array.h"))})]
 
   (defn gtx-dataset-engine
     ([ctx hstream ^long WGS]
@@ -682,7 +682,7 @@
                                              standard-headers)
                                     (acor-options WGS))
                      linked-prog (link [[:library (io/file (or (System/getProperty "uncomplicate.cudadevrt")
-                                                               "/usr/local/cuda/lib64/libcudadevrt.a"))]
+                                                               "/usr/local/cuda/lib64/libcudadevrt.a"))];;TODO make this configurable from the REPL. System is only the last resort.
                                         [:ptx prog]])]
         (let-release [modl (module (link-complete linked-prog))
                       sum-reduction-kernel (function modl "sum_reduction_horizontal")

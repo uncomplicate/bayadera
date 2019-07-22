@@ -135,10 +135,10 @@ extern "C" {
         __syncthreads();
 
         while (dim_id < dim) {
-            const REAL c0 = c0acc[dim_id];
-            REAL tau = dacc[dim_id] / c0;
             cudaStream_t hstream;
             cudaStreamCreateWithFlags(&hstream, cudaStreamNonBlocking);
+            const REAL c0 = c0acc[dim_id];
+            REAL tau = dacc[dim_id] / c0;
             uint32_t lag2 = lag;
             uint32_t n2 = n;
             uint32_t stride = 1;

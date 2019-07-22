@@ -13,13 +13,13 @@
              [utils :refer [dragan-says-ex]]])
   (:import [java.nio.file Files Path CopyOption FileVisitOption]
            java.nio.file.attribute.FileAttribute))
-
-(defn delete [path]
+;;TODO remove
+#_(defn delete [path]
   (let [options (make-array FileVisitOption 0)]
     (doseq [path (reverse (iterator-seq (.iterator (Files/walk path options))))]
       (Files/deleteIfExists path))))
 
-(defn copy-philox [^Path path]
+#_(defn copy-philox [^Path path]
   (let [random123-path (.resolve path "Random123")
         attributes (make-array FileAttribute 0)
         options (make-array CopyOption 0)]
@@ -36,10 +36,10 @@
         (delete path)
         (throw e)))))
 
-(defn create-tmp-dir []
+#_(defn create-tmp-dir []
   (java.nio.file.Files/createTempDirectory "uncomplicate_" (make-array FileAttribute 0)))
 
-(defmacro with-philox [path & body]
+#_(defmacro with-philox [path & body]
   `(try
      (copy-philox ~path)
      (do ~@body)
