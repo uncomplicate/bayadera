@@ -289,7 +289,7 @@
                4.829925060272217 2.7044899463653564 2.064384937286377 3.4432942867279053]
            (first (native! (sd (sample! gaussian-sampler)))) => 0.9963167309761047))))))
 
-#_(with-default
+(with-default
   (let [dev (queue-device *command-queue*)
         wgs 256
         walker-count (* 2 44 wgs)
@@ -315,7 +315,6 @@
 (with-default
   (let [dev (queue-device *command-queue*)
         wgs 256
-        ;;walker-count (* 2 44 wgs)
         seed 123
         a 8.0]
     (with-release [dev-queue (command-queue *context* (queue-device *command-queue*)
