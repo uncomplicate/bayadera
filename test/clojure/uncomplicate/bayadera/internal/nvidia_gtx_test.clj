@@ -9,7 +9,8 @@
              [core :refer :all :as clojurecuda :exclude [parameters]]
              [info :refer [ctx-device max-block-dim-x driver-version multiprocessor-count]]]
             [uncomplicate.neanderthal
-             [core :refer [vctr ge native native! subvector sum entry imax imin row raw copy axpy! nrm2]]
+             [core :refer [vctr ge native native! subvector sum entry imax imin row raw
+                           copy axpy! nrm2 transfer! row]]
              [vect-math :refer [linear-frac!]]
              [cuda :refer [cuda-float]]
              [block :refer :all]]
@@ -325,24 +326,33 @@
     (with-release [neanderthal-factory (cuda-float (current-context) default-stream)
                    engine (gtx-acor-engine (current-context) default-stream wgs)
                    data-matrix-67
-                   (ge neanderthal-factory 1 67
-                       (map (comp float read-string)
-                            (split-lines (slurp (io/resource "uncomplicate/bayadera/internal/acor-data-67")))))
+                   (let [data (map (comp float read-string)
+                                   (split-lines (slurp (io/resource "uncomplicate/bayadera/internal/acor-data-67"))))
+                         matrix (ge neanderthal-factory 2 67)]
+                     (transfer! data (row matrix 0))
+                     (transfer! (map (partial * 2) data) (row matrix 1))
+                     matrix)
                    data-matrix-367
-                   (ge neanderthal-factory 1 367
-                       (map (comp float read-string)
-                            (split-lines (slurp (io/resource "uncomplicate/bayadera/internal/acor-data-367")))))
+                   (let [data (map (comp float read-string)
+                                   (split-lines (slurp (io/resource "uncomplicate/bayadera/internal/acor-data-367"))))
+                         matrix (ge neanderthal-factory 2 367)]
+                     (transfer! data (row matrix 0))
+                     (transfer! (map (partial + 1) data) (row matrix 1))
+                     matrix)
                    data-matrix-112640
-                   (ge neanderthal-factory 1 112640
-                       (map (comp float read-string)
-                            (split-lines (slurp (io/resource "uncomplicate/bayadera/internal/acor-data-112640")))))]
+                   (let [data (map (comp float read-string)
+                                   (split-lines (slurp (io/resource "uncomplicate/bayadera/internal/acor-data-112640"))))
+                         matrix (ge neanderthal-factory 2 112640)]
+                     (transfer! data (row matrix 0))
+                     (transfer! (map (partial * 2) data) (row matrix 1))
+                     matrix)]
       (let []
         (facts
          "Test MCMC acor."
-         (first (:tau (acor engine data-matrix-67))) => 11.826833724975586
-         (first (:tau (acor engine data-matrix-367))) => 17.302560806274414
+         (seq (:tau (acor engine data-matrix-67))) => [11.826833724975586 11.826833724975586]
+         (seq (:tau (acor engine data-matrix-367))) => [17.302553176879883 17.302553176879883]
          (let [autocorrelation (acor engine data-matrix-112640)]
-           (entry  (:tau autocorrelation) 0) => (roughly 20.41 0.001)
+           (second (:tau autocorrelation)) => (roughly 20.41 0.001)
            (entry (:sigma autocorrelation) 0) => (roughly 0.009 0.001)))))))
 
 (with-default
