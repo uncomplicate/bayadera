@@ -55,7 +55,7 @@
   (sample [this seed cl-params res]
     (with-release [sample-kernel (kernel prog "sample")]
       (set-args! sample-kernel 0 (buffer cl-params) (wrap-int seed) (buffer res))
-      (enq-kernel! cqueue sample-kernel (work-size-1d (dim res)))
+      (enq-kernel! cqueue sample-kernel (work-size-1d (count-groups 4 (dim res))))
       res)))
 
 ;; ============================ Distribution engine ============================

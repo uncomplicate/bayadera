@@ -9,8 +9,9 @@
 (ns ^{:author "Dragan Djuric"}
     uncomplicate.bayadera.internal.device.nvidia-gtx
   (:require [clojure.java.io :as io]
-            [uncomplicate.commons.core
-             :refer [Releaseable release with-release let-release Info info wrap-int]]
+            [uncomplicate.commons
+             [core :refer [Releaseable release with-release let-release Info info wrap-int]]
+             [utils :refer [count-groups]]]
             [uncomplicate.fluokitten.core :refer [op]]
             [uncomplicate.clojurecuda
              [core :refer :all :as cuda :exclude [parameters]]
@@ -54,7 +55,7 @@
   (sample [this seed cu-params res]
     (in-context
      ctx
-     (do (launch! sample-kernel (grid-1d (dim res) WGS) hstream
+     (do (launch! sample-kernel (grid-1d (count-groups 4 (dim res)) WGS) hstream
                   (cuda/parameters (dim res) (buffer cu-params) seed (buffer res)))
          res))))
 

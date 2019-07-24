@@ -293,13 +293,12 @@
 (with-default
   (let [dev (queue-device *command-queue*)
         wgs 256
-        walker-count (* 2 44 wgs)
+        walker-count (* 2 64 wgs)
         seed 123
         a 8.0]
     (with-release [distributions (models/distribution-models source-library)
                    gaussian-model (deref (distributions :gaussian))
-                   bayadera-factory (gcn-bayadera-factory *context* *command-queue* 44 wgs)
-                   ]
+                   bayadera-factory (gcn-bayadera-factory *context* *command-queue* 44 wgs)]
       (let [mcmc-engine-factory (mcmc-factory bayadera-factory gaussian-model)]
         (with-release [params (vctr bayadera-factory [200 1])
                        limits (ge bayadera-factory 2 1 [180.0 220.0])

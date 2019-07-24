@@ -320,7 +320,6 @@
   (let [dev (ctx-device)
         wgs 256
         cudart-version (driver-version)
-        walker-count (* 2 44 wgs)
         seed 123
         a 8.0]
     (with-release [neanderthal-factory (cuda-float (current-context) default-stream)
