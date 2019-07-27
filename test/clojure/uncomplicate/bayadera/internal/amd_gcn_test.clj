@@ -28,7 +28,7 @@
             [uncomplicate.bayadera.library-test :refer [test-all]])
   (:import uncomplicate.bayadera.internal.device.amd_gcn.GCNStretch))
 
-#_(with-default
+(with-default
   (let [dev (queue-device *command-queue*)
         wgs 256]
     (with-release [neanderthal-factory (opencl-float *context* *command-queue*)
@@ -46,12 +46,12 @@
                       native-sample (native smpl)]
          (let [sample-1d (row native-sample 0)]
            (seq (subvector sample-1d 0 4))
-           => (list 108.93401336669922 139.30517578125 -82.35221862792969 47.422523498535156)
+           => [108.93402099609375 139.30517578125 -82.35221862792969 47.42252731323242]
            (seq (subvector sample-1d 9996 4))
-           => (list 17.436363220214844 151.42117309570312 42.782630920410156 107.8758316040039)
-           (entry sample-1d (imax sample-1d)) => 200.07574462890625
+           => [17.43636131286621 151.42117309570312 42.78262710571289 107.87583923339844]
+           (entry sample-1d (imax sample-1d)) => 200.0757293701172
            (entry sample-1d (imin sample-1d)) => -99.86572265625
-           (mean sample-1d) => 51.331179296875)))
+           (mean sample-1d) => 51.331178125)))
 
       (facts
        "OpenCL GCN direct sampler for Gaussian distribution"
@@ -63,12 +63,12 @@
                       native-sample (native smpl)]
          (let [sample-1d (row native-sample 0)]
            (seq (subvector sample-1d 0 4))
-           => (list -27.02086639404297 55.27095031738281 185.74420166015625 322.7049560546875)
+           => [-27.020862579345703 55.27095031738281 185.7442169189453 322.7049560546875]
            (seq (subvector sample-1d 9996 4))
-           => (list 175.25137329101562 7.7207489013671875 126.18175506591797 -69.49845886230469)
+           => [175.25137329101562 7.720747470855713 126.18175506591797 -69.49845886230469]
            (entry sample-1d (imax sample-1d)) => 868.6443481445312
            (entry sample-1d (imin sample-1d)) => -610.0803833007812
-           (mean sample-1d) => 95.13473203125)))
+           (mean sample-1d) => 95.1347296875)))
 
       (facts
        "OpenCL GCN direct sampler for Erlang distribution"
@@ -80,9 +80,9 @@
                       native-sample (native smpl)]
          (let [sample-1d (row native-sample 0)]
            (seq (subvector sample-1d 0 4))
-           => (list 1.571028709411621 1.4484457969665527 0.7983559370040894 1.1712465286254883)
+           => [1.571028709411621 1.4484457969665527 0.7983559370040894 1.1712465286254883]
            (seq (subvector sample-1d 9996 4))
-           => (list 0.7548800706863403 2.28580379486084 1.1975524425506592 1.3439302444458008)
+           => [0.7548800706863403 2.28580379486084 1.1975524425506592 1.3439302444458008]
            (entry sample-1d (imax sample-1d)) => 7.159594535827637
            (entry sample-1d (imin sample-1d)) => 0.0482538677752018
            (mean sample-1d) => 1.50084443359375)))
@@ -97,9 +97,9 @@
                       native-sample (native smpl)]
          (let [sample-1d (row native-sample 0)]
            (seq (subvector sample-1d 0 4))
-           => (list 0.29777517914772034 0.39906948804855347 0.015068267472088337 0.1688637137413025)
+           => [0.29777517914772034 0.39906948804855347 0.015068267472088337 0.1688637137413025]
            (seq (subvector sample-1d 9996 4))
-           => (list 0.12403401732444763 0.4546346068382263 0.16137930750846863 0.29489007592201233)
+           => [0.12403401732444763 0.4546346068382263 0.16137930750846863 0.29489007592201233]
            (entry sample-1d (imax sample-1d)) => 2.3556253910064697
            (entry sample-1d (imin sample-1d)) => 2.8567157642100938E-5
            (mean sample-1d) => 0.2526310943603516))))))
@@ -156,10 +156,10 @@
            (nrm2 (linear-frac! (axpy! -1 x-log-pdf x-beta-log-pdf) -32.61044)) => (roughly 0.0 0.0001)
            (evidence binomial-lik-engine lik-params x) => 1.6357375222552396E-15))))))
 
-#_(with-default
+(with-default
   (let [dev (queue-device *command-queue*)
         wgs 256
-        walker-count (* (max-compute-units dev) wgs)
+        walker-count (* 44 wgs)
         means-count (long (count-groups wgs (/ walker-count 2)))
         acc-count (long (count-groups wgs means-count))
         seed 123
@@ -196,16 +196,16 @@
            (init! uniform-sampler seed) => uniform-sampler
            (init-position! uniform-sampler seed limits)
            (take 4 (native (row (sample! uniform-sampler) 0)))
-           => [0.7279692888259888 1.8140764236450195 0.04031801223754883 0.4697103500366211]
+           => [0.7279692888259888 1.81407630443573 0.040318019688129425 0.4697103202342987]
 
            (take 4 (native (row (sample! uniform-sampler) 0)))
-           => [1.0403573513031006 1.4457943439483643 0.37618488073349 1.5768483877182007]
+           => [1.040357232093811 1.4457943439483643 0.3761849105358124 1.5768483877182007]
 
            (take 4 (native (row (sample! uniform-sampler) 0)))
-           => [1.0472352504730225 1.1567966938018799 0.6802867650985718 1.6528077125549316]
+           => [1.047235131263733 1.1567966938018799 0.6802869439125061 1.6528078317642212]
 
            (take 4 (native (row (sample! uniform-sampler) 0)))
-           => [0.9332536458969116 1.9495458602905273 0.5958947539329529 1.6429907083511353]
+           => [0.9332534670829773 1.9495460987091064 0.5958949327468872 1.6429908275604248]
 
            (init! uniform-sampler seed) => uniform-sampler
            (init-position! uniform-sampler seed limits)
@@ -218,7 +218,7 @@
            (enq-kernel! cqueue stretch-move-bare-kernel (work-size-1d (/ walker-count 2)))
            (enq-copy! cqueue cl-xs (buffer res))
            (take 4 (native (row res 0)))
-           => [0.7279692888259888 1.8140764236450195 0.04031801223754883 0.4697103500366211]
+           => [0.7279692888259888 1.81407630443573 0.040318019688129425 0.4697103202342987]
 
            (set-args! stretch-move-bare-kernel 0 (wrap-int seed) (wrap-int 3333) (wrap-int 0) (wrap-int 2)
                       cl-params cl-s1 cl-s0 cl-logfn-s0 (wrap-float a) (wrap-float 1.0) (wrap-int 1))
@@ -228,7 +228,7 @@
            (enq-kernel! cqueue stretch-move-bare-kernel (work-size-1d (/ walker-count 2)))
            (enq-copy! cqueue cl-xs (buffer res))
            (take 4 (native (row res 0)))
-           => [1.0403573513031006 1.4457943439483643 0.37618488073349 1.5768483877182007]
+           => [1.040357232093811 1.4457943439483643 0.3761849105358124 1.5768483877182007]
 
            (enq-fill! cqueue cl-accept (int-array 1))
            (enq-fill! cqueue cl-means-acc (float-array 1))
@@ -242,16 +242,16 @@
            (enq-kernel! cqueue stretch-move-kernel (work-size-1d (/ walker-count 2)))
            (enq-copy! cqueue cl-xs (buffer res))
            (take 4 (native (row res 0)))
-           => [1.0110803842544556 1.615005373954773 0.3426262140274048 1.4122662544250488]
+           => [1.011080265045166 1.615005373954773 0.3426262140274048 1.4122663736343384]
            (enq-read! cqueue cl-means-acc means-acc-array)
-           (seq means-acc-array) => (map float [269.26575 286.35892 288.0937 240.0009 265.76953
+           (seq means-acc-array) => (map float [269.26575 286.3589 288.09372 240.0009 265.76953
                                                 274.17465 257.67914 302.7213 244.6228 277.85284])
            (enq-read! cqueue cl-accept accept-array)
            (seq accept-array) => [423 422 424 428 414 439 428 409 429 409]
 
            (set-args! sum-means-kernel 0 (buffer acc) cl-means-acc)
            (enq-kernel! cqueue sum-means-kernel (work-size-2d 1 means-count))
-           (sum acc) => (float 5822.9175))))
+           (sum acc) => (float 5822.918))))
 
       (facts
        "OpenCL GCN stretch with Gaussian model."
@@ -265,11 +265,11 @@
          (init! gaussian-sampler seed) => gaussian-sampler
          (init-position! gaussian-sampler seed limits)
          (take 4 (native (row (sample! gaussian-sampler) 0)))
-         => [2.7455875873565674 4.162908554077148 -2.1451826095581055 -0.14135169982910156]
+         => [2.7455878257751465 4.16290807723999 -2.1451826095581055 -0.14135171473026276]
          (take 4 (native (row (sample! gaussian-sampler) 0)))
-         => [3.962130546569824 2.9586503505706787 -0.5778036117553711 5.02529239654541]
+         => [3.9621310234069824 2.9586496353149414 -0.5778038501739502 5.025292873382568]
          (take 4 (native (row (sample! gaussian-sampler) 0)))
-         => [3.815159797668457 2.415064811706543 0.7977099418640137 5.292686462402344]))
+         => [3.8151602745056152 2.415064573287964 0.7977100610733032 5.292686939239502]))
 
       (with-release [neanderthal-factory (opencl-float *context* *command-queue*)]
         (facts
@@ -284,11 +284,11 @@
            (init! gaussian-sampler (inc seed))
            (init-position! gaussian-sampler seed limits)
            (burn-in! gaussian-sampler 100 1.5)
-           (first (native! (mean (sample! gaussian-sampler)))) => 2.954922914505005
+           (first (native! (mean (sample! gaussian-sampler)))) => 2.9549477100372314
            (take-nth 1500 (native! (row (sample! gaussian-sampler) 0)))
-           => [3.330127716064453 2.312180995941162 3.583043098449707 3.342344045639038
-               4.829925060272217 2.7044899463653564 2.064384937286377 3.4432942867279053]
-           (first (native! (sd (sample! gaussian-sampler)))) => 0.9963167309761047))))))
+           => [3.3298428058624268 2.3125054836273193 3.583237409591675 3.3418703079223633
+               4.829986572265625 2.704503059387207 2.064406156539917 3.443021535873413]
+           (first (native! (sd (sample! gaussian-sampler)))) => 0.995916485786438))))))
 
 (with-default
   (let [dev (queue-device *command-queue*)
@@ -298,7 +298,7 @@
         a 8.0]
     (with-release [distributions (models/distribution-models source-library)
                    gaussian-model (deref (distributions :gaussian))
-                   bayadera-factory (gcn-bayadera-factory *context* *command-queue* 44 wgs)]
+                   bayadera-factory (gcn-bayadera-factory *context* *command-queue* 64 wgs)]
       (let [mcmc-engine-factory (mcmc-factory bayadera-factory gaussian-model)]
         (with-release [params (vctr bayadera-factory [200 1])
                        limits (ge bayadera-factory 2 1 [180.0 220.0])
@@ -309,7 +309,7 @@
              (init! engine 1243)
              (init-position! engine 123 limits)
              (burn-in! engine 5120 a)
-             (acc-rate! engine a) => 0.4808682528409091
+             (acc-rate! engine a) => 0.48345947265625
              (entry (:tau (:autocorrelation (run-sampler! engine 670 a))) 0) => 8.159395217895508)))))))
 
 (with-default
@@ -352,7 +352,7 @@
            (second (:tau autocorrelation)) => (roughly 20.41 0.001)
            (entry (:sigma autocorrelation) 0) => (roughly 0.009 0.001)))))))
 
-#_(with-default
+(with-default
   (with-release [factory (gcn-bayadera-factory *context* *command-queue*)
                  library (device-library factory)]
     (test-all library)))
