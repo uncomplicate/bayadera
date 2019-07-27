@@ -11,7 +11,7 @@
   (:require [clojure.java.io :as io]
             [uncomplicate.commons
              [core :refer [Releaseable release with-release let-release Info info wrap-int]]
-             [utils :refer [count-groups]]]
+             [utils :refer [count-groups dragan-says-ex]]]
             [uncomplicate.fluokitten.core :refer [op]]
             [uncomplicate.clojurecl
              [core :refer :all]
@@ -26,7 +26,6 @@
              [opencl :refer [opencl-float]]]
             [uncomplicate.neanderthal.internal.api :as na]
             [uncomplicate.neanderthal.internal.device.random123 :refer [temp-dir]]
-            [uncomplicate.bayadera.util :refer [srand-int]]
             [uncomplicate.bayadera.internal.protocols :refer :all]))
 
 ;; ============================ Private utillities =============================
@@ -53,10 +52,14 @@
     (release prog))
   RandomSamplerEngine
   (sample [this seed cl-params res]
-    (with-release [sample-kernel (kernel prog "sample")]
-      (set-args! sample-kernel 0 (buffer cl-params) (wrap-int seed) (buffer res))
-      (enq-kernel! cqueue sample-kernel (work-size-1d (count-groups 4 (dim res))))
-      res)))
+    (if (and (= 0 (rem (ncols res) 4)) (= 0 (rem (offset res) 4)))
+      (with-release [sample-kernel (kernel prog "sample")]
+        (set-args! sample-kernel 0 (buffer cl-params) (wrap-int seed) (buffer res) (wrap-int (/ (offset res) 4)))
+        (enq-kernel! cqueue sample-kernel (work-size-1d (/ (ncols res) 4)))
+        res)
+      (dragan-says-ex "GCN direct sampler supports only matrices with ncols and offset that are multiple of 4."
+                      {:ncols (ncols res)
+                       :offset (offset res)}))))
 
 ;; ============================ Distribution engine ============================
 

@@ -8,9 +8,9 @@
 
 (ns ^{:author "Dragan Djuric"}
     uncomplicate.bayadera.mcmc
-  (:require [uncomplicate.neanderthal.math :refer [pow sqrt abs]]
-            [uncomplicate.bayadera.internal.protocols :as p]
-            [uncomplicate.bayadera.util :refer [srand-int]]))
+  (:require [uncomplicate.commons.utils :refer [generate-seed]]
+            [uncomplicate.neanderthal.math :refer [pow sqrt abs]]
+            [uncomplicate.bayadera.internal.protocols :as p]))
 
 (defn init-position!
   ([samp position]
@@ -75,7 +75,7 @@
           :or {step 64
                dimension-power 0.8
                schedule minus-n
-               position (srand-int)
+               position (generate-seed)
                a 2.0
                min-acc 0.2
                max-acc 0.5}} options

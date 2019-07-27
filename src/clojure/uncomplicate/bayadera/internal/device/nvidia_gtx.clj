@@ -11,7 +11,7 @@
   (:require [clojure.java.io :as io]
             [uncomplicate.commons
              [core :refer [Releaseable release with-release let-release Info info wrap-int]]
-             [utils :refer [count-groups]]]
+             [utils :refer [dragan-says-ex generate-seed]]]
             [uncomplicate.fluokitten.core :refer [op]]
             [uncomplicate.clojurecuda
              [core :refer :all :as cuda :exclude [parameters]]
@@ -25,7 +25,6 @@
              [block :refer [buffer offset stride create-data-source wrap-prim initialize entry-width
                             data-accessor cast-prim count-entries]]
              [cuda :refer [cuda-float]]]
-            [uncomplicate.bayadera.util :refer [srand-int]]
             [uncomplicate.bayadera.internal.protocols :refer :all]))
 
 ;; ============================ Private utillities =============================
@@ -53,11 +52,15 @@
     (release modl))
   RandomSamplerEngine
   (sample [this seed cu-params res]
-    (in-context
-     ctx
-     (do (launch! sample-kernel (grid-1d (count-groups 4 (dim res)) WGS) hstream
-                  (cuda/parameters (dim res) (buffer cu-params) seed (buffer res)))
-         res))))
+    (if (and (= 0 (rem (ncols res) 4)) (= 0 (rem (offset res) 4)))
+      (in-context
+       ctx
+       (do (launch! sample-kernel (grid-1d (/ (ncols res) 4) WGS) hstream
+                    (cuda/parameters (ncols res) (buffer cu-params) seed (buffer res) (/ (offset res) 4)))
+           res))
+      (dragan-says-ex "GTX direct sampler supports only matrices with ncols and offset that are multiple of 4."
+                      {:ncols (ncols res)
+                       :offset (offset res)}))))
 
 ;; ============================ Distribution engine ============================
 

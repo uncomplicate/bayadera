@@ -13,8 +13,7 @@
              [utils :refer [dragan-says-ex cond-into]]]
             [uncomplicate.neanderthal
              [core :refer [vctr native! matrix-type compatible?]]
-             [block :refer [column?]]]
-            [uncomplicate.bayadera.util :refer [srand-int]]
+             [block :refer [column? gapless? offset]]]
             [uncomplicate.bayadera.internal
              [protocols :as p]
              [extensions]
@@ -131,7 +130,11 @@
 
 (defn sample!
   ([sampler data]
-   (p/sample! sampler data)))
+   (if (and (gapless? data))
+     (p/sample! sampler data)
+     (dragan-says-ex "Data has to be a contiguous matrix."
+                     {:data (info data)
+                      :contiguous? (gapless? data)}))))
 
 (defn sample
   ([sampler]

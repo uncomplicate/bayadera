@@ -9,14 +9,13 @@
 (ns ^{:author "Dragan Djuric"}
     uncomplicate.bayadera.internal.impl
   (:require [uncomplicate.commons
-             [core :refer [Releaseable release let-release]]
-             [utils :refer [dragan-says-ex]]]
+             [core :refer [Releaseable release let-release info]]
+             [utils :refer [dragan-says-ex generate-seed]]]
             [uncomplicate.fluokitten.core :refer [op]]
             [uncomplicate.neanderthal
              [vect-math :refer [sqrt!]]
              [core :refer [transfer transfer! dim vspace? subvector vctr ge]]]
             [uncomplicate.neanderthal.internal.api :as na]
-            [uncomplicate.bayadera.util :refer [srand-int]]
             [uncomplicate.bayadera.internal.protocols :refer :all])
   (:import [clojure.lang IFn]))
 
@@ -57,9 +56,13 @@
   (sample! [this n-or-res]
     (vswap! seed-vol inc-long)
     (if (integer? n-or-res)
-      (let-release [res (ge params 1 n-or-res {:raw true})]
+      (let-release [res (ge params 1 n-or-res {:raw true})];;TODO support dim>1. Infer dim from params (use ge for params in library instead of vctr)
         (sample samp-engine @seed-vol params res))
-      (sample samp-engine @seed-vol params n-or-res))))
+      (if (na/compatible? params n-or-res)
+        (sample samp-engine @seed-vol params n-or-res)
+        (dragan-says-ex "Data matrix is incompatible with the sampler's data accessor."
+                        {:data (info n-or-res)
+                         :accessor (na/data-accessor params)})))))
 
 (defn create-direct-sampler [samp-engine params sample-count seed]
   (->DirectSampler samp-engine params sample-count (volatile! seed)))
@@ -88,9 +91,9 @@
   SamplerProvider
   (sampler [_ options]
     (let [walkers (or (:walkers options) (* ^long (processing-elements factory) 2))]
-      (let-release [samp (create-sampler sampler-factory (or (:seed options) (srand-int)) walkers params)]
+      (let-release [samp (create-sampler sampler-factory (or (:seed options) (generate-seed)) walkers params)]
         (when-let [limits (or (:limits options) (limits (model dist-eng)))]
-          (init-position! samp (srand-int) limits))
+          (init-position! samp (generate-seed) limits))
         (when-let [positions (:positions options)]
           (init-position! samp positions))
         samp)))

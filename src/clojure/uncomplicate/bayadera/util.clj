@@ -29,9 +29,6 @@
     (let [b (ByteBuffer/allocate n)]
       (.nextBytes random (.array b))
       b)))
-;;TODO Remove. Use commons generate-seed.
-(defn srand-int []
-  (.getInt ^ByteBuffer (srand-buffer 4) 0))
 
 (defn range-mapper
   (^IFn$DD [^double start1 ^double end1 ^double start2 ^double end2]

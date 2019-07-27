@@ -12,17 +12,16 @@ extern "C" {
         return (0.5f + (i >> 9)) * R123_0x1p_23f;
     }
 
-    __global__ void sample (const uint32_t n, const REAL* params, const uint32_t seed, float4* x) {
+    __global__ void sample (const uint32_t n, const REAL* params, const uint32_t seed,
+                            float4* x, const uint32_t offset_x) {
 
         const uint32_t gid = blockIdx.x * blockDim.x + threadIdx.x;
-        if (gid < n) {
+        if (gid * 4 < n) {
             // Generate uniform(0,1) floats
             philox4x32_key_t key;
             uint32_t* key_v = key.v;
             key_v[0] = seed;
             key_v[1] = 0xdecafaaa;
-            key_v[2] = 0xfacebead;
-            key_v[3] = 0x12345678;
             philox4x32_ctr_t cnt;
             uint32_t* cnt_v = cnt.v;
             cnt_v[0] = gid;
@@ -38,7 +37,7 @@ extern "C" {
             result.y = -1.0f / lambda * log(1.0f - u01fpt_oo_32_24(rand_uni[1]));
             result.z = -1.0f / lambda * log(1.0f - u01fpt_oo_32_24(rand_uni[2]));
             result.w = -1.0f / lambda * log(1.0f - u01fpt_oo_32_24(rand_uni[3]));
-            x[gid] = result;
+            x[offset_x + gid] = result;
         }
     }
 }

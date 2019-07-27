@@ -10,14 +10,12 @@
     uncomplicate.bayadera.internal.distribution-library
   (:require [uncomplicate.commons
              [core :refer [Releaseable release with-release let-release]]
-             [utils :refer [dragan-says-ex]]]
+             [utils :refer [dragan-says-ex generate-seed]]]
             [uncomplicate.neanderthal
              [math :refer [sqrt]]
              [core :refer [ge]]]
             [uncomplicate.neanderthal.internal.api :as na]
-            [uncomplicate.bayadera
-             [distributions :refer :all]
-             [util :refer [srand-int]]]
+            [uncomplicate.bayadera.distributions :refer :all]
             [uncomplicate.bayadera.internal
              [protocols :refer :all]
              [impl :refer [create-direct-sampler]]]))
@@ -33,7 +31,7 @@
     (na/compatible? factory o))
   SamplerProvider
   (sampler [_ options]
-    (create-direct-sampler @samp params (processing-elements factory) (or (:seed options) (srand-int))))
+    (create-direct-sampler @samp params (processing-elements factory) (or (:seed options) (generate-seed))))
   ParameterProvider
   (parameters [_]
     params)
@@ -65,7 +63,7 @@
     (na/compatible? factory o))
   SamplerProvider
   (sampler [_ options]
-    (create-direct-sampler @samp params (processing-elements factory) (or (:seed options) (srand-int))))
+    (create-direct-sampler @samp params (processing-elements factory) (or (:seed options) (generate-seed))))
   ParameterProvider
   (parameters [_]
     params)
@@ -100,7 +98,7 @@
     (let [walkers (or (:walkers options) (* ^long (processing-elements factory) 256))
           std (sqrt (student-t-variance nu sigma))
           m (student-t-mean nu mu)
-          seed (int (or (:seed options) (srand-int)))]
+          seed (int (or (:seed options) (generate-seed)))]
       (with-release [limits (ge (na/native-factory factory) 2 1 [(- m (* 10 std)) (+ m (* 10 std))])]
         (let-release [samp (create-sampler @mcmc seed walkers params)]
           (init-position! samp (inc seed) limits)
@@ -138,7 +136,7 @@
   SamplerProvider
   (sampler [this options]
     (let [walkers (or (:walkers options) (* ^long (processing-elements factory) 256))
-          seed (int (or (:seed options) (srand-int)))]
+          seed (int (or (:seed options) (generate-seed)))]
       (with-release [limits (ge (na/native-factory factory) 2 1 [0 1])]
         (let-release [samp (create-sampler @mcmc seed walkers params)]
           (init-position! samp (inc seed) limits)
@@ -176,7 +174,7 @@
   SamplerProvider
   (sampler [this options]
     (let [walkers (or (:walkers options) (* ^long (processing-elements factory) 256))
-          seed (int (or (:seed options) (srand-int)))]
+          seed (int (or (:seed options) (generate-seed)))]
       (with-release [limits (ge (na/native-factory factory) 2 1 [0 (+ (gamma-mean theta k)
                                                                       (* 2 (sqrt (gamma-variance theta k))))])]
         (let-release [samp (create-sampler @mcmc seed walkers params)]
@@ -214,7 +212,7 @@
     (na/compatible? factory o))
   SamplerProvider
   (sampler [_ options]
-    (create-direct-sampler @samp params (processing-elements factory) (or (:seed options) (srand-int))))
+    (create-direct-sampler @samp params (processing-elements factory) (or (:seed options) (generate-seed))))
   ParameterProvider
   (parameters [_]
     params)
@@ -246,7 +244,7 @@
     (na/compatible? factory o))
   SamplerProvider
   (sampler [_ options]
-    (create-direct-sampler @samp params (processing-elements factory) (or (:seed options) (srand-int))))
+    (create-direct-sampler @samp params (processing-elements factory) (or (:seed options) (generate-seed))))
   ParameterProvider
   (parameters [_]
     params)

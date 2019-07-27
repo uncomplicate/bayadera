@@ -81,7 +81,7 @@
      (->UniformDistribution (p/factory library)
                             (p/get-direct-sampler-engine library :uniform)
                             (distribution-engine library :uniform)
-                            (vctr (p/factory library) params) a b)
+                            (vctr (p/factory library) params) a b);;TODO use ge to be able to infer distribution dimension (see directsampler)
      (dragan-says-ex "Uniform distribution parameters are illegal."
                      {:a a :b b :errors
                       (when-not (< a b) "a is not less than b")}))))

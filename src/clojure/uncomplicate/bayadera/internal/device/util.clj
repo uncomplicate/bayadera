@@ -14,37 +14,6 @@
   (:import [java.nio.file Files Path CopyOption FileVisitOption]
            java.nio.file.attribute.FileAttribute))
 ;;TODO remove
-#_(defn delete [path]
-  (let [options (make-array FileVisitOption 0)]
-    (doseq [path (reverse (iterator-seq (.iterator (Files/walk path options))))]
-      (Files/deleteIfExists path))))
-
-#_(defn copy-philox [^Path path]
-  (let [random123-path (.resolve path "Random123")
-        attributes (make-array FileAttribute 0)
-        options (make-array CopyOption 0)]
-    (try
-      (Files/createDirectories (.resolve random123-path "features/dummy") attributes)
-      (doseq [include-name ["philox.h" "array.h" "features/compilerfeatures.h"
-                            "features/openclfeatures.h"]]
-        (Files/copy
-         (ClassLoader/getSystemResourceAsStream
-          (format "uncomplicate/bayadera/internal/include/Random123/%s" include-name))
-         (.resolve random123-path ^String include-name)
-         ^"[Ljava.nio.file.CopyOption;" options))
-      (catch Exception e
-        (delete path)
-        (throw e)))))
-
-#_(defn create-tmp-dir []
-  (java.nio.file.Files/createTempDirectory "uncomplicate_" (make-array FileAttribute 0)))
-
-#_(defmacro with-philox [path & body]
-  `(try
-     (copy-philox ~path)
-     (do ~@body)
-     (finally
-       (delete ~path))))
 
 (defn release-deref [ds]
   (if (sequential? ds)
