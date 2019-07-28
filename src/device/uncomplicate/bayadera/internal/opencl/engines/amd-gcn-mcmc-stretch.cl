@@ -45,7 +45,7 @@ bool stretch_move(const uint seed,
     const uint K = get_global_size(0);
 
     // Generate uniform(0,1) floats
-    const philox4x32_key_t key = {{seed, 0xdecafbad, 0xfacebead, 0x12345678}};
+    const philox4x32_key_t key = {{seed, 0xdecafbad}};
     const philox4x32_ctr_t cnt = {{k, step_counter, odd_or_even, 0xbeeff00d}};
     const float4 u = u01fpt_oo_4x32_24(((uint4*)philox4x32(cnt, key).v)[0]);
 
@@ -147,7 +147,7 @@ __kernel void init_walkers(const uint seed,
     const REAL2 limits_m3 = limits[(i + 3) % DIM];
 
     // Generate uniform(0,1) floats
-    const philox4x32_key_t key = {{seed, 0xdecafaaa, 0xfacebead, 0x12345678}};
+    const philox4x32_key_t key = {{seed, 0xdecafaaa}};
     const philox4x32_ctr_t cnt = {{get_global_id(0), 0xf00dcafe, 0xdeadbeef, 0xbeeff00d}};
     const float4 u = u01fpt_oo_4x32_24(((uint4*)philox4x32(cnt, key).v)[0]);
 

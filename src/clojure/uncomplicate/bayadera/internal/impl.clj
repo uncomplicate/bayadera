@@ -56,7 +56,7 @@
   (sample! [this n-or-res]
     (vswap! seed-vol inc-long)
     (if (integer? n-or-res)
-      (let-release [res (ge params 1 n-or-res {:raw true})];;TODO support dim>1. Infer dim from params (use ge for params in library instead of vctr)
+      (let-release [res (ge params 1 n-or-res {:raw true})];;TODO support dim>1. Infer dim from params (use ge for params in library instead of vctr). I can't do that, since params might have odd entries! Use (dimension model)
         (sample samp-engine @seed-vol params res))
       (if (na/compatible? params n-or-res)
         (sample samp-engine @seed-vol params n-or-res)

@@ -19,7 +19,7 @@
              [core :refer [dim mrows ncols raw axpy! imax row col rows scal! mv! copy! rk! vctr
                            native! matrix-type]]
              [real :refer [entry! sum nrm2]]
-             [block :refer [column? gapless?]]]
+             [block :refer [column? contiguous?]]]
             [uncomplicate.bayadera.internal.protocols :refer :all])
   (:import [clojure.lang Sequential]
            [uncomplicate.neanderthal.internal.api Vector Matrix]))
@@ -63,14 +63,14 @@
 (extend-type Matrix
   Dataset
   (data [this]
-    (if (and (column? this) (gapless? this) (= :ge (matrix-type this)))
+    (if (and (column? this) (contiguous? this) (= :ge (matrix-type this)))
       this
-      (dragan-says-ex (format "Only gapless column-major GE matrices are valid data sources."
+      (dragan-says-ex (format "Only contiguous column-major GE matrices are valid data sources."
                               {:data (info this) :errors
                                (cond-into []
                                           (not (= :ge (matrix-type this)) "Matrix is not GE")
                                           (not (column? this)) "layout is not column-major"
-                                          (not (gapless? this)) "matrix has stride and/or offset")}))))
+                                          (not (contiguous? this)) "matrix has stride and/or offset")}))))
   Location
   (mean
     ([a]

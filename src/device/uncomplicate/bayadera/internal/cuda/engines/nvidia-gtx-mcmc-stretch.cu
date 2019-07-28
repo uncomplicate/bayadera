@@ -53,8 +53,6 @@ extern "C" {
         uint32_t* key_v = key.v;
         key_v[0] = seed;
         key_v[1] = 0xdecafbad;
-        key_v[2] = 0xfacebead;
-        key_v[3] = 0x12345678;
         philox4x32_ctr_t cnt;
         uint32_t* cnt_v = cnt.v;
         cnt_v[0] = k;
