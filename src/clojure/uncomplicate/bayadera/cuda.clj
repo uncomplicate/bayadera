@@ -16,7 +16,7 @@
              [models :as models]
              [nvidia-gtx :refer [gtx-bayadera-factory]]]))
 
-(def source-library (models/source-library "uncomplicate/bayadera/internal/cuda/%s.cu"))
+(def source-library (models/source-library "uncomplicate/bayadera/internal/device/cuda/%s.cu"))
 
 (def device-library (partial models/device-library source-library))
 

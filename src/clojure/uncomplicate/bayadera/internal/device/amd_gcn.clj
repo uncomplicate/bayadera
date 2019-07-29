@@ -182,8 +182,8 @@
   (histogram [this data-matrix]
     (let [m (mrows data-matrix)
           n (ncols data-matrix)
-          wgsn (min n WGS)
-          wgsm (/ WGS wgsn)
+          wgsm (min m (long (sqrt WGS)))
+          wgsn (long (/ WGS wgsm))
           acc-size (* 2 (max 1 (* m (count-groups wgsn n))))
           claccessor (data-accessor data-matrix)]
       (with-release [cl-min-max (create-data-source claccessor acc-size)
@@ -460,7 +460,7 @@
           wgsm (min DIM (long (sqrt WGS)))
           wgsn (long (/ WGS wgsm))
           histogram-worksize (work-size-2d DIM walker-count 1 WGS)
-          acc-size (* 2 (max 1 (* DIM (count-groups WGS walker-count))))]
+          acc-size (* 2 (max 1 (* DIM (count-groups wgsn walker-count))))]
       (with-release [cl-min-max (create-data-source claccessor acc-size)
                      uint-res (cl-buffer ctx (* Integer/BYTES WGS DIM) :read-write)
                      result (ge neanderthal-factory WGS DIM)
@@ -470,7 +470,7 @@
         (set-args! min-max-kernel cl-min-max cl-xs)
         (enq-reduce! cqueue min-max-kernel min-max-reduction-kernel DIM walker-count wgsm wgsn)
         (enq-copy! cqueue cl-min-max (buffer limits))
-        (enq-fill! cqueue uint-res (int-array 1))
+        (enq-fill! cqueue uint-res (wrap-int 0))
         (set-args! histogram-kernel (buffer limits) cl-xs)
         (set-arg! histogram-kernel 4 uint-res)
         (enq-kernel! cqueue histogram-kernel histogram-worksize)
@@ -481,7 +481,7 @@
         (vswap! iteration-counter add-long (dec cycles))
         (set-args! uint-to-real-kernel (wrap-prim claccessor (/ WGS n)) (buffer limits)
                    uint-res (buffer result))
-        (enq-kernel! cqueue uint-to-real-kernel (work-size-2d WGS DIM))
+        (enq-kernel! cqueue uint-to-real-kernel (work-size-2d WGS DIM WGS 1))
         (set-args! local-sort-kernel (buffer result) (buffer bin-ranks))
         (enq-kernel! cqueue local-sort-kernel (work-size-1d (* DIM WGS)))
         (->Histogram (transfer limits) (transfer result) (transfer bin-ranks)))))
@@ -569,13 +569,13 @@
 ;; ======================== Constructor functions ==============================
 
 (let [reduction-src (slurp (io/resource "uncomplicate/clojurecl/kernels/reduction.cl"))
-      estimate-src (slurp (io/resource "uncomplicate/bayadera/internal/opencl/engines/amd-gcn-estimate.cl"))
-      acor-src (slurp (io/resource "uncomplicate/bayadera/internal/opencl/engines/amd-gcn-acor.cl"))
-      distribution-src (slurp (io/resource "uncomplicate/bayadera/internal/opencl/engines/amd-gcn-distribution.cl"))
-      likelihood-src (slurp (io/resource "uncomplicate/bayadera/internal/opencl/engines/amd-gcn-likelihood.cl"))
-      uniform-sampler-src (slurp (io/resource "uncomplicate/bayadera/internal/opencl/rng/uniform-sampler.cl"))
-      mcmc-stretch-src (slurp (io/resource "uncomplicate/bayadera/internal/opencl/engines/amd-gcn-mcmc-stretch.cl"))
-      dataset-options "-g -DCL_VERSION_2_0=200 -cl-std=CL2.0 -DREAL=float -DREAL2=float2 -DACCUMULATOR=float -DACCUMULATOR=float -DWGS=%d"
+      estimate-src (slurp (io/resource "uncomplicate/bayadera/internal/device/opencl/engines/amd-gcn-estimate.cl"))
+      acor-src (slurp (io/resource "uncomplicate/bayadera/internal/device/opencl/engines/amd-gcn-acor.cl"))
+      distribution-src (slurp (io/resource "uncomplicate/bayadera/internal/device/opencl/engines/amd-gcn-distribution.cl"))
+      likelihood-src (slurp (io/resource "uncomplicate/bayadera/internal/device/opencl/engines/amd-gcn-likelihood.cl"))
+      uniform-sampler-src (slurp (io/resource "uncomplicate/bayadera/internal/device/opencl/rng/uniform-sampler.cl"))
+      mcmc-stretch-src (slurp (io/resource "uncomplicate/bayadera/internal/device/opencl/engines/amd-gcn-mcmc-stretch.cl"))
+      dataset-options "-DCL_VERSION_2_0=200 -cl-std=CL2.0 -DREAL=float -DREAL2=float2 -DACCUMULATOR=float -DACCUMULATOR=float -DWGS=%d"
       distribution-options "-cl-std=CL2.0 -DREAL=float -DACCUMULATOR=float -DLOGPDF=%s -DWGS=%d"
       likelihood-options "-cl-std=CL2.0 -DREAL=float -DACCUMULATOR=double -DLOGLIK=%s -DWGS=%d"
       stretch-options "-cl-std=CL2.0 -DREAL=float -DREAL2=float2 -DACCUMULATOR=float -DLOGFN=%s -DDIM=%d -DWGS=%d -I%s/"]

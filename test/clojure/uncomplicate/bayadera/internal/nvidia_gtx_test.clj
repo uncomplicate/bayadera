@@ -357,4 +357,5 @@
 (with-default
   (with-release [factory (gtx-bayadera-factory (current-context) default-stream)
                  library (device-library factory)]
+    (test-dataset factory)
     (test-all library)))

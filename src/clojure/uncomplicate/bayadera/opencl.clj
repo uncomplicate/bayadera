@@ -16,7 +16,7 @@
              [models :as models]
              [amd-gcn :refer [gcn-bayadera-factory]]]))
 
-(def source-library (models/source-library "uncomplicate/bayadera/internal/opencl/%s.cl"))
+(def source-library (models/source-library "uncomplicate/bayadera/internal/device/opencl/%s.cl"))
 
 (def device-library (partial models/device-library source-library))
 

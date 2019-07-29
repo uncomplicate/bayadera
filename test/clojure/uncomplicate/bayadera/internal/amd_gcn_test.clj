@@ -303,14 +303,14 @@
         (with-release [params (vctr bayadera-factory [200 1])
                        limits (ge bayadera-factory 2 1 [180.0 220.0])
                        dummy-sample-matrix (ge bayadera-factory 1 (* 100 walker-count) (cycle [201 199 138]))]
-          (let [engine (create-sampler mcmc-engine-factory seed walker-count params)]
+          (let [eng (create-sampler mcmc-engine-factory seed walker-count params)]
             (facts
              "Test MCMC stretch engine."
-             (init! engine 1243)
-             (init-position! engine 123 limits)
-             (burn-in! engine 5120 a)
-             (acc-rate! engine a) => 0.48345947265625
-             (entry (:tau (:autocorrelation (run-sampler! engine 670 a))) 0) => 8.159395217895508)))))))
+             (init! eng 1243)
+             (init-position! eng 123 limits)
+             (burn-in! eng 5120 a)
+             (acc-rate! eng a) => 0.48345947265625
+             (entry (:tau (:autocorrelation (run-sampler! eng 670 a))) 0) => 8.159395217895508)))))))
 
 (with-default
   (let [dev (queue-device *command-queue*)
@@ -355,4 +355,5 @@
 (with-default
   (with-release [factory (gcn-bayadera-factory *context* *command-queue*)
                  library (device-library factory)]
+    (test-dataset factory)
     (test-all library)))

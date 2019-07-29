@@ -202,8 +202,8 @@
      ctx
      (let [m (mrows data-matrix)
            n (ncols data-matrix)
-           wgsn (min n WGS)
-           wgsm (/ WGS wgsn)
+           wgsm (min m (long (sqrt WGS)))
+           wgsn (long (/ WGS wgsm))
            acc-size (* 2 (max 1 (* m (blocks-count wgsn n))))
            cuaccessor (data-accessor data-matrix)]
        (with-release [cu-min-max (create-data-source cuaccessor acc-size)
@@ -487,7 +487,7 @@
            wgsm (min DIM (long (sqrt WGS)))
            wgsn (long (/ WGS wgsm))
            histogram-worksize (grid-2d DIM walker-count 1 WGS)
-           acc-size (* 2 (max 1 (* DIM (blocks-count WGS walker-count))))]
+           acc-size (* 2 (max 1 (* DIM (blocks-count wgsn walker-count))))]
        (with-release [cu-min-max (create-data-source cuaccessor acc-size)
                       uint-res (mem-alloc (* Integer/BYTES WGS DIM))
                       result (ge neanderthal-factory WGS DIM)
@@ -638,12 +638,12 @@
 
 
 (let [reduction-src (slurp (io/resource "uncomplicate/clojurecuda/kernels/reduction.cu"))
-      estimate-src (slurp (io/resource "uncomplicate/bayadera/internal/cuda/engines/nvidia-gtx-estimate.cu"))
-      acor-src (slurp (io/resource "uncomplicate/bayadera/internal/cuda/engines/nvidia-gtx-acor.cu"))
-      distribution-src (slurp (io/resource "uncomplicate/bayadera/internal/cuda/engines/nvidia-gtx-distribution.cu"))
-      likelihood-src (slurp (io/resource "uncomplicate/bayadera/internal/cuda/engines/nvidia-gtx-likelihood.cu"))
-      uniform-sampler-src (slurp (io/resource "uncomplicate/bayadera/internal/cuda/rng/uniform-sampler.cu"))
-      mcmc-stretch-src (slurp (io/resource "uncomplicate/bayadera/internal/cuda/engines/nvidia-gtx-mcmc-stretch.cu"))
+      estimate-src (slurp (io/resource "uncomplicate/bayadera/internal/device/cuda/engines/nvidia-gtx-estimate.cu"))
+      acor-src (slurp (io/resource "uncomplicate/bayadera/internal/device/cuda/engines/nvidia-gtx-acor.cu"))
+      distribution-src (slurp (io/resource "uncomplicate/bayadera/internal/device/cuda/engines/nvidia-gtx-distribution.cu"))
+      likelihood-src (slurp (io/resource "uncomplicate/bayadera/internal/device/cuda/engines/nvidia-gtx-likelihood.cu"))
+      uniform-sampler-src (slurp (io/resource "uncomplicate/bayadera/internal/device/cuda/rng/uniform-sampler.cu"))
+      mcmc-stretch-src (slurp (io/resource "uncomplicate/bayadera/internal/device/cuda/engines/nvidia-gtx-mcmc-stretch.cu"))
       standard-headers {"stdint.h" (slurp (io/resource "uncomplicate/clojurecuda/include/jitify/stdint.h"))}
       philox-headers
       (merge standard-headers

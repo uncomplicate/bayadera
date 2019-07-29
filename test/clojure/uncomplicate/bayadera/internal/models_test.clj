@@ -5,7 +5,7 @@
 
 (facts
  "Test source library"
- (let [source-lib (source-library "uncomplicate/bayadera/internal/opencl/%s.cl")]
+ (let [source-lib (source-library "uncomplicate/bayadera/internal/device/opencl/%s.cl")]
    (apply hash-set (keys source-lib)) => #{:posterior :distribution :uniform :gaussian :student-t
                                            :beta :exponential :erlang :gamma :binomial
                                            :uniform-sampler :gaussian-sampler :exponential-sampler
