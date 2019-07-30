@@ -221,11 +221,11 @@
   (acor [_ data-matrix]
     (let [n (ncols data-matrix)
           dim (mrows data-matrix)
-          min-fac 4
-          min-lag 4
-          max-lag 256
+          min-fac 5
+          win-mult min-fac
+          min-lag 10
+          max-lag 64
           lag (max min-lag (min (quot n min-fac) WGS max-lag))
-          win-mult 4
           wgsm (min 16 dim WGS)
           wgsn (long (/ WGS wgsm))
           wg-count (count-groups wgsn n)

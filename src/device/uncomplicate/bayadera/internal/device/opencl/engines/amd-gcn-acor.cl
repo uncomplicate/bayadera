@@ -139,8 +139,8 @@ __kernel void sum_reduction_acor (const uint acor_dim, const uint stride,
     if (gid == 0) {
         const REAL start_c0 = (stride == 1) ? c0 : orig_c0;
         const REAL tau = d / ((stride == 1) ? c0 : prev_c0);
-        const uint lag2 = ((lag * win_mult) < prev_n) ? lag : (prev_n / win_mult);
-        if ((lag2 < tau * win_mult) && (min_lag < lag2)) {
+        const uint lag2 = ((lag * win_mult) < prev_n) ? lag : max(10u, (uint)(prev_n / win_mult));
+        if ((min_lag < lag2) && (lag2 < tau * win_mult)) {
             queue_t queue = get_default_queue();
             clk_event_t sum_pairwise_event;
             clk_event_t acor_event;
@@ -162,7 +162,7 @@ __kernel void sum_reduction_acor (const uint acor_dim, const uint stride,
                            1, &acor_event, &reduction_event,
                            ^(local void *acc)
                            {sum_reduction_acor(acor_dim, stride * 2, dim, dim_id,
-                                               lag, min_lag, win_mult,
+                                               lag2, min_lag, win_mult,
                                                orig_n, start_c0, n2, c0,
                                                c0acc, dacc, means, acc);},
                            4*2*WGS);

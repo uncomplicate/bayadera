@@ -11,7 +11,7 @@
   (:require [clojure.java.io :as io]
             [uncomplicate.commons
              [core :refer [Releaseable release with-release let-release Info info wrap-int]]
-             [utils :refer [dragan-says-ex generate-seed]]]
+             [utils :refer [dragan-says-ex generate-seed count-groups]]]
             [uncomplicate.fluokitten.core :refer [op]]
             [uncomplicate.clojurecuda
              [core :refer :all :as cuda :exclude [parameters]]
@@ -133,7 +133,7 @@
     (in-context
      ctx
      (let [n (ncols x)
-           acc-size (* Double/BYTES (blocks-count WGS n))
+           acc-size (* Double/BYTES (count-groups WGS n))
            data-len (count-entries (data-accessor cu-data) (buffer cu-data))]
        (with-release [cu-acc (mem-alloc acc-size)]
          (launch-reduce! hstream evidence-kernel sum-reduction-kernel
@@ -165,7 +165,7 @@
            n (ncols data-matrix)
            wgsn (min n WGS)
            wgsm (/ WGS wgsn)
-           acc-size (max 1 (* m (blocks-count wgsn n)))]
+           acc-size (max 1 (* m (count-groups wgsn n)))]
        (let-release [res-vec (vctr data-matrix m)]
          (with-release [cu-acc (create-data-source data-matrix acc-size)]
            (launch-reduce! hstream mean-kernel sum-reduction-kernel
@@ -180,7 +180,7 @@
            n (ncols data-matrix)
            wgsn (min n WGS)
            wgsm (/ WGS wgsn)
-           acc-size (max 1 (* m (blocks-count wgsn n)))]
+           acc-size (max 1 (* m (count-groups wgsn n)))]
        (let-release [res (vctr data-matrix m)]
          (with-release [cu-acc (create-data-source data-matrix acc-size)]
            (launch-reduce! hstream mean-kernel sum-reduction-kernel
@@ -204,7 +204,7 @@
            n (ncols data-matrix)
            wgsm (min m (long (sqrt WGS)))
            wgsn (long (/ WGS wgsm))
-           acc-size (* 2 (max 1 (* m (blocks-count wgsn n))))
+           acc-size (* 2 (max 1 (* m (count-groups wgsn n))))
            cuaccessor (data-accessor data-matrix)]
        (with-release [cu-min-max (create-data-source cuaccessor acc-size)
                       uint-res (mem-alloc (* Integer/BYTES WGS m))
@@ -242,14 +242,14 @@
      ctx
      (let [n (ncols data-matrix)
            dim (mrows data-matrix)
-           min-fac 4
-           min-lag 4
-           max-lag 256
+           min-fac 5
+           win-mult min-fac
+           min-lag 10
+           max-lag 64
            lag (max min-lag (min (quot n min-fac) WGS max-lag))
-           win-mult 4
            wgsm (min 16 dim WGS)
            wgsn (long (/ WGS wgsm))
-           wg-count (blocks-count wgsn n)
+           wg-count (count-groups wgsn n)
            native-fact (na/native-factory data-matrix)]
        (if (<= (* lag min-fac) n)
          (let-release [tau (vctr native-fact dim)
@@ -443,10 +443,10 @@
      ctx
      (let [a (cast-prim cuaccessor a)
            n (long n)
-           means-count (long (blocks-count WGS (/ walker-count 2)))
+           means-count (long (count-groups WGS (/ walker-count 2)))
            local-m (min means-count WGS)
            local-n (long (/ WGS local-m))
-           acc-count (long (blocks-count local-m means-count))]
+           acc-count (long (count-groups local-m means-count))]
        (with-release [cu-means-acc (create-data-source cuaccessor (* DIM means-count n))
                       acc (ge neanderthal-factory DIM (* acc-count n))
                       means (submatrix acc 0 0 DIM n)]
@@ -467,14 +467,14 @@
     (in-context
      ctx
      (let [a (cast-prim cuaccessor a)
-           means-count (long (blocks-count WGS (/ walker-count 2)))]
+           means-count (long (count-groups WGS (/ walker-count 2)))]
        (with-release [cu-means-acc (create-data-source cuaccessor (* DIM means-count))]
          (init-move! this cu-means-acc a)
          (move! this)
          (vswap! iteration-counter inc-long)
          (launch-reduce! hstream sum-accept-kernel sum-accept-reduction-kernel
                          sum-accept-params sum-accept-reduction-params
-                         (blocks-count WGS (/ walker-count 2)) WGS)
+                         (count-groups WGS (/ walker-count 2)) WGS)
          (/ (double (read-long hstream cu-accept-acc)) walker-count)))))
   EstimateEngine
   (histogram [this]
@@ -487,7 +487,7 @@
            wgsm (min DIM (long (sqrt WGS)))
            wgsn (long (/ WGS wgsm))
            histogram-worksize (grid-2d DIM walker-count 1 WGS)
-           acc-size (* 2 (max 1 (* DIM (blocks-count wgsn walker-count))))]
+           acc-size (* 2 (max 1 (* DIM (count-groups wgsn walker-count))))]
        (with-release [cu-min-max (create-data-source cuaccessor acc-size)
                       uint-res (mem-alloc (* Integer/BYTES WGS DIM))
                       result (ge neanderthal-factory WGS DIM)
@@ -550,9 +550,9 @@
      ctx
      (let [walker-count (int walker-count)]
        (if (and (<= (* 2 WGS) walker-count) (zero? (rem walker-count (* 2 WGS))))
-         (let [acc-count (* DIM (blocks-count WGS walker-count))
-               accept-count (blocks-count WGS (/ walker-count 2))
-               accept-acc-count (blocks-count WGS accept-count)
+         (let [acc-count (* DIM (count-groups WGS walker-count))
+               accept-count (count-groups WGS (/ walker-count 2))
+               accept-acc-count (count-groups WGS accept-count)
                cuaccessor (data-accessor neanderthal-factory)
                sub-bytesize (* DIM (long (/ walker-count 2)) (entry-width cuaccessor))
                cu-params (buffer params)

@@ -3,7 +3,9 @@
   (:require [midje.sweet :refer :all]
             [clojure.java.io :as io]
             [clojure.string :refer [split-lines]]
-            [uncomplicate.commons.core :refer [with-release]]
+            [uncomplicate.commons
+             [core :refer [with-release]]
+             [utils :refer [count-groups]]]
             [uncomplicate.fluokitten.core :refer [fmap! op]]
             [uncomplicate.clojurecuda
              [core :refer :all :as clojurecuda :exclude [parameters]]
@@ -161,8 +163,8 @@
         wgs 256
         cudart-version (driver-version)
         walker-count (* 44 wgs)
-        means-count (long (blocks-count wgs (/ walker-count 2)))
-        acc-count (long (blocks-count wgs means-count))
+        means-count (long (count-groups wgs (/ walker-count 2)))
+        acc-count (long (count-groups wgs means-count))
         seed 123
         a 2.0]
     (with-release [neanderthal-factory (cuda-float (current-context) default-stream)
@@ -305,23 +307,20 @@
                    bayadera-factory (gtx-bayadera-factory (current-context) default-stream 20 wgs)]
       (let [mcmc-engine-factory (mcmc-factory bayadera-factory gaussian-model)]
         (with-release [params (vctr bayadera-factory [200 1])
-                       limits (ge bayadera-factory 2 1 [180.0 220.0])
-                       dummy-sample-matrix (ge bayadera-factory 1 (* 100 walker-count) (cycle [201 199 138]))]
-          (let [engine (create-sampler mcmc-engine-factory 1243 walker-count params)]
+                       limits (ge bayadera-factory 2 1 [180.0 220.0])]
+          (let [engine (create-sampler mcmc-engine-factory seed walker-count params)]
             (facts
              "Test MCMC stretch engine."
-             (init-position! engine 123 limits)
-             (init! engine 1243)
+             (init! engine seed)
+             (init-position! engine seed limits)
              (burn-in! engine 5120 a)
-             (acc-rate! engine a) => 0.48193359375
-             (entry (:tau (:autocorrelation (run-sampler! engine 670 a))) 0) => (roughly 9.9158 0.001))))))))
+             (acc-rate! engine a) => (roughly 0.488 0.001)
+             (entry (:tau (:autocorrelation (run-sampler! engine 63670 a))) 0) => (roughly 12.5 0.5))))))))
 
 (with-default
   (let [dev (ctx-device)
         wgs 256
-        cudart-version (driver-version)
-        seed 123
-        a 8.0]
+        cudart-version (driver-version)]
     (with-release [neanderthal-factory (cuda-float (current-context) default-stream)
                    engine (gtx-acor-engine (current-context) default-stream wgs)
                    data-matrix-67
@@ -348,10 +347,14 @@
       (let []
         (facts
          "Test MCMC acor."
-         (seq (:tau (acor engine data-matrix-67))) => [11.826833724975586 11.826833724975586]
-         (seq (:tau (acor engine data-matrix-367))) => [17.302553176879883 17.302553176879883]
+         (let [autocorrelation (acor engine data-matrix-67)]
+           (seq (:tau autocorrelation)) => [12.072992324829102 12.072992324829102]
+           (entry (:sigma autocorrelation) 0) => 0.45055490732192993)
+         (let [autocorrelation (acor engine data-matrix-367)]
+           (seq (:tau autocorrelation)) => [20.156665802001953 20.156665802001953]
+           (entry (:sigma autocorrelation) 0) => 0.1837492138147354)
          (let [autocorrelation (acor engine data-matrix-112640)]
-           (second (:tau autocorrelation)) => (roughly 20.41 0.001)
+           (second (:tau autocorrelation)) => (roughly 20.566 0.001)
            (entry (:sigma autocorrelation) 0) => (roughly 0.009 0.001)))))))
 
 (with-default

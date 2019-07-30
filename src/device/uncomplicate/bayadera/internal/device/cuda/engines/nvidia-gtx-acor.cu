@@ -146,7 +146,7 @@ extern "C" {
                 n2 /= 2;
                 const uint32_t block_dim = (WGS < n2) ? WGS : n2;
                 const uint32_t grid_dim = (n2 - 1) / block_dim + 1;
-                lag2 = ((lag * win_mult) < n2) ? lag : (n2 / win_mult);
+                lag2 = ((lag * win_mult) < n2) ? lag : max(10u, (uint32_t)(n2 / win_mult));
                 const REAL c0 = c0acc[dim_id];
                 c0acc[dim_id] = 0.0;
                 dacc[dim_id] = 0.0;

@@ -293,7 +293,7 @@
 (with-default
   (let [dev (queue-device *command-queue*)
         wgs 256
-        walker-count (* 2 64 wgs)
+        walker-count (* 2 44 wgs)
         seed 123
         a 8.0]
     (with-release [distributions (models/distribution-models source-library)
@@ -301,22 +301,19 @@
                    bayadera-factory (gcn-bayadera-factory *context* *command-queue* 64 wgs)]
       (let [mcmc-engine-factory (mcmc-factory bayadera-factory gaussian-model)]
         (with-release [params (vctr bayadera-factory [200 1])
-                       limits (ge bayadera-factory 2 1 [180.0 220.0])
-                       dummy-sample-matrix (ge bayadera-factory 1 (* 100 walker-count) (cycle [201 199 138]))]
+                       limits (ge bayadera-factory 2 1 [180.0 220.0])]
           (let [eng (create-sampler mcmc-engine-factory seed walker-count params)]
             (facts
              "Test MCMC stretch engine."
-             (init! eng 1243)
-             (init-position! eng 123 limits)
+             (init! eng seed)
+             (init-position! eng seed limits)
              (burn-in! eng 5120 a)
-             (acc-rate! eng a) => 0.48345947265625
-             (entry (:tau (:autocorrelation (run-sampler! eng 670 a))) 0) => 8.159395217895508)))))))
+             (acc-rate! eng a) => (roughly 0.485 0.001)
+             (entry (:tau (:autocorrelation (run-sampler! eng 3670 a))) 0) => (roughly 12.5 0.5))))))))
 
 (with-default
   (let [dev (queue-device *command-queue*)
-        wgs 256
-        seed 123
-        a 8.0]
+        wgs 256]
     (with-release [dev-queue (command-queue *context* (queue-device *command-queue*)
                                             :queue-on-device-default :queue-on-device
                                             :out-of-order-exec-mode)
@@ -345,12 +342,15 @@
                      matrix)]
       (facts
        "Test MCMC acor."
-       (seq (:tau (acor engine data-matrix-67))) => [10.66264820098877 10.66264820098877]
-       (seq (:tau (acor engine data-matrix-367))) => [17.302553176879883 17.302553176879883]
+       (let [autocorrelation (acor engine data-matrix-67)]
+         (seq (:tau autocorrelation)) => [11.157612800598145 11.157612800598145]
+         (entry (:sigma autocorrelation) 0) => 0.43313759565353394)
+       (let [autocorrelation (acor engine data-matrix-367)]
+         (seq (:tau autocorrelation)) => [9.855318069458008 9.855318069458008]
+         (entry (:sigma autocorrelation) 0) => 0.11971816420555115)
        (let [autocorrelation (acor engine data-matrix-112640)]
-         (let [autocorrelation (acor engine data-matrix-112640)]
-           (second (:tau autocorrelation)) => (roughly 20.41 0.001)
-           (entry (:sigma autocorrelation) 0) => (roughly 0.009 0.001)))))))
+         (second (:tau autocorrelation)) => (roughly 20.566 0.001)
+         (entry (:sigma autocorrelation) 0) => (roughly 0.009 0.001))))))
 
 (with-default
   (with-release [factory (gcn-bayadera-factory *context* *command-queue*)
